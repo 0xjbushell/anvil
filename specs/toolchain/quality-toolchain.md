@@ -19,7 +19,7 @@ Custom lint rules catch slop patterns, but they're not enough. Agents also need:
 - Type checking to catch type errors before runtime
 - Dependency auditing to flag known vulnerabilities
 
-These tools must be pre-configured and wired into a unified Makefile interface with three feedback tiers: inner loop (<30s), CI pipeline (<5min), and on-demand quality gate.
+These tools must be pre-configured and wired into a unified Makefile interface with three feedback tiers: pre-commit hook (<30s), pre-push hook (<5min), and on-demand quality gate.
 
 ## Scope
 
@@ -49,7 +49,7 @@ These tools must be pre-configured and wired into a unified Makefile interface w
 |----------|--------|--------|
 | Python type checker | mypy (strict mode) | `[user]` D-10 |
 | Pre-commit framework | pre-commit (not husky) | `[decision]` D-18 |
-| Mutation testing tier | On-demand quality gate (too slow for CI) | `[decision]` |
+| Mutation testing tier | On-demand via `make quality`; AGENTS.md instructs "run before marking work complete" | `[decision]` D-38 |
 | CRAP score implementation | Custom zero-dep script (TS/JS, Go); pytest-crap (Python) | `[research]` |
 | Coverage thresholds | 80% line, 70% branch (configurable). Go: line-only (no branch coverage tooling). | `[decision]` |
 
@@ -76,8 +76,8 @@ These tools must be pre-configured and wired into a unified Makefile interface w
 
 ```
 ┌────────────────────────────────────────────────────────┐
-│                  Tier 1: Inner Loop (<30s)              │
-│                  Runs: pre-commit, make lint            │
+│                  Tier 1: pre-commit hook (<30s)         │
+│                  Safety net — fires on git commit       │
 │                                                         │
 │  • Lint (built-in + custom rules)                      │
 │  • Format check                                         │
@@ -86,8 +86,8 @@ These tools must be pre-configured and wired into a unified Makefile interface w
 └────────────────────────┬───────────────────────────────┘
                          │
 ┌────────────────────────▼───────────────────────────────┐
-│                  Tier 2: CI Pipeline (<5min)            │
-│                  Runs: GitHub Actions / Azure Pipelines │
+│                  Tier 2: pre-push hook (<5min)          │
+│                  Safety net — fires on git push         │
 │                                                         │
 │  • All Tier 1 checks                                   │
 │  • Tests with coverage                                  │
@@ -98,37 +98,46 @@ These tools must be pre-configured and wired into a unified Makefile interface w
 └────────────────────────┬───────────────────────────────┘
                          │
 ┌────────────────────────▼───────────────────────────────┐
-│               Tier 3: Quality Gate (on-demand)          │
-│               Runs: make quality                        │
+│               Tier 3: on-demand (make quality)          │
+│               AGENTS.md: "run before marking done"      │
 │                                                         │
 │  • All Tier 2 checks                                   │
 │  • Mutation testing                                     │
 │  • Full CRAP report                                     │
 └─────────────────────────────────────────────────────────┘
+
+Agent workflow (driven by AGENTS.md, not hooks):
+  • make lint    → fast inner loop, run often
+  • make check   → full Tier 1 + 2 gate, before every commit
+  • make quality → all tiers + mutation, before marking done
+
+Hooks are safety nets. Agents drive quality via make targets.
+CI is not generated — users add their own if needed.
+make check is CI-ready by design.
 ```
 
 ### Makefile Interface
 
 ```makefile
-# Tier 1 — Inner loop
+# Tier 1 — pre-commit hook
 lint:           ## Run all linters (built-in + custom)
 format:         ## Check formatting
 typecheck:      ## Run type checker
 security:       ## Run gitleaks secret scan (security lint rules are part of 'make lint')
 
-# Tier 2 — CI pipeline
+# Tier 2 — pre-push hook
 test:           ## Run tests with coverage
 coverage:       ## Run tests + enforce coverage thresholds
 deadcode:       ## Detect unused code
 crap:           ## Compute CRAP scores
 audit:          ## Audit dependencies for vulnerabilities
 
-# Tier 3 — Quality gate
+# Tier 3 — on-demand (AGENTS.md: "run before marking done")
 mutate:         ## Run mutation testing
 quality:        ## Run ALL checks (tier 1 + 2 + 3)
 
 # Convenience
-check:          ## Run tier 1 + tier 2 (CI equivalent)
+check:          ## Run tier 1 + tier 2 (pre-push equivalent, what agents run)
 fix:            ## Auto-fix lint + format issues
 ```
 
@@ -237,31 +246,43 @@ CRAP(fn) = complexity² × (1 - coverage)³ + complexity
 
 ### Pre-commit Configuration
 
-**Note:** Type checking (`tsc --noEmit`, `mypy`) can take 10-30+ seconds on medium-to-large projects, which may exceed the <30s inner loop target. If type checking is slow, users can remove the `typecheck` hook from pre-commit and rely on `make check` in CI instead. The generated `.pre-commit-config.yaml` includes a comment documenting this trade-off.
+**Note:** Type checking (`tsc --noEmit`, `mypy`) can take 10-30+ seconds on medium-to-large projects, which may exceed the <30s inner loop target. If type checking is slow, users can remove the `typecheck` hook from pre-commit and rely on `make check` instead. The generated `.pre-commit-config.yaml` includes a comment documenting this trade-off.
 
 ```yaml
 repos:
   - repo: local
     hooks:
+      # Tier 1 — pre-commit (<30s)
       - id: lint
         name: lint
         entry: make lint
         language: system
         pass_filenames: false
+        stages: [pre-commit]
       - id: format
         name: format
         entry: make format
         language: system
         pass_filenames: false
+        stages: [pre-commit]
       - id: typecheck
         name: typecheck
         entry: make typecheck
         language: system
         pass_filenames: false
+        stages: [pre-commit]
+      # Tier 2 — pre-push (<5min)
+      - id: check
+        name: check (tests + coverage + deadcode + CRAP + audit)
+        entry: make check
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.18.0
     hooks:
       - id: gitleaks
+        stages: [pre-commit]
 ```
 
 ## What Changes

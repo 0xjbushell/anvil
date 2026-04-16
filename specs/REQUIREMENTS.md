@@ -4,7 +4,7 @@
 
 ### CLI (CLI-xx)
 
-- **CLI-01**: `anvil init --lang <golang|typescript|python> [--ci <github|azure|both|none>]` scaffolds a project with all tooling for selected languages. Files go directly into standard project locations (no managed directory). `--ci` defaults to `none` if omitted. For TS/JS projects, detects package manager from existing lockfiles (`bun.lock`, `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`); prompts if not detected (D-29). The `typescript` language flag supports both TypeScript and JavaScript projects — detection heuristics adapt output based on existing code (D-31).
+- **CLI-01**: `anvil init --lang <golang|typescript|python>` scaffolds a project with all tooling for selected languages. Files go directly into standard project locations (no managed directory). For TS/JS projects, detects package manager from existing lockfiles (`bun.lock`, `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`); prompts if not detected (D-29). The `typescript` language flag supports both TypeScript and JavaScript projects — detection heuristics adapt output based on existing code (D-31).
 - **CLI-02**: `anvil update [--dry-run] [--force]` diffs `.anvil.lock` against latest templates and applies additive updates. Uses 3-way merge: re-renders original template from lockfile context (base), compares with new template (theirs) and current disk (ours). Refuses major version jumps without `--force`. New upstream files that already exist on disk (untracked) trigger conflict prompts (D-32, D-33).
 - **CLI-03**: `anvil doctor` verifies lint/quality config health, reports misconfigurations, and auto-fixes non-destructive issues (missing config keys, gitignore entries). Reports but does not auto-fix destructive changes.
 - **CLI-04**: `anvil init` on existing projects detects application code via language-aware heuristics (Go: .go files/go.mod; TS: .ts/.js files/package.json; Python: .py files/__init__.py) and skips seed code generation. Adds tooling with conflict prompts.
@@ -49,9 +49,9 @@
 
 - **QUAL-01**: Coverage — configured per language (Vitest/v8, go test -cover, pytest-cov) with threshold enforcement. Go: line coverage only (no branch coverage tooling); branch coverage guidance in AGENTS.md.
 - **QUAL-02**: Mutation testing — configured per language (StrykerJS, go-mutesting, mutmut) as on-demand quality gate.
-- **QUAL-03**: Dead code detection — configured per language (Knip, deadcode, Vulture) in CI pipeline.
-- **QUAL-04**: CRAP score — per-function scoring script (custom for TS/JS and Go; pytest-crap for Python) in CI pipeline.
-- **QUAL-05**: Dependency auditing — npm audit/govulncheck/pip-audit in CI.
+- **QUAL-03**: Dead code detection — configured per language (Knip, deadcode, Vulture) in pre-push hook.
+- **QUAL-04**: CRAP score — per-function scoring script (custom for TS/JS and Go; pytest-crap for Python) in pre-push hook.
+- **QUAL-05**: Dependency auditing — npm audit/govulncheck/pip-audit in pre-push hook.
 
 ### Security (SEC-xx)
 
@@ -60,15 +60,15 @@
 
 ### Type Checking (TYPE-xx)
 
-- **TYPE-01**: Type checker configured per language (tsc --noEmit strict, go vet + staticcheck, mypy strict) in inner loop and CI.
+- **TYPE-01**: Type checker configured per language (tsc --noEmit strict, go vet + staticcheck, mypy strict) in pre-commit hook.
 
 ### Scaffold Output (SCAF-xx)
 
 - **SCAF-01**: Seed code — exemplar `seed` module per language demonstrating all conventions. Passes all lint rules.
 - **SCAF-02**: AGENTS.md — concise agent instructions covering validation, reference code, rules, testing, dependencies.
 - **SCAF-03**: Makefile — unified targets: lint, format, test, typecheck, security, coverage, deadcode, crap, mutate, quality, audit.
-- **SCAF-04**: Pre-commit config — per-language hooks via pre-commit framework.
-- **SCAF-05**: CI workflows — GitHub Actions and/or Azure Pipelines for lint + quality pipeline.
+- **SCAF-04**: Pre-commit and pre-push config — per-language hooks via pre-commit framework. Pre-commit: lint, format, typecheck, secrets. Pre-push: tests, coverage, deadcode, CRAP, audit.
+- ~~**SCAF-05**: CI workflows~~ — **Dropped (D-38).** anvil owns the dev environment, not deployment infrastructure. Users add their own CI if needed (`make check` is CI-ready by design).
 - **SCAF-06**: Project hygiene — .gitignore, .editorconfig, .gitleaks.toml, README.md template.
 - **SCAF-07**: `.anvil.lock` manifest — tracks anvil version, generated files, and checksums for `anvil update` diffing.
 

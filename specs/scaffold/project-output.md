@@ -5,7 +5,7 @@
 - **Shared Key**: `project-output`
 - **Spec Path**: `specs/scaffold/project-output.md`
 - **Requirement Refs**: `SCAF-01` through `SCAF-07`
-- **Decision Refs**: `specs/decisions/anvil-decisions.md` (D-01, D-08, D-13, D-14, D-20, D-21, D-31, D-35)
+- **Decision Refs**: `specs/decisions/anvil-decisions.md` (D-01, D-08, D-13, D-20, D-21, D-31, D-35, D-37, D-38)
 
 ## Problem Statement
 
@@ -19,7 +19,7 @@ When `anvil init` runs, it must produce a project that looks identical to one a 
 - AGENTS.md template (SCAF-02)
 - Makefile with unified targets (SCAF-03)
 - Pre-commit configuration (SCAF-04)
-- CI workflow templates for GitHub Actions and Azure Pipelines (SCAF-05)
+- Pre-commit and pre-push hook configuration (SCAF-04)
 - Project hygiene files: .gitignore, .editorconfig, .gitleaks.toml, README.md (SCAF-06)
 - .anvil.lock manifest (SCAF-07)
 - File placement conventions per language
@@ -38,13 +38,13 @@ When `anvil init` runs, it must produce a project that looks identical to one a 
 | Seed code | Real working `seed` module per language — teaches by existing, no special comments | `[user]` D-20, D-37 |
 | AGENTS.md | Under 40 lines, complements lint | `[user]` D-21 |
 | Existing project handling | Additive; skip seed if code exists | `[user]` D-08 |
-| CI platforms | GitHub Actions + Azure Pipelines | `[user]` D-14 |
+| Enforcement model | Local-first: pre-commit + pre-push hooks; no CI generation | `[user]` D-38 |
 
 ## Architecture
 
 ### Output File Map
 
-What `anvil init --lang <lang> --ci <ci>` generates. Files marked with 📋 are static (copied as-is). Files marked with ⚙️ are generated dynamically (EJS templates or programmatic).
+What `anvil init --lang <lang>` generates. Files marked with 📋 are static (copied as-is). Files marked with ⚙️ are generated dynamically (EJS templates or programmatic).
 
 #### TypeScript Project
 
@@ -74,9 +74,7 @@ project-root/
 ├── knip.json                   📋 Dead code detection config
 ├── stryker.config.mjs          📋 Mutation testing config
 ├── Makefile                    ⚙️ Unified make targets
-├── .pre-commit-config.yaml     ⚙️ Pre-commit hooks
-├── .github/workflows/ci.yml   ⚙️ GitHub Actions CI (if --ci github|both)
-├── azure-pipelines.yml         ⚙️ Azure Pipelines CI (if --ci azure|both)
+├── .pre-commit-config.yaml     ⚙️ Pre-commit + pre-push hooks
 ├── .gitignore                  ⚙️ Language-specific gitignore
 ├── .editorconfig               📋 Editor config
 ├── .gitleaks.toml              📋 Secret scanning config
@@ -112,9 +110,7 @@ project-root/
 ├── go.mod                      ⚙️ Go module config
 ├── .golangci.yml               ⚙️ golangci-lint config
 ├── Makefile                    ⚙️ Unified make targets
-├── .pre-commit-config.yaml     ⚙️ Pre-commit hooks
-├── .github/workflows/ci.yml   ⚙️ GitHub Actions CI (if --ci github|both)
-├── azure-pipelines.yml         ⚙️ Azure Pipelines CI (if --ci azure|both)
+├── .pre-commit-config.yaml     ⚙️ Pre-commit + pre-push hooks
 ├── .gitignore                  ⚙️ Go gitignore
 ├── .editorconfig               📋 Editor config
 ├── .gitleaks.toml              📋 Secret scanning config
@@ -146,9 +142,7 @@ project-root/
 │                                    # Includes [tool.pytest.ini_options] pythonpath = ["src"]
 │                                    # so tests can `from seed import ...`
 ├── Makefile                    ⚙️ Unified make targets (uses `uv` for Python env, D-28)
-├── .pre-commit-config.yaml     ⚙️ Pre-commit hooks
-├── .github/workflows/ci.yml   ⚙️ GitHub Actions CI (if --ci github|both)
-├── azure-pipelines.yml         ⚙️ Azure Pipelines CI (if --ci azure|both)
+├── .pre-commit-config.yaml     ⚙️ Pre-commit + pre-push hooks
 ├── .gitignore                  ⚙️ Python gitignore
 ├── .editorconfig               📋 Editor config
 ├── .gitleaks.toml              📋 Secret scanning config
@@ -196,6 +190,11 @@ Run before every commit:
 make check
 ```
 
+Run before marking work complete:
+```
+make quality
+```
+
 ## Code Conventions
 
 - Reference `<seed_path>` for file organization patterns
@@ -231,7 +230,6 @@ Where `<seed_path>` is language-specific: `src/seed/` (TS/Python), `internal/see
 {
   "version": "1.0.0",
   "lang": "typescript",
-  "ci": "github",
   "context": {
     "projectName": "my-service",
     "packageManager": "bun",
@@ -254,72 +252,28 @@ Where `<seed_path>` is language-specific: `src/seed/` (TS/Python), `internal/see
 }
 ```
 
-### CI Workflow Structure
-
-#### GitHub Actions
-
-```yaml
-name: CI
-on:
-  push:
-    branches: [<defaultBranch>]   # From ScaffoldContext.defaultBranch
-  pull_request:
-    branches: [<defaultBranch>]
-
-jobs:
-  quality:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: {language-setup-action}
-      - run: {install-deps}              # npm ci / go mod download / uv sync
-      - run: {install-global-tools}      # gitleaks, pre-commit (D-35)
-      - run: make check                  # Tier 1 + Tier 2
-```
-
-#### Azure Pipelines
-
-```yaml
-trigger:
-  branches:
-    include: [<defaultBranch>]   # From ScaffoldContext.defaultBranch
-pr:
-  branches:
-    include: [<defaultBranch>]
-
-pool:
-  vmImage: 'ubuntu-latest'
-
-steps:
-  - task: {language-setup-task}
-  - script: {install-deps}
-  - script: {install-global-tools}      # gitleaks, pre-commit (D-35)
-  - script: make check
-    displayName: 'Quality checks'
-```
-
 ## What Changes
 
 ### New Artifacts
 
 All artifacts listed in the output file maps above. Total per language:
-- TypeScript: ~25 files
-- Go: ~22 files
-- Python: ~20 files
+- TypeScript: ~23 files
+- Go: ~20 files
+- Python: ~18 files
 
 ### Workflow Changes
 
-- New projects start with working code, lint rules, quality tools, and CI — all passing
+- New projects start with working code, lint rules, quality tools, and git hooks — all passing
 - Agents see seed code as reference for conventions
 - AGENTS.md provides judgment-level guidance that lint can't enforce
+- Pre-commit and pre-push hooks enforce quality locally before code reaches remote
 
 ## Failure Modes / Risks
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
 | Seed code doesn't pass aggressive lint config | Low | High | Integration test: seed code must pass `make lint` with zero violations |
-| AGENTS.md too verbose (>40 lines) | Low | Medium | Line count check in CI. Review on each update. |
-| CI workflow syntax error | Low | High | Validate YAML syntax in tests. Test workflows in CI. |
+| AGENTS.md too verbose (>40 lines) | Low | Medium | Line count check in tests. Review on each update. |
 | .anvil.lock format breaks between versions | Low | High | Lockfile has version field. Migration logic reads version first. |
 | Seed code patterns don't translate across languages | Medium | Medium | Each language seed is authored independently, not mechanically translated. Test each independently. |
 

@@ -2,7 +2,7 @@
 
 ## What This Is
 
-anvil is a CLI tool that scaffolds software projects for agentic development. It initializes repositories with custom anti-slop lint rules, aggressive lint configs, quality tooling (coverage, mutation testing, dead code detection, CRAP scoring), security linting, CI workflows, seed code, and coding agent instructions — all directly in the agent's feedback loop.
+anvil is a CLI tool that scaffolds software projects for agentic development. It initializes repositories with custom anti-slop lint rules, aggressive lint configs, quality tooling (coverage, mutation testing, dead code detection, CRAP scoring), security linting, git hooks, seed code, and coding agent instructions — all directly in the agent's feedback loop.
 
 ## Core Value
 
@@ -26,7 +26,7 @@ See `REQUIREMENTS.md` for the full categorized list.
 | Distribution | npx + bunx + standalone binary | Go/Python devs shouldn't need Node; TS/JS devs use npx |
 | Scaffold model | Direct scaffold into standard locations | No `.anvil/` managed directory; `.anvil.lock` tracks provenance |
 | Languages | Go, TypeScript/JS, Python | Three most common agent-target languages. CLI flag uses `golang` (the ecosystem name); prose uses "Go" (the language name). |
-| CI | GitHub Actions + Azure Pipelines | User needs both platforms |
+| CI | Dropped — anvil owns the dev environment, not deployment (D-38) | Local-first: pre-commit + pre-push hooks replace CI as enforcement |
 | TS/JS linting | ESLint v9+ flat config | Modern, supports local plugin import |
 | Go linting | golangci-lint (config) + go vet -vettool (custom) | Module plugin system doesn't exist; go vet is standard |
 | Python linting | Ruff (built-in rules) + Flake8 (custom plugins) | Ruff has no plugin system; Flake8 does |
@@ -45,7 +45,7 @@ See `REQUIREMENTS.md` for the full categorized list.
 | Seed code as real src/, not examples/ | Agents learn from existing code, not docs | `seed` module in src/ demonstrates all conventions; no markers signaling disposability (D-37) |
 | AGENTS.md complements lint, doesn't duplicate | Lint catches violations automatically | AGENTS.md covers judgment calls, validation commands, reference pointers |
 | pre-commit over husky | Multi-language project needs language-agnostic hooks | pre-commit framework with per-language hooks |
-| Three feedback tiers | Mutation testing too slow for pre-commit | Inner loop (<30s) → CI (<5min) → Quality gate (on-demand) |
+| Three feedback tiers | Mutation testing too slow for pre-commit | pre-commit (<30s) → pre-push (<5min) → on-demand (make quality) |
 | filename-match-export: TS/Py only (D-30) | Go packages export multiple symbols; "primary export" is undefined | STRUCT-07 dropped for Go, keeps TS/Python |
 | Python env: uv (D-28) | PEP 668 blocks pip outside venvs; uv manages virtualenvs transparently | Makefile uses `uv run` / `uv pip install` |
 | Package manager detection (D-29) | TS/JS ecosystem has 4 package managers | Detect from lockfile; prompt if not found |

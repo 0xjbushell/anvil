@@ -9,13 +9,13 @@
 
 ## Problem Statement
 
-Coding agents produce structurally bloated, convention-ignoring code when working in unscaffolded repositories. Developers need a one-command way to initialize any Go, TypeScript/JS, or Python project with anti-slop lint rules, quality tooling, CI workflows, and agent instructions — all wired into the agent's feedback loop. The scaffolded output must look identical to a manually-configured project. Updates must be non-destructive and smart.
+Coding agents produce structurally bloated, convention-ignoring code when working in unscaffolded repositories. Developers need a one-command way to initialize any Go, TypeScript/JS, or Python project with anti-slop lint rules, quality tooling, git hooks, and agent instructions — all wired into the agent's feedback loop. The scaffolded output must look identical to a manually-configured project. Updates must be non-destructive and smart.
 
 ## Scope
 
 ### In Scope
 
-- `anvil init --lang <golang|typescript|python> [--ci <github|azure|both|none>]` command
+- `anvil init --lang <golang|typescript|python>` command
 - `anvil update [--dry-run] [--force]` command
 - `anvil doctor` command
 - Scaffold engine: static file copying + EJS template rendering
@@ -72,8 +72,6 @@ src/
 │   └── python.ts             # Python dynamic config generators
 └── templates/                # EJS templates for dynamic configs
     ├── Makefile.ejs
-    ├── github-ci.yml.ejs
-    ├── azure-pipelines.yml.ejs
     ├── eslint.config.mjs.ejs
     ├── golangci.yml.ejs
     ├── pyproject.toml.ejs
@@ -86,10 +84,9 @@ src/
 #### `anvil init`
 
 ```
-User runs: anvil init --lang typescript [--ci github]
+User runs: anvil init --lang typescript
                 ▼
          Commander parses args
-         (--ci defaults to "none" if omitted)
                 │
                 ▼
     ┌─── detect.ts ───────────────┐
@@ -254,8 +251,6 @@ All language-specific tools are declared as project dependencies and installed v
 
 **Global tools (all languages):** `gitleaks`, `pre-commit` — documented in README with install instructions, checked by `anvil doctor`.
 
-**CI bootstrap:** CI workflow templates include explicit tool install steps before `make check`.
-
 ### Key Interfaces
 
 #### ScaffoldContext (passed to engine)
@@ -264,12 +259,11 @@ All language-specific tools are declared as project dependencies and installed v
 interface ScaffoldContext {
   projectName: string;
   lang: "typescript" | "golang" | "python";
-  ci: "github" | "azure" | "both" | "none";
   targetDir: string;
   hasExistingCode: boolean;
   sourceDir?: string;        // detected source directory (src/, lib/, etc.)
   packageManager?: string;   // TS/JS only: npm, bun, pnpm, yarn (detected or prompted)
-  defaultBranch?: string;    // for CI config (default: main)
+  defaultBranch?: string;    // for git hooks (default: main)
   anvilVersion: string;
 }
 ```
@@ -286,7 +280,6 @@ interface LockfileEntry {
 interface AnvilLockfile {
   version: string;           // anvil version that generated these files
   lang: string;
-  ci: string;
   context: {                 // full generation context for deterministic re-render (D-24/C1)
     projectName: string;
     packageManager?: string; // TS/JS only

@@ -172,13 +172,13 @@ Locked decisions for anvil v1. Each decision includes the choice, rationale, alt
 
 ---
 
-## D-14: CI platforms — GitHub Actions + Azure Pipelines
+## D-14: CI platforms — **DROPPED (superseded by D-38)**
 
-**Choice:** Generate CI workflows for both platforms.
+**Original choice:** Generate CI workflows for GitHub Actions + Azure Pipelines.
 
-**Rationale:** User needs both for their projects.
+**Superseded by D-38:** anvil no longer generates CI workflows. Enforcement moved to local git hooks (pre-commit + pre-push). Users add their own CI if needed — `make check` is CI-ready by design.
 
-**Confidence:** High.
+**Confidence:** High — user explicitly dropped CI generation.
 
 ---
 
@@ -254,7 +254,7 @@ Locked decisions for anvil v1. Each decision includes the choice, rationale, alt
 
 ## D-22: Scaffold engine architecture — hybrid (static files + programmatic configs)
 
-**Choice:** Lint rule source files, seed code, and AGENTS.md are stored as static files (copied as-is). Config files that need customization (Makefile, CI workflows, eslint.config.mjs, pyproject.toml) are generated programmatically.
+**Choice:** Lint rule source files, seed code, and AGENTS.md are stored as static files (copied as-is). Config files that need customization (Makefile, eslint.config.mjs, pyproject.toml, .pre-commit-config.yaml) are generated programmatically.
 
 **Rationale:** Most files are identical across projects. Only configs need customization. Clear separation: `static/{lang}/` for copy-as-is, `generators/{lang}.ts` for computed configs.
 
@@ -331,7 +331,7 @@ Locked decisions for anvil v1. Each decision includes the choice, rationale, alt
 
 **Choice:** For TS/JS projects, anvil detects the package manager from existing lockfiles (`bun.lock` → bun, `package-lock.json` → npm, `pnpm-lock.yaml` → pnpm, `yarn.lock` → yarn). If no lockfile found, prompt the user. Store the choice in `.anvil.lock` context block.
 
-**Rationale:** Guessing the wrong package manager breaks install commands, CI workflows, and developer experience. Detection covers existing projects; prompting covers greenfield.
+**Rationale:** Guessing the wrong package manager breaks install commands and developer experience. Detection covers existing projects; prompting covers greenfield.
 
 **Confidence:** High.
 
@@ -396,9 +396,8 @@ For ESLint: rule option in `eslint.config.mjs`. For Go: analyzer flag. For Flake
 - **TS/JS:** All tools as `devDependencies` in `package.json` (eslint, prettier, vitest, knip, stryker, eslint-plugin-security, eslint-plugin-barrel-files). Global tools: `gitleaks`, `pre-commit` (documented in README, checked by `anvil doctor`).
 - **Go:** Module-vendored tools in `tools/tools.go` using blank import pattern (`_ "github.com/golangci/golangci-lint/..."`), plus `go install` targets in Makefile. Global tools: `gitleaks`, `pre-commit`.
 - **Python:** Dev dependencies in `pyproject.toml` `[project.optional-dependencies.dev]` installed via `uv pip install -e ".[dev]"` (ruff, flake8, mypy, pytest, pytest-cov, vulture, mutmut, bandit). Global tools: `gitleaks`, `pre-commit`.
-- **CI:** Bootstrap steps explicitly install global tools (gitleaks via GitHub Action / binary download, pre-commit via pip/uv).
 
-**Rationale:** Reproducible builds require pinned, declared dependencies. "Assume it's installed" fails on clean CI runners and new developer machines.
+**Rationale:** Reproducible builds require pinned, declared dependencies. "Assume it's installed" fails on new developer machines.
 
 **Confidence:** High.
 
@@ -436,5 +435,34 @@ AGENTS.md references the seed path for file organization patterns but does not d
 - `greeter` — felt artificial and disconnected from user's actual project
 - `_seed/` or `examples/` — outside standard source tree; agent wouldn't treat it as production patterns
 - Comments/README in seed — risk changing agent behavior (ignoring or deprioritizing the patterns)
+
+**Confidence:** High — user explicitly defined this model.
+
+---
+
+## D-38: Local-first enforcement — drop CI generation, use git hooks
+
+**Choice:** anvil does not generate CI/CD workflows. All quality enforcement is local:
+
+- **Pre-commit hook (Tier 1, <30s):** lint, format, typecheck, secrets — fires on `git commit`
+- **Pre-push hook (Tier 2, <5min):** tests, coverage, deadcode, CRAP, audit — fires on `git push`
+- **On-demand (Tier 3, `make quality`):** mutation testing — AGENTS.md instructs "run before marking work complete"
+- **`make` targets** are the primary interface for agents. AGENTS.md says "run `make check` before every commit" and "run `make quality` before marking work complete."
+- **Git hooks** are safety nets that catch anything that slipped through, for both agents and humans. Agents trigger hooks naturally via `git commit` / `git push`.
+
+**Rationale:** In the agentic development model, the agent's feedback loop is local. CI is a team/org infrastructure decision with too many variables (GitHub Actions vs Azure vs GitLab vs Jenkins, deployment targets, environments, approvals). Baking in opinionated CI couples anvil to platform choices, creates files users immediately customize or delete, and is outside anvil's core value prop (anti-slop guardrails for the dev environment).
+
+`make check` is CI-ready by design — any team can add a one-line CI step. But that's their job, not ours.
+
+**Supersedes:** D-14 (CI platforms — GitHub Actions + Azure Pipelines).
+
+**Changes:**
+- Removed `--ci` flag from `anvil init`
+- Removed CI workflow templates (`.github/workflows/ci.yml`, `azure-pipelines.yml`)
+- Removed CI bootstrap steps from D-35 tool provisioning
+- Removed `ci` field from ScaffoldContext and AnvilLockfile
+- Updated pre-commit config to include `stages: [pre-commit]` and `stages: [pre-push]`
+- Updated SCAF-04 to cover both pre-commit and pre-push hooks
+- Dropped SCAF-05 (CI workflows)
 
 **Confidence:** High — user explicitly defined this model.
