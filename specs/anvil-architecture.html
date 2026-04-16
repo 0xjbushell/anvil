@@ -3,1461 +3,680 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>anvil — Architecture &amp; Design</title>
+<title>anvil — Design Document</title>
 <style>
   :root {
     --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
     --font-mono: ui-monospace, 'Cascadia Code', 'SF Mono', Consolas, 'DejaVu Sans Mono', monospace;
-
-    --bg: #f0f4f8;
-    --surface: #ffffff;
-    --surface-elevated: #ffffff;
-    --surface-recessed: #e8edf2;
-    --border: rgba(0, 0, 0, 0.07);
-    --border-bright: rgba(0, 0, 0, 0.14);
-    --text: #0f172a;
-    --text-dim: #64748b;
-    --text-faint: #94a3b8;
-
-    --accent: #e11d48;
-    --accent-dim: rgba(225, 29, 72, 0.07);
-
-    --forge: #dc2626;
-    --forge-dim: rgba(220, 38, 38, 0.06);
-    --steel: #475569;
-    --steel-dim: rgba(71, 85, 105, 0.08);
-
-    --go: #00add8;
-    --go-dim: rgba(0, 173, 216, 0.08);
-    --ts: #3178c6;
-    --ts-dim: rgba(49, 120, 198, 0.08);
-    --py: #ffd43b;
-    --py-text: #306998;
-    --py-dim: rgba(255, 212, 59, 0.12);
-
-    --green: #16a34a;
-    --green-dim: rgba(22, 163, 74, 0.08);
-    --amber: #d97706;
-    --amber-dim: rgba(217, 119, 6, 0.08);
-    --red: #dc2626;
-    --red-dim: rgba(220, 38, 38, 0.08);
-    --indigo: #4f46e5;
-    --indigo-dim: rgba(79, 70, 229, 0.08);
-    --teal: #0d9488;
-    --teal-dim: rgba(13, 148, 136, 0.08);
-    --purple: #7c3aed;
-    --purple-dim: rgba(124, 58, 237, 0.08);
-    --cyan: #0891b2;
-    --cyan-dim: rgba(8, 145, 178, 0.08);
+    --bg: #f0f4f8; --surface: #ffffff; --surface-elevated: #ffffff; --surface-recessed: #e8edf2;
+    --border: rgba(0,0,0,0.07); --border-bright: rgba(0,0,0,0.14);
+    --text: #0f172a; --text-dim: #64748b; --text-faint: #94a3b8;
+    --accent: #e11d48; --accent-dim: rgba(225,29,72,0.07);
+    --go: #00add8; --go-dim: rgba(0,173,216,0.08);
+    --ts: #3178c6; --ts-dim: rgba(49,120,198,0.08);
+    --py-text: #306998; --py-dim: rgba(255,212,59,0.12);
+    --green: #16a34a; --green-dim: rgba(22,163,74,0.08);
+    --amber: #d97706; --amber-dim: rgba(217,119,6,0.08);
+    --red: #dc2626; --red-dim: rgba(220,38,38,0.08);
+    --indigo: #4f46e5; --indigo-dim: rgba(79,70,229,0.08);
+    --teal: #0d9488; --teal-dim: rgba(13,148,136,0.08);
+    --purple: #7c3aed; --purple-dim: rgba(124,58,237,0.08);
+    --cyan: #0891b2; --cyan-dim: rgba(8,145,178,0.08);
   }
-
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #0c0f1a;
-      --surface: #151928;
-      --surface-elevated: #1c2236;
-      --surface-recessed: #0f1220;
-      --border: rgba(255, 255, 255, 0.06);
-      --border-bright: rgba(255, 255, 255, 0.12);
-      --text: #e2e8f0;
-      --text-dim: #94a3b8;
-      --text-faint: #64748b;
-
-      --accent: #fb7185;
-      --accent-dim: rgba(251, 113, 133, 0.1);
-
-      --forge: #f87171;
-      --forge-dim: rgba(248, 113, 113, 0.08);
-      --steel: #94a3b8;
-      --steel-dim: rgba(148, 163, 184, 0.08);
-
-      --go: #5ce0d8;
-      --go-dim: rgba(92, 224, 216, 0.1);
-      --ts: #6ea8fe;
-      --ts-dim: rgba(110, 168, 254, 0.1);
-      --py: #ffe066;
-      --py-text: #ffe066;
-      --py-dim: rgba(255, 224, 102, 0.1);
-
-      --green: #4ade80;
-      --green-dim: rgba(74, 222, 128, 0.1);
-      --amber: #fbbf24;
-      --amber-dim: rgba(251, 191, 36, 0.1);
-      --red: #f87171;
-      --red-dim: rgba(248, 113, 113, 0.1);
-      --indigo: #818cf8;
-      --indigo-dim: rgba(129, 140, 248, 0.1);
-      --teal: #2dd4bf;
-      --teal-dim: rgba(45, 212, 191, 0.1);
-      --purple: #a78bfa;
-      --purple-dim: rgba(167, 139, 250, 0.1);
-      --cyan: #22d3ee;
-      --cyan-dim: rgba(34, 211, 238, 0.1);
+      --bg: #0c0f1a; --surface: #151928; --surface-elevated: #1c2236; --surface-recessed: #0f1220;
+      --border: rgba(255,255,255,0.06); --border-bright: rgba(255,255,255,0.12);
+      --text: #e2e8f0; --text-dim: #94a3b8; --text-faint: #64748b;
+      --accent: #fb7185; --accent-dim: rgba(251,113,133,0.1);
+      --go: #5ce0d8; --go-dim: rgba(92,224,216,0.1);
+      --ts: #6ea8fe; --ts-dim: rgba(110,168,254,0.1);
+      --py-text: #ffe066; --py-dim: rgba(255,224,102,0.1);
+      --green: #4ade80; --green-dim: rgba(74,222,128,0.1);
+      --amber: #fbbf24; --amber-dim: rgba(251,191,36,0.1);
+      --red: #f87171; --red-dim: rgba(248,113,113,0.1);
+      --indigo: #818cf8; --indigo-dim: rgba(129,140,248,0.1);
+      --teal: #2dd4bf; --teal-dim: rgba(45,212,191,0.1);
+      --purple: #a78bfa; --purple-dim: rgba(167,139,250,0.1);
+      --cyan: #22d3ee; --cyan-dim: rgba(34,211,238,0.1);
     }
   }
-
   * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    font-family: var(--font-body);
-    background: var(--bg);
-    background-image: radial-gradient(circle, var(--border) 1px, transparent 1px);
-    background-size: 24px 24px;
-    color: var(--text);
-    padding: 48px 24px;
-    line-height: 1.6;
-    overflow-wrap: break-word;
-  }
-
-  .container {
-    max-width: 1100px;
-    margin: 0 auto;
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-  }
-
-  /* Typography */
-  h1 {
-    font-size: 36px;
-    font-weight: 800;
-    letter-spacing: -1px;
-    margin-bottom: 6px;
-  }
-
-  h1 .anvil-icon { color: var(--accent); }
-
-  .subtitle {
-    color: var(--text-dim);
-    font-size: 15px;
-    margin-bottom: 8px;
-    max-width: 700px;
-  }
-
-  h2 {
-    font-size: 20px;
-    font-weight: 700;
-    letter-spacing: -0.3px;
-    margin-bottom: 16px;
-    color: var(--text);
-  }
-
-  h2 .num {
-    font-family: var(--font-mono);
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--accent);
-    margin-right: 6px;
-  }
-
-  .section-intro {
-    color: var(--text-dim);
-    font-size: 14px;
-    margin-bottom: 20px;
-    max-width: 720px;
-  }
-
-  /* Dividers */
-  .section-break {
-    padding: 40px 0 20px 0;
-  }
-
-  .section-break hr {
-    border: none;
-    border-top: 1px solid var(--border-bright);
-  }
-
-  /* Cards */
-  .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 20px 24px;
-    position: relative;
-    animation: fadeUp 0.4s ease-out both;
-    animation-delay: calc(var(--i, 0) * 0.05s);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-  }
-
-  .card:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
-  }
-
-  .card--hero {
-    background: color-mix(in srgb, var(--surface) 94%, var(--accent) 6%);
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
-    border-color: color-mix(in srgb, var(--border) 50%, var(--accent) 50%);
-    padding: 28px 32px;
-  }
-
-  .card--accent-go { border-left: 3px solid var(--go); }
-  .card--accent-ts { border-left: 3px solid var(--ts); }
-  .card--accent-py { border-left: 3px solid var(--py-text); }
-  .card--accent-green { border-left: 3px solid var(--green); }
-  .card--accent-amber { border-left: 3px solid var(--amber); }
-  .card--accent-red { border-left: 3px solid var(--red); }
-  .card--accent-indigo { border-left: 3px solid var(--indigo); }
-  .card--accent-teal { border-left: 3px solid var(--teal); }
-  .card--accent-purple { border-left: 3px solid var(--purple); }
-  .card--accent-cyan { border-left: 3px solid var(--cyan); }
-
-  .label {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-    margin-bottom: 8px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .label::before {
-    content: '';
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: currentColor;
-  }
-
-  .label--go { color: var(--go); }
-  .label--ts { color: var(--ts); }
-  .label--py { color: var(--py-text); }
-  .label--green { color: var(--green); }
-  .label--amber { color: var(--amber); }
-  .label--red { color: var(--red); }
-  .label--indigo { color: var(--indigo); }
-  .label--teal { color: var(--teal); }
-  .label--purple { color: var(--purple); }
-  .label--cyan { color: var(--cyan); }
-  .label--forge { color: var(--accent); }
-  .label--steel { color: var(--steel); }
-
-  .card h3 {
-    font-size: 16px;
-    font-weight: 600;
-    margin-bottom: 6px;
-  }
-
-  .card p, .card-text {
-    font-size: 13px;
-    color: var(--text-dim);
-    line-height: 1.5;
-  }
-
-  .item-list {
-    list-style: none;
-    padding: 0;
-    margin: 8px 0 0;
-    font-size: 12px;
-    line-height: 1.8;
-  }
-
-  .item-list li { padding-left: 14px; position: relative; }
-
-  .item-list li::before {
-    content: '›';
-    color: var(--text-dim);
-    font-weight: 600;
-    position: absolute;
-    left: 0;
-  }
-
-  .item-list code {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    background: var(--accent-dim);
-    color: var(--accent);
-    padding: 1px 5px;
-    border-radius: 3px;
-  }
-
-  /* Tags */
-  .tag {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    font-weight: 500;
-    padding: 2px 7px;
-    border-radius: 4px;
-    display: inline-block;
-    margin: 2px 2px 2px 0;
-  }
-
-  .tag--go { background: var(--go-dim); color: var(--go); }
-  .tag--ts { background: var(--ts-dim); color: var(--ts); }
-  .tag--py { background: var(--py-dim); color: var(--py-text); }
-  .tag--green { background: var(--green-dim); color: var(--green); }
-  .tag--amber { background: var(--amber-dim); color: var(--amber); }
-  .tag--accent { background: var(--accent-dim); color: var(--accent); }
-  .tag--teal { background: var(--teal-dim); color: var(--teal); }
-  .tag--indigo { background: var(--indigo-dim); color: var(--indigo); }
-  .tag--cyan { background: var(--cyan-dim); color: var(--cyan); }
-  .tag--purple { background: var(--purple-dim); color: var(--purple); }
-
-  /* Grids */
-  .row-2 {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-  }
-
-  .row-3 {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 16px;
-  }
-
-  .row-4 {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr 1fr;
-    gap: 12px;
-  }
-
-  .row-2 > *, .row-3 > *, .row-4 > * { min-width: 0; }
-
-  /* Flow arrows */
-  .flow-arrow {
-    display: flex;
-    justify-content: center;
-    padding: 8px 0;
-  }
-
-  .flow-arrow svg {
-    width: 20px;
-    height: 20px;
-    fill: none;
-    stroke: var(--border-bright);
-    stroke-width: 2;
-    stroke-linecap: round;
-  }
-
-  /* Diagram wrap */
-  .diagram-wrap {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 24px;
-    overflow-x: auto;
-    text-align: center;
-    animation: fadeUp 0.4s ease-out both;
-    animation-delay: calc(var(--i, 0) * 0.05s);
-  }
-
-  .diagram-wrap svg {
-    max-width: 100%;
-    height: auto;
-  }
-
-  /* KPIs */
-  .kpi-row {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 12px;
-    margin-bottom: 16px;
-  }
-
-  .kpi {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 16px 20px;
-    text-align: center;
-    animation: fadeScale 0.35s ease-out both;
-    animation-delay: calc(var(--i, 0) * 0.06s);
-  }
-
-  .kpi__value {
-    font-size: 32px;
-    font-weight: 800;
-    letter-spacing: -1px;
-    line-height: 1.1;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .kpi__label {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 1.2px;
-    color: var(--text-dim);
-    margin-top: 6px;
-  }
-
-  /* Tables */
-  .table-wrap {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    overflow: hidden;
-    animation: fadeUp 0.4s ease-out both;
-    animation-delay: calc(var(--i, 0) * 0.05s);
-  }
-
-  .table-scroll { overflow-x: auto; }
-
-  .data-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
-    line-height: 1.5;
-  }
-
-  .data-table thead { position: sticky; top: 0; z-index: 2; }
-
-  .data-table th {
-    background: var(--surface-elevated);
-    font-family: var(--font-mono);
-    font-size: 10px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: var(--text-dim);
-    text-align: left;
-    padding: 12px 14px;
-    border-bottom: 2px solid var(--border-bright);
-    white-space: nowrap;
-  }
-
-  .data-table td {
-    padding: 10px 14px;
-    border-bottom: 1px solid var(--border);
-    vertical-align: top;
-    font-size: 12px;
-  }
-
-  .data-table tbody tr { transition: background 0.15s ease; }
-  .data-table tbody tr:nth-child(even) { background: var(--surface-recessed); }
-  .data-table tbody tr:hover { background: var(--accent-dim); }
-  .data-table tbody tr:last-child td { border-bottom: none; }
-
-  .data-table code {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    background: var(--accent-dim);
-    color: var(--accent);
-    padding: 1px 5px;
-    border-radius: 3px;
-  }
-
-  /* Terminal DX block */
-  .terminal {
-    background: #1e1e2e;
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 12px;
-    overflow: hidden;
-    font-family: var(--font-mono);
-    font-size: 13px;
-    line-height: 1.7;
-    animation: fadeUp 0.4s ease-out both;
-    animation-delay: calc(var(--i, 0) * 0.05s);
-  }
-
-  .terminal__bar {
-    background: #11111b;
-    padding: 8px 16px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    border-bottom: 1px solid rgba(255,255,255,0.06);
-  }
-
-  .terminal__dot {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-  }
-
-  .terminal__dot--red { background: #f38ba8; }
-  .terminal__dot--yellow { background: #f9e2af; }
-  .terminal__dot--green { background: #a6e3a1; }
-
-  .terminal__title {
-    color: #6c7086;
-    font-size: 12px;
-    margin-left: 8px;
-  }
-
-  .terminal__body {
-    padding: 16px 20px;
-    color: #cdd6f4;
-    white-space: pre;
-    overflow-x: auto;
-  }
-
-  .terminal__body .prompt { color: #a6e3a1; }
-  .terminal__body .cmd { color: #89b4fa; }
-  .terminal__body .flag { color: #f9e2af; }
-  .terminal__body .arg { color: #cba6f7; }
-  .terminal__body .comment { color: #6c7086; }
-  .terminal__body .output { color: #9399b2; }
-  .terminal__body .success { color: #a6e3a1; }
-  .terminal__body .error { color: #f38ba8; }
-  .terminal__body .warn { color: #f9e2af; }
-  .terminal__body .dim { color: #585b70; }
-
-  /* Pipeline steps */
-  .pipeline {
-    display: flex;
-    align-items: stretch;
-    gap: 0;
-    overflow-x: auto;
-    padding: 4px 0;
-  }
-
-  .pipeline__step {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 16px 18px;
-    flex: 1;
-    min-width: 140px;
-    text-align: center;
-    position: relative;
-    animation: fadeUp 0.4s ease-out both;
-    animation-delay: calc(var(--i, 0) * 0.06s);
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
-  }
-
-  .pipeline__step:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-  }
-
-  .pipeline__step-num {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 1px;
-    margin-bottom: 6px;
-  }
-
-  .pipeline__step-title {
-    font-size: 14px;
-    font-weight: 700;
-    margin-bottom: 4px;
-  }
-
-  .pipeline__step-desc {
-    font-size: 11px;
-    color: var(--text-dim);
-    line-height: 1.4;
-  }
-
-  .pipeline__arrow {
-    display: flex;
-    align-items: center;
-    padding: 0 2px;
-    color: var(--text-faint);
-    font-size: 18px;
-    flex-shrink: 0;
-  }
-
-  /* Collapsible */
-  details.collapsible {
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    overflow: hidden;
-    animation: fadeUp 0.4s ease-out both;
-    animation-delay: calc(var(--i, 0) * 0.05s);
-  }
-
-  details.collapsible summary {
-    padding: 14px 20px;
-    background: var(--surface);
-    font-family: var(--font-mono);
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    list-style: none;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    transition: background 0.15s ease;
-  }
-
-  details.collapsible summary:hover { background: var(--surface-elevated); }
-  details.collapsible summary::-webkit-details-marker { display: none; }
-
-  details.collapsible summary::before {
-    content: '▸';
-    font-size: 11px;
-    color: var(--text-dim);
-    transition: transform 0.15s ease;
-  }
-
-  details.collapsible[open] summary::before { transform: rotate(90deg); }
-
-  details.collapsible .collapse-body {
-    padding: 16px 20px;
-    border-top: 1px solid var(--border);
-    background: var(--surface);
-    font-size: 13px;
-    color: var(--text-dim);
-    line-height: 1.6;
-  }
-
-  /* Animations */
-  @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(12px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  @keyframes fadeScale {
-    from { opacity: 0; transform: scale(0.92); }
-    to { opacity: 1; transform: scale(1); }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after {
-      animation-duration: 0.01ms !important;
-      animation-iteration-count: 1 !important;
-      transition-duration: 0.01ms !important;
-    }
-  }
-
-  @media (max-width: 900px) {
-    .row-3 { grid-template-columns: 1fr; }
-    .row-4 { grid-template-columns: 1fr 1fr; }
-    .pipeline { flex-direction: column; }
-    .pipeline__arrow { transform: rotate(90deg); justify-content: center; padding: 4px 0; }
-  }
-
-  @media (max-width: 768px) {
-    body { padding: 20px 12px; }
-    h1 { font-size: 28px; }
-    .row-2 { grid-template-columns: 1fr; }
-    .row-4 { grid-template-columns: 1fr; }
-    .kpi-row { grid-template-columns: 1fr 1fr; }
-  }
-
-  /* Footer */
-  .footer {
-    text-align: center;
-    color: var(--text-faint);
-    font-size: 11px;
-    font-family: var(--font-mono);
-    padding-top: 40px;
-    letter-spacing: 0.5px;
-  }
+  body { font-family: var(--font-body); background: var(--bg); background-image: radial-gradient(circle, var(--border) 1px, transparent 1px); background-size: 24px 24px; color: var(--text); padding: 48px 24px; line-height: 1.6; overflow-wrap: break-word; }
+  .container { max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 0; }
+  h1 { font-size: 36px; font-weight: 800; letter-spacing: -1px; margin-bottom: 6px; }
+  h1 .ic { color: var(--accent); }
+  .subtitle { color: var(--text-dim); font-size: 15px; margin-bottom: 8px; max-width: 700px; }
+  h2 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; margin-bottom: 16px; }
+  h2 .n { font-family: var(--font-mono); font-size: 13px; font-weight: 600; color: var(--accent); margin-right: 6px; }
+  .si { color: var(--text-dim); font-size: 14px; margin-bottom: 20px; max-width: 720px; }
+  .sb { padding: 40px 0 20px 0; } .sb hr { border: none; border-top: 1px solid var(--border-bright); }
+  .c { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; position: relative; animation: fu .4s ease-out both; animation-delay: calc(var(--i,0)*.05s); transition: transform .2s ease, box-shadow .2s ease; }
+  .c:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,0,0,.06); }
+  .c--hero { background: color-mix(in srgb, var(--surface) 94%, var(--accent) 6%); box-shadow: 0 4px 24px rgba(0,0,0,.06); border-color: color-mix(in srgb, var(--border) 50%, var(--accent) 50%); padding: 28px 32px; }
+  .c--go { border-left: 3px solid var(--go); } .c--ts { border-left: 3px solid var(--ts); } .c--py { border-left: 3px solid var(--py-text); }
+  .c--green { border-left: 3px solid var(--green); } .c--amber { border-left: 3px solid var(--amber); } .c--red { border-left: 3px solid var(--red); }
+  .c--indigo { border-left: 3px solid var(--indigo); } .c--teal { border-left: 3px solid var(--teal); }
+  .c--purple { border-left: 3px solid var(--purple); } .c--cyan { border-left: 3px solid var(--cyan); }
+  .lb { font-family: var(--font-mono); font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .lb::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+  .lb-go { color: var(--go); } .lb-ts { color: var(--ts); } .lb-py { color: var(--py-text); }
+  .lb-green { color: var(--green); } .lb-amber { color: var(--amber); } .lb-red { color: var(--accent); }
+  .lb-indigo { color: var(--indigo); } .lb-teal { color: var(--teal); } .lb-purple { color: var(--purple); } .lb-cyan { color: var(--cyan); }
+  .c h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+  .c p { font-size: 13px; color: var(--text-dim); line-height: 1.5; }
+  .il { list-style: none; padding: 0; margin: 8px 0 0; font-size: 12px; line-height: 1.8; }
+  .il li { padding-left: 14px; position: relative; } .il li::before { content: '\203A'; color: var(--text-dim); font-weight: 600; position: absolute; left: 0; }
+  code { font-family: var(--font-mono); font-size: 11px; background: var(--accent-dim); color: var(--accent); padding: 1px 5px; border-radius: 3px; }
+  .tg { font-family: var(--font-mono); font-size: 10px; font-weight: 500; padding: 2px 7px; border-radius: 4px; display: inline-block; margin: 2px 2px 2px 0; }
+  .tg-go { background: var(--go-dim); color: var(--go); } .tg-ts { background: var(--ts-dim); color: var(--ts); }
+  .tg-py { background: var(--py-dim); color: var(--py-text); } .tg-accent { background: var(--accent-dim); color: var(--accent); }
+  .tg-teal { background: var(--teal-dim); color: var(--teal); }
+  .r2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .r3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .r2>*,.r3>* { min-width: 0; }
+  .fa { display: flex; justify-content: center; padding: 8px 0; }
+  .fa svg { width: 20px; height: 20px; fill: none; stroke: var(--border-bright); stroke-width: 2; stroke-linecap: round; }
+  .dw { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; overflow-x: auto; text-align: center; animation: fu .4s ease-out both; animation-delay: calc(var(--i,0)*.05s); }
+  .dw svg { max-width: 100%; height: auto; }
+  .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px,1fr)); gap: 12px; margin-bottom: 16px; }
+  .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; text-align: center; animation: fs .35s ease-out both; animation-delay: calc(var(--i,0)*.06s); }
+  .kpi__v { font-size: 32px; font-weight: 800; letter-spacing: -1px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .kpi__l { font-family: var(--font-mono); font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.2px; color: var(--text-dim); margin-top: 6px; }
+  .tw { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; animation: fu .4s ease-out both; animation-delay: calc(var(--i,0)*.05s); }
+  .dt { width: 100%; border-collapse: collapse; font-size: 13px; line-height: 1.5; }
+  .dt th { background: var(--surface-elevated); font-family: var(--font-mono); font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); text-align: left; padding: 12px 14px; border-bottom: 2px solid var(--border-bright); white-space: nowrap; }
+  .dt td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; font-size: 12px; }
+  .dt tbody tr { transition: background .15s ease; } .dt tbody tr:nth-child(even) { background: var(--surface-recessed); }
+  .dt tbody tr:hover { background: var(--accent-dim); } .dt tbody tr:last-child td { border-bottom: none; }
+  .term { background: #1e1e2e; border: 1px solid rgba(255,255,255,.08); border-radius: 12px; overflow: hidden; font-family: var(--font-mono); font-size: 13px; line-height: 1.7; animation: fu .4s ease-out both; animation-delay: calc(var(--i,0)*.05s); }
+  .term__bar { background: #11111b; padding: 8px 16px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid rgba(255,255,255,.06); }
+  .term__dot { width: 12px; height: 12px; border-radius: 50%; }
+  .term__dot--r { background: #f38ba8; } .term__dot--y { background: #f9e2af; } .term__dot--g { background: #a6e3a1; }
+  .term__t { color: #6c7086; font-size: 12px; margin-left: 8px; }
+  .term__b { padding: 16px 20px; color: #cdd6f4; white-space: pre; overflow-x: auto; }
+  .term__b .p { color: #a6e3a1; } .term__b .cmd { color: #89b4fa; } .term__b .fl { color: #f9e2af; }
+  .term__b .arg { color: #cba6f7; } .term__b .cmt { color: #6c7086; } .term__b .out { color: #9399b2; }
+  .term__b .ok { color: #a6e3a1; } .term__b .err { color: #f38ba8; } .term__b .w { color: #f9e2af; }
+  .term__b .d { color: #585b70; }
+  .pipe { display: flex; align-items: stretch; gap: 0; overflow-x: auto; padding: 4px 0; }
+  .pipe__s { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; flex: 1; min-width: 140px; text-align: center; animation: fu .4s ease-out both; animation-delay: calc(var(--i,0)*.06s); transition: transform .15s ease, box-shadow .15s ease; }
+  .pipe__s:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,.08); }
+  .pipe__n { font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: 1px; margin-bottom: 6px; }
+  .pipe__t { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+  .pipe__d { font-size: 11px; color: var(--text-dim); line-height: 1.4; }
+  .pipe__a { display: flex; align-items: center; padding: 0 2px; color: var(--text-faint); font-size: 18px; flex-shrink: 0; }
+  .ds { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; animation: fu .4s ease-out both; animation-delay: calc(var(--i,0)*.05s); }
+  .ds__header { background: var(--surface-recessed); padding: 12px 20px; border-bottom: 1px solid var(--border); font-family: var(--font-mono); font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .ds__body { padding: 16px 20px; font-family: var(--font-mono); font-size: 12px; line-height: 2; }
+  .ds__field { display: flex; gap: 12px; padding: 2px 0; flex-wrap: wrap; }
+  .ds__field-name { color: var(--text); min-width: 160px; }
+  .ds__field-type { color: var(--teal); }
+  .ds__field-desc { color: var(--text-dim); font-family: var(--font-body); font-size: 11px; margin-left: auto; }
+  .ds__sep { border-top: 1px solid var(--border); margin: 4px 0; }
+  details.col { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; animation: fu .4s ease-out both; animation-delay: calc(var(--i,0)*.05s); }
+  details.col summary { padding: 14px 20px; background: var(--surface); font-family: var(--font-mono); font-size: 12px; font-weight: 600; cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; transition: background .15s ease; }
+  details.col summary:hover { background: var(--surface-elevated); }
+  details.col summary::-webkit-details-marker { display: none; }
+  details.col summary::before { content: '\25B8'; font-size: 11px; color: var(--text-dim); transition: transform .15s ease; }
+  details.col[open] summary::before { transform: rotate(90deg); }
+  details.col .cb { padding: 16px 20px; border-top: 1px solid var(--border); background: var(--surface); font-size: 13px; color: var(--text-dim); line-height: 1.6; }
+  @keyframes fu { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes fs { from { opacity: 0; transform: scale(.92); } to { opacity: 1; transform: scale(1); } }
+  @media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+  @media (max-width: 900px) { .r3 { grid-template-columns: 1fr; } .pipe { flex-direction: column; } .pipe__a { transform: rotate(90deg); justify-content: center; padding: 4px 0; } }
+  @media (max-width: 768px) { body { padding: 20px 12px; } h1 { font-size: 28px; } .r2 { grid-template-columns: 1fr; } .kpi-row { grid-template-columns: 1fr 1fr; } }
+  .footer { text-align: center; color: var(--text-faint); font-size: 11px; font-family: var(--font-mono); padding-top: 40px; letter-spacing: .5px; }
 </style>
 </head>
 <body>
 <div class="container">
 
-  <!-- ═══════════════════════════════════════════════ -->
-  <!-- HERO -->
-  <!-- ═══════════════════════════════════════════════ -->
-  <h1><span class="anvil-icon">⚒</span> anvil</h1>
-  <p class="subtitle">A CLI scaffolder for agentic software development. Initializes projects with anti-slop lint rules, quality tooling, CI workflows, seed code, and agent instructions — so coding agents write clean, maintainable code from the first commit.</p>
+<!-- ══════════════════════════════════════════════ HERO -->
+<h1><span class="ic">&#9874;</span> anvil <span style="font-size:14px;font-weight:400;color:var(--text-dim);">Design Document</span></h1>
+<p class="subtitle">CLI scaffolder for agentic software development. Initializes projects with anti-slop lint rules, quality tooling, CI workflows, seed code, and agent instructions &#8212; so coding agents write clean, maintainable code from the first commit.</p>
+<div style="margin:20px 0 8px;"><span class="tg tg-go">Go</span><span class="tg tg-ts">TypeScript / JS</span><span class="tg tg-py">Python</span><span class="tg tg-accent">Bun + TypeScript CLI</span></div>
 
-  <div style="margin: 20px 0 8px;">
-    <span class="tag tag--go">Go</span>
-    <span class="tag tag--ts">TypeScript / JS</span>
-    <span class="tag tag--py">Python</span>
-    <span class="tag tag--accent">Bun + TypeScript CLI</span>
-    <span class="tag tag--teal">ESLint · go vet · Flake8</span>
-  </div>
+<div class="kpi-row" style="margin-top:20px;">
+  <div class="kpi" style="--i:0"><div class="kpi__v" style="color:var(--accent);">21</div><div class="kpi__l">Anti-Slop Rules</div></div>
+  <div class="kpi" style="--i:1"><div class="kpi__v" style="color:var(--ts);">3</div><div class="kpi__l">Languages</div></div>
+  <div class="kpi" style="--i:2"><div class="kpi__v" style="color:var(--green);">9</div><div class="kpi__l">Quality Tools</div></div>
+  <div class="kpi" style="--i:3"><div class="kpi__v" style="color:var(--teal);">3</div><div class="kpi__l">CLI Commands</div></div>
+  <div class="kpi" style="--i:4"><div class="kpi__v" style="color:var(--amber);">36</div><div class="kpi__l">Design Decisions</div></div>
+</div>
 
-  <!-- KPIs -->
-  <div class="kpi-row" style="margin-top: 20px;">
-    <div class="kpi" style="--i: 0">
-      <div class="kpi__value" style="color: var(--accent);">21</div>
-      <div class="kpi__label">Anti-Slop Rules</div>
-    </div>
-    <div class="kpi" style="--i: 1">
-      <div class="kpi__value" style="color: var(--ts);">3</div>
-      <div class="kpi__label">Languages</div>
-    </div>
-    <div class="kpi" style="--i: 2">
-      <div class="kpi__value" style="color: var(--green);">9</div>
-      <div class="kpi__label">Quality Tools</div>
-    </div>
-    <div class="kpi" style="--i: 3">
-      <div class="kpi__value" style="color: var(--teal);">3</div>
-      <div class="kpi__label">CLI Commands</div>
-    </div>
-    <div class="kpi" style="--i: 4">
-      <div class="kpi__value" style="color: var(--amber);">36</div>
-      <div class="kpi__label">Design Decisions</div>
-    </div>
-  </div>
+<!-- ══════════════════════════════════════ 01 DX FLOW -->
+<div class="sb"><hr></div>
+<h2><span class="n">01</span> Developer Experience Flow</h2>
+<p class="si">From zero to fully-guarded project in one command. The agent feedback loop ensures every commit meets quality standards.</p>
 
+<div class="pipe">
+  <div class="pipe__s" style="--i:0;border-top:3px solid var(--accent);"><div class="pipe__n" style="color:var(--accent);">INIT</div><div class="pipe__t">anvil init</div><div class="pipe__d">Scaffold lint rules, tools, CI, seed code, AGENTS.md</div></div>
+  <div class="pipe__a">&#8594;</div>
+  <div class="pipe__s" style="--i:1;border-top:3px solid var(--ts);"><div class="pipe__n" style="color:var(--ts);">CODE</div><div class="pipe__t">Agent Writes</div><div class="pipe__d">Agent implements features guided by AGENTS.md</div></div>
+  <div class="pipe__a">&#8594;</div>
+  <div class="pipe__s" style="--i:2;border-top:3px solid var(--amber);"><div class="pipe__n" style="color:var(--amber);">LINT</div><div class="pipe__t">make lint</div><div class="pipe__d">Anti-slop rules catch ceremony, dead code, bad patterns</div></div>
+  <div class="pipe__a">&#8594;</div>
+  <div class="pipe__s" style="--i:3;border-top:3px solid var(--green);"><div class="pipe__n" style="color:var(--green);">FIX</div><div class="pipe__t">Agent Iterates</div><div class="pipe__d">Agent sees errors, fixes violations &#8212; deterministic loop</div></div>
+  <div class="pipe__a">&#8594;</div>
+  <div class="pipe__s" style="--i:4;border-top:3px solid var(--teal);"><div class="pipe__n" style="color:var(--teal);">GATE</div><div class="pipe__t">make check</div><div class="pipe__d">Coverage, mutation, dead code, CRAP, security</div></div>
+  <div class="pipe__a">&#8594;</div>
+  <div class="pipe__s" style="--i:5;border-top:3px solid var(--indigo);"><div class="pipe__n" style="color:var(--indigo);">SHIP</div><div class="pipe__t">CI Passes</div><div class="pipe__d">Same checks in GitHub Actions / Azure Pipelines</div></div>
+</div>
 
-  <!-- ═══════════════════════════════════════════════ -->
-  <!-- SECTION 1: DX FLOW -->
-  <!-- ═══════════════════════════════════════════════ -->
-  <div class="section-break"><hr></div>
-  <h2><span class="num">01</span> Developer Experience Flow</h2>
-  <p class="section-intro">From zero to fully-guarded project in one command. The agent feedback loop ensures every commit meets quality standards.</p>
+<!-- ═══════════════════════════════ 02 ARCHITECTURE -->
+<div class="sb"><hr></div>
+<h2><span class="n">02</span> System Architecture</h2>
+<p class="si">anvil is a Bun + TypeScript CLI. It reads user input, resolves templates per language, renders files into standard project locations, and writes a lockfile for future updates.</p>
 
-  <div class="pipeline">
-    <div class="pipeline__step" style="--i: 0; border-top: 3px solid var(--accent);">
-      <div class="pipeline__step-num" style="color: var(--accent);">INIT</div>
-      <div class="pipeline__step-title">anvil init</div>
-      <div class="pipeline__step-desc">Scaffold project with lint rules, quality tools, CI, seed code, AGENTS.md</div>
-    </div>
-    <div class="pipeline__arrow">→</div>
-    <div class="pipeline__step" style="--i: 1; border-top: 3px solid var(--ts);">
-      <div class="pipeline__step-num" style="color: var(--ts);">CODE</div>
-      <div class="pipeline__step-title">Agent Writes</div>
-      <div class="pipeline__step-desc">Coding agent implements features guided by AGENTS.md instructions</div>
-    </div>
-    <div class="pipeline__arrow">→</div>
-    <div class="pipeline__step" style="--i: 2; border-top: 3px solid var(--amber);">
-      <div class="pipeline__step-num" style="color: var(--amber);">LINT</div>
-      <div class="pipeline__step-title">make lint</div>
-      <div class="pipeline__step-desc">Anti-slop rules catch ceremony, dead code, bad patterns immediately</div>
-    </div>
-    <div class="pipeline__arrow">→</div>
-    <div class="pipeline__step" style="--i: 3; border-top: 3px solid var(--green);">
-      <div class="pipeline__step-num" style="color: var(--green);">FIX</div>
-      <div class="pipeline__step-title">Agent Iterates</div>
-      <div class="pipeline__step-desc">Agent sees lint errors, fixes violations, re-runs — deterministic feedback loop</div>
-    </div>
-    <div class="pipeline__arrow">→</div>
-    <div class="pipeline__step" style="--i: 4; border-top: 3px solid var(--teal);">
-      <div class="pipeline__step-num" style="color: var(--teal);">GATE</div>
-      <div class="pipeline__step-title">make check</div>
-      <div class="pipeline__step-desc">Coverage, mutation, dead code, CRAP, security — all gates must pass</div>
-    </div>
-    <div class="pipeline__arrow">→</div>
-    <div class="pipeline__step" style="--i: 5; border-top: 3px solid var(--indigo);">
-      <div class="pipeline__step-num" style="color: var(--indigo);">SHIP</div>
-      <div class="pipeline__step-title">CI Passes</div>
-      <div class="pipeline__step-desc">Same checks run in CI — GitHub Actions or Azure Pipelines</div>
-    </div>
-  </div>
+<div class="dw" style="--i:0">
+  <svg viewBox="0 0 960 540" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:960px;height:auto;">
+    <defs><marker id="a" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto-start-reverse"><path d="M0,0 L8,3 L0,6" fill="var(--text-dim)"/></marker></defs>
+    <rect x="20" y="15" width="920" height="55" rx="10" fill="var(--accent-dim)" stroke="var(--accent)" stroke-width="1"/>
+    <text x="480" y="35" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--accent)" font-weight="600" letter-spacing="1.5">CLI LAYER &#8212; COMMANDER.JS</text>
+    <text x="480" y="55" text-anchor="middle" font-family="var(--font-body)" font-size="13" fill="var(--text)">src/cli.ts &#8594; commands/init.ts &#183; commands/update.ts &#183; commands/doctor.ts</text>
+    <line x1="480" y1="70" x2="480" y2="95" stroke="var(--text-dim)" stroke-width="1.5" marker-end="url(#a)"/>
+    <rect x="130" y="100" width="700" height="100" rx="10" fill="var(--surface)" stroke="var(--indigo)" stroke-width="1.5"/>
+    <text x="480" y="120" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--indigo)" font-weight="600" letter-spacing="1.5">SCAFFOLD ENGINE &#8212; src/scaffold/engine.ts</text>
+    <rect x="150" y="135" width="125" height="50" rx="6" fill="var(--indigo-dim)" stroke="var(--indigo)" stroke-width=".5"/>
+    <text x="212" y="155" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--text)">detect.ts</text>
+    <text x="212" y="170" text-anchor="middle" font-family="var(--font-body)" font-size="10" fill="var(--text-dim)">Project Detection</text>
+    <rect x="290" y="135" width="125" height="50" rx="6" fill="var(--indigo-dim)" stroke="var(--indigo)" stroke-width=".5"/>
+    <text x="352" y="155" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--text)">generators/*.ts</text>
+    <text x="352" y="170" text-anchor="middle" font-family="var(--font-body)" font-size="10" fill="var(--text-dim)">EJS Rendering</text>
+    <rect x="430" y="135" width="125" height="50" rx="6" fill="var(--indigo-dim)" stroke="var(--indigo)" stroke-width=".5"/>
+    <text x="492" y="155" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--text)">conflict.ts</text>
+    <text x="492" y="170" text-anchor="middle" font-family="var(--font-body)" font-size="10" fill="var(--text-dim)">Conflict Resolution</text>
+    <rect x="570" y="135" width="125" height="50" rx="6" fill="var(--indigo-dim)" stroke="var(--indigo)" stroke-width=".5"/>
+    <text x="632" y="155" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--text)">lockfile.ts</text>
+    <text x="632" y="170" text-anchor="middle" font-family="var(--font-body)" font-size="10" fill="var(--text-dim)">Provenance</text>
+    <rect x="710" y="135" width="100" height="50" rx="6" fill="var(--amber-dim)" stroke="var(--amber)" stroke-width=".5"/>
+    <text x="760" y="155" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--text)">templates/</text>
+    <text x="760" y="170" text-anchor="middle" font-family="var(--font-body)" font-size="10" fill="var(--text-dim)">EJS Files</text>
+    <line x1="300" y1="200" x2="160" y2="245" stroke="var(--go)" stroke-width="1.5" marker-end="url(#a)"/>
+    <line x1="480" y1="200" x2="480" y2="245" stroke="var(--ts)" stroke-width="1.5" marker-end="url(#a)"/>
+    <line x1="660" y1="200" x2="800" y2="245" stroke="var(--py-text)" stroke-width="1.5" marker-end="url(#a)"/>
+    <rect x="50" y="250" width="220" height="55" rx="10" fill="var(--surface)" stroke="var(--go)" stroke-width="1.5"/>
+    <text x="160" y="270" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--go)" font-weight="600">generators/golang.ts</text>
+    <text x="160" y="288" text-anchor="middle" font-family="var(--font-body)" font-size="11" fill="var(--text-dim)">Makefile &#183; .golangci.yml &#183; go.mod</text>
+    <rect x="370" y="250" width="220" height="55" rx="10" fill="var(--surface)" stroke="var(--ts)" stroke-width="1.5"/>
+    <text x="480" y="270" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ts)" font-weight="600">generators/typescript.ts</text>
+    <text x="480" y="288" text-anchor="middle" font-family="var(--font-body)" font-size="11" fill="var(--text-dim)">package.json &#183; eslint &#183; vitest &#183; tsconfig</text>
+    <rect x="690" y="250" width="220" height="55" rx="10" fill="var(--surface)" stroke="var(--py-text)" stroke-width="1.5"/>
+    <text x="800" y="270" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--py-text)" font-weight="600">generators/python.ts</text>
+    <text x="800" y="288" text-anchor="middle" font-family="var(--font-body)" font-size="11" fill="var(--text-dim)">pyproject.toml &#183; .flake8 &#183; mypy.ini</text>
+    <line x1="160" y1="305" x2="160" y2="335" stroke="var(--text-dim)" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#a)"/>
+    <line x1="480" y1="305" x2="480" y2="335" stroke="var(--text-dim)" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#a)"/>
+    <line x1="800" y1="305" x2="800" y2="335" stroke="var(--text-dim)" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#a)"/>
+    <rect x="50" y="340" width="220" height="55" rx="10" fill="var(--go-dim)" stroke="var(--go)" stroke-width="1"/>
+    <text x="160" y="360" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--go)" font-weight="600">static/golang/</text>
+    <text x="160" y="378" text-anchor="middle" font-family="var(--font-body)" font-size="11" fill="var(--text-dim)">seed code &#183; analyzers &#183; tools.go</text>
+    <rect x="370" y="340" width="220" height="55" rx="10" fill="var(--ts-dim)" stroke="var(--ts)" stroke-width="1"/>
+    <text x="480" y="360" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ts)" font-weight="600">static/typescript/</text>
+    <text x="480" y="378" text-anchor="middle" font-family="var(--font-body)" font-size="11" fill="var(--text-dim)">seed code &#183; ESLint plugin &#183; knip</text>
+    <rect x="690" y="340" width="220" height="55" rx="10" fill="var(--py-dim)" stroke="var(--py-text)" stroke-width="1"/>
+    <text x="800" y="360" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--py-text)" font-weight="600">static/python/</text>
+    <text x="800" y="378" text-anchor="middle" font-family="var(--font-body)" font-size="11" fill="var(--text-dim)">seed code &#183; Flake8 plugin &#183; conftest</text>
+    <line x1="160" y1="395" x2="370" y2="435" stroke="var(--text-dim)" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#a)"/>
+    <line x1="480" y1="395" x2="480" y2="435" stroke="var(--text-dim)" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#a)"/>
+    <line x1="800" y1="395" x2="590" y2="435" stroke="var(--text-dim)" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#a)"/>
+    <rect x="310" y="440" width="340" height="80" rx="12" fill="var(--surface)" stroke="var(--green)" stroke-width="2"/>
+    <text x="480" y="462" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--green)" font-weight="600" letter-spacing="1.5">PROJECT ON DISK</text>
+    <text x="480" y="482" text-anchor="middle" font-family="var(--font-body)" font-size="12" fill="var(--text)">lint rules &#183; quality tools &#183; CI &#183; seed code</text>
+    <text x="480" y="498" text-anchor="middle" font-family="var(--font-body)" font-size="12" fill="var(--text)">AGENTS.md &#183; pre-commit &#183; .anvil.lock</text>
+    <text x="480" y="512" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--text-dim)">~20-25 files in standard locations</text>
+    <rect x="20" y="450" width="150" height="50" rx="8" fill="var(--amber-dim)" stroke="var(--amber)" stroke-width="1"/>
+    <text x="95" y="470" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--amber)" font-weight="600">.anvil.lock</text>
+    <text x="95" y="486" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--text-dim)">version &#183; checksums &#183; context</text>
+    <line x1="170" y1="475" x2="308" y2="475" stroke="var(--amber)" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#a)"/>
+    <rect x="790" y="450" width="150" height="50" rx="8" fill="var(--green-dim)" stroke="var(--green)" stroke-width="1"/>
+    <text x="865" y="470" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--green)" font-weight="600">anvil doctor</text>
+    <text x="865" y="486" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--text-dim)">verify &#183; auto-fix</text>
+    <line x1="652" y1="475" x2="788" y2="475" stroke="var(--green)" stroke-width="1" stroke-dasharray="4 3"/>
+  </svg>
+</div>
 
-  <!-- Terminal DX -->
-  <div style="margin-top: 20px;">
-    <div class="terminal" style="--i: 6">
-      <div class="terminal__bar">
-        <div class="terminal__dot terminal__dot--red"></div>
-        <div class="terminal__dot terminal__dot--yellow"></div>
-        <div class="terminal__dot terminal__dot--green"></div>
-        <span class="terminal__title">Developer Experience</span>
-      </div>
-      <div class="terminal__body"><span class="comment"># Scaffold a new Go project with GitHub Actions CI</span>
-<span class="prompt">$</span> <span class="cmd">npx anvil init</span> <span class="flag">--lang</span> <span class="arg">golang</span> <span class="flag">--ci</span> <span class="arg">github</span>
+<!-- ═══════════════════════════════ 03 CALL FLOW -->
+<div class="sb"><hr></div>
+<h2><span class="n">03</span> Call Flow: <code>anvil init --lang golang --ci github</code></h2>
+<p class="si">Concrete sequence showing every step from CLI parsing to disk output.</p>
 
-<span class="success">✓</span> Detected: fresh project (no existing files)
-<span class="success">✓</span> Scaffolded Makefile, .golangci.yml, go.mod
-<span class="success">✓</span> Built anvil-lint analyzer (go vet -vettool)
-<span class="success">✓</span> Installed quality tools via tools/tools.go
-<span class="success">✓</span> Created .github/workflows/ci.yml
-<span class="success">✓</span> Created AGENTS.md, .pre-commit-config.yaml
-<span class="success">✓</span> Seed code: cmd/greeter/, internal/greeter/
-<span class="success">✓</span> Wrote .anvil.lock (version 1.0.0, lang: golang)
+<div class="dw" style="--i:0">
+  <svg viewBox="0 0 900 580" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:900px;height:auto;">
+    <defs>
+      <marker id="sa" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto-start-reverse"><path d="M0,0 L8,3 L0,6" fill="var(--text-dim)"/></marker>
+      <marker id="sr" markerWidth="8" markerHeight="6" refX="0" refY="3" orient="auto-start-reverse"><path d="M8,0 L0,3 L8,6" fill="var(--text-dim)"/></marker>
+    </defs>
+    <rect x="40" y="10" width="80" height="30" rx="4" fill="var(--surface)" stroke="var(--accent)" stroke-width="1.5"/>
+    <text x="80" y="30" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--text)">User</text>
+    <rect x="200" y="10" width="80" height="30" rx="4" fill="var(--surface)" stroke="var(--indigo)" stroke-width="1.5"/>
+    <text x="240" y="30" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--text)">CLI</text>
+    <rect x="370" y="10" width="80" height="30" rx="4" fill="var(--surface)" stroke="var(--teal)" stroke-width="1.5"/>
+    <text x="410" y="30" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--text)">detect</text>
+    <rect x="540" y="10" width="80" height="30" rx="4" fill="var(--surface)" stroke="var(--go)" stroke-width="1.5"/>
+    <text x="580" y="30" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--text)">engine</text>
+    <rect x="720" y="10" width="80" height="30" rx="4" fill="var(--surface)" stroke="var(--amber)" stroke-width="1.5"/>
+    <text x="760" y="30" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--text)">disk</text>
+    <line x1="80" y1="40" x2="80" y2="570" stroke="var(--border-bright)" stroke-width="1" stroke-dasharray="4 3"/>
+    <line x1="240" y1="40" x2="240" y2="570" stroke="var(--border-bright)" stroke-width="1" stroke-dasharray="4 3"/>
+    <line x1="410" y1="40" x2="410" y2="570" stroke="var(--border-bright)" stroke-width="1" stroke-dasharray="4 3"/>
+    <line x1="580" y1="40" x2="580" y2="570" stroke="var(--border-bright)" stroke-width="1" stroke-dasharray="4 3"/>
+    <line x1="760" y1="40" x2="760" y2="570" stroke="var(--border-bright)" stroke-width="1" stroke-dasharray="4 3"/>
+    <line x1="80" y1="70" x2="240" y2="70" stroke="var(--text-dim)" stroke-width="1.5" marker-end="url(#sa)"/>
+    <text x="160" y="63" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--accent)">anvil init --lang golang --ci github</text>
+    <line x1="240" y1="110" x2="410" y2="110" stroke="var(--text-dim)" stroke-width="1.5" marker-end="url(#sa)"/>
+    <text x="325" y="103" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--text-dim)">scanProjectDir(targetDir)</text>
+    <line x1="410" y1="140" x2="760" y2="140" stroke="var(--text-dim)" stroke-width="1.5" marker-end="url(#sa)"/>
+    <text x="585" y="133" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--text-dim)">look for go.mod, *.go, internal/, cmd/</text>
+    <line x1="760" y1="165" x2="410" y2="165" stroke="var(--text-dim)" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#sr)"/>
+    <text x="585" y="158" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--text-dim)">{ hasCode: false }</text>
+    <line x1="410" y1="195" x2="240" y2="195" stroke="var(--text-dim)" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#sr)"/>
+    <text x="325" y="188" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--teal)">DetectResult { hasCode: false }</text>
+    <line x1="240" y1="230" x2="80" y2="230" stroke="var(--text-dim)" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#sr)"/>
+    <text x="160" y="223" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--indigo)">Inquirer: project name? confirm?</text>
+    <line x1="80" y1="260" x2="240" y2="260" stroke="var(--text-dim)" stroke-width="1.5" marker-end="url(#sa)"/>
+    <text x="160" y="253" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--accent)">name: "my-api", confirm: true</text>
+    <rect x="224" y="285" width="32" height="30" rx="2" fill="var(--indigo-dim)" stroke="var(--indigo)" stroke-width="1"/>
+    <text x="320" y="305" font-family="var(--font-mono)" font-size="10" fill="var(--indigo)">Build ScaffoldContext { lang:"golang", ci:"github", name:"my-api" }</text>
+    <line x1="240" y1="340" x2="580" y2="340" stroke="var(--text-dim)" stroke-width="1.5" marker-end="url(#sa)"/>
+    <text x="410" y="333" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--go)">scaffold(context)</text>
+    <line x1="580" y1="370" x2="760" y2="370" stroke="var(--text-dim)" stroke-width="1.5" marker-end="url(#sa)"/>
+    <text x="670" y="363" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--text-dim)">copy static/golang/* &#8594; disk</text>
+    <line x1="580" y1="400" x2="760" y2="400" stroke="var(--text-dim)" stroke-width="1.5" marker-end="url(#sa)"/>
+    <text x="670" y="393" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--text-dim)">render Makefile.ejs &#8594; Makefile</text>
+    <line x1="580" y1="430" x2="760" y2="430" stroke="var(--text-dim)" stroke-width="1.5" marker-end="url(#sa)"/>
+    <text x="670" y="423" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--text-dim)">render github-ci.yml.ejs &#8594; .github/</text>
+    <line x1="580" y1="460" x2="760" y2="460" stroke="var(--text-dim)" stroke-width="1.5" marker-end="url(#sa)"/>
+    <text x="670" y="453" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--amber)">write .anvil.lock (checksums + context)</text>
+    <line x1="580" y1="495" x2="240" y2="495" stroke="var(--text-dim)" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#sr)"/>
+    <text x="410" y="488" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--green)">ScaffoldResult { files: 22, conflicts: 0 }</text>
+    <rect x="224" y="510" width="32" height="25" rx="2" fill="var(--green-dim)" stroke="var(--green)" stroke-width="1"/>
+    <text x="320" y="528" font-family="var(--font-mono)" font-size="10" fill="var(--green)">go mod tidy &amp;&amp; pre-commit install</text>
+    <line x1="240" y1="550" x2="80" y2="550" stroke="var(--text-dim)" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#sr)"/>
+    <text x="160" y="543" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--green)">&#10003; 22 files created, 0 conflicts</text>
+  </svg>
+</div>
 
-<span class="dim">── 14 files created, 0 conflicts ──</span>
+<!-- ══════════════════════════ 04 DATA STRUCTURES -->
+<div class="sb"><hr></div>
+<h2><span class="n">04</span> Key Data Structures</h2>
+<p class="si">TypeScript interfaces that drive the scaffold engine. These flow through every command.</p>
 
-<span class="comment"># Agent writes code, then runs the lint gate</span>
-<span class="prompt">$</span> <span class="cmd">make lint</span>
-<span class="error">✗</span> <span class="error">internal/service.go:142</span> <span class="warn">no-empty-catch</span>
-    <span class="output">Empty error catch silences failures. Handle or propagate.</span>
-<span class="error">✗</span> <span class="error">internal/handler.go:1</span> <span class="warn">file-too-long</span>
-    <span class="output">File has 523 lines (max 500). Split into focused modules.</span>
-
-<span class="comment"># Agent fixes violations, then runs full quality check</span>
-<span class="prompt">$</span> <span class="cmd">make check</span>
-<span class="success">✓</span> Lint ............. passed (0 violations)
-<span class="success">✓</span> Type check ....... passed (go vet + staticcheck)
-<span class="success">✓</span> Tests ............ passed (47 tests)
-<span class="success">✓</span> Coverage ......... 84.2% line (min: 80%)
-<span class="success">✓</span> Mutation ......... 71.3% killed (min: 70%)
-<span class="success">✓</span> Dead code ........ 0 unused exports
-<span class="success">✓</span> CRAP ............. 0 functions above threshold
-<span class="success">✓</span> Security ......... 0 findings (gosec)
-<span class="success">✓</span> Secrets .......... clean (gitleaks)
-<span class="success">✓</span> Dep audit ........ 0 vulnerabilities</div>
-    </div>
-  </div>
-
-
-  <!-- ═══════════════════════════════════════════════ -->
-  <!-- SECTION 2: ARCHITECTURE -->
-  <!-- ═══════════════════════════════════════════════ -->
-  <div class="section-break"><hr></div>
-  <h2><span class="num">02</span> Internal Architecture</h2>
-  <p class="section-intro">anvil is a Bun + TypeScript CLI built with Commander, Inquirer, EJS, and Chalk. The scaffold engine resolves templates per language and renders them into standard project locations.</p>
-
-  <div class="diagram-wrap" style="--i: 0">
-    <svg viewBox="0 0 960 520" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:960px;height:auto;">
-      <defs>
-        <marker id="arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto-start-reverse">
-          <path d="M0,0 L8,3 L0,6" fill="var(--text-dim)"/>
-        </marker>
-        <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto-start-reverse">
-          <path d="M0,0 L8,3 L0,6" fill="var(--accent)"/>
-        </marker>
-      </defs>
-
-      <!-- CLI Layer -->
-      <rect x="20" y="20" width="920" height="60" rx="10" fill="var(--accent-dim)" stroke="var(--accent)" stroke-width="1"/>
-      <text x="480" y="42" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--accent)" font-weight="600" letter-spacing="1.5">CLI LAYER</text>
-      <text x="480" y="62" text-anchor="middle" font-family="var(--font-body)" font-size="14" fill="var(--text)" font-weight="600">Commander.js — init · update · doctor</text>
-
-      <!-- Arrow down -->
-      <line x1="480" y1="80" x2="480" y2="110" stroke="var(--text-dim)" stroke-width="1.5" marker-end="url(#arrow)"/>
-
-      <!-- Scaffold Engine -->
-      <rect x="180" y="115" width="600" height="80" rx="10" fill="var(--surface)" stroke="var(--indigo)" stroke-width="1.5"/>
-      <text x="480" y="140" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--indigo)" font-weight="600" letter-spacing="1.5">SCAFFOLD ENGINE</text>
-
-      <!-- Engine sub-components -->
-      <rect x="200" y="150" width="130" height="34" rx="6" fill="var(--indigo-dim)" stroke="var(--indigo)" stroke-width="0.5"/>
-      <text x="265" y="172" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--text)">Context Builder</text>
-
-      <rect x="345" y="150" width="130" height="34" rx="6" fill="var(--indigo-dim)" stroke="var(--indigo)" stroke-width="0.5"/>
-      <text x="410" y="172" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--text)">Template Renderer</text>
-
-      <rect x="490" y="150" width="130" height="34" rx="6" fill="var(--indigo-dim)" stroke="var(--indigo)" stroke-width="0.5"/>
-      <text x="555" y="172" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--text)">Conflict Resolver</text>
-
-      <rect x="635" y="150" width="130" height="34" rx="6" fill="var(--indigo-dim)" stroke="var(--indigo)" stroke-width="0.5"/>
-      <text x="700" y="172" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--text)">Lockfile Manager</text>
-
-      <!-- Fork arrows to 3 language paths -->
-      <line x1="330" y1="195" x2="160" y2="250" stroke="var(--go)" stroke-width="1.5" marker-end="url(#arrow)"/>
-      <line x1="480" y1="195" x2="480" y2="250" stroke="var(--ts)" stroke-width="1.5" marker-end="url(#arrow)"/>
-      <line x1="630" y1="195" x2="800" y2="250" stroke="var(--py-text)" stroke-width="1.5" marker-end="url(#arrow)"/>
-
-      <!-- Go template set -->
-      <rect x="60" y="255" width="200" height="115" rx="10" fill="var(--surface)" stroke="var(--go)" stroke-width="1.5"/>
-      <text x="160" y="278" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--go)" font-weight="600" letter-spacing="1.5">GO TEMPLATES</text>
-      <text x="80" y="298" font-family="var(--font-mono)" font-size="11" fill="var(--text-dim)">› Makefile</text>
-      <text x="80" y="314" font-family="var(--font-mono)" font-size="11" fill="var(--text-dim)">› .golangci.yml</text>
-      <text x="80" y="330" font-family="var(--font-mono)" font-size="11" fill="var(--text-dim)">› tools/tools.go</text>
-      <text x="80" y="346" font-family="var(--font-mono)" font-size="11" fill="var(--text-dim)">› cmd/ + internal/ seed</text>
-      <text x="80" y="362" font-family="var(--font-mono)" font-size="11" fill="var(--text-dim)">› analyzers/ (go vet)</text>
-
-      <!-- TS template set -->
-      <rect x="380" y="255" width="200" height="115" rx="10" fill="var(--surface)" stroke="var(--ts)" stroke-width="1.5"/>
-      <text x="480" y="278" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ts)" font-weight="600" letter-spacing="1.5">TS / JS TEMPLATES</text>
-      <text x="400" y="298" font-family="var(--font-mono)" font-size="11" fill="var(--text-dim)">› package.json</text>
-      <text x="400" y="314" font-family="var(--font-mono)" font-size="11" fill="var(--text-dim)">› eslint.config.mjs</text>
-      <text x="400" y="330" font-family="var(--font-mono)" font-size="11" fill="var(--text-dim)">› vitest.config.ts</text>
-      <text x="400" y="346" font-family="var(--font-mono)" font-size="11" fill="var(--text-dim)">› src/ seed + tests/</text>
-      <text x="400" y="362" font-family="var(--font-mono)" font-size="11" fill="var(--text-dim)">› .anvil/eslint-plugin/</text>
-
-      <!-- Python template set -->
-      <rect x="700" y="255" width="200" height="115" rx="10" fill="var(--surface)" stroke="var(--py-text)" stroke-width="1.5"/>
-      <text x="800" y="278" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--py-text)" font-weight="600" letter-spacing="1.5">PYTHON TEMPLATES</text>
-      <text x="720" y="298" font-family="var(--font-mono)" font-size="11" fill="var(--text-dim)">› pyproject.toml</text>
-      <text x="720" y="314" font-family="var(--font-mono)" font-size="11" fill="var(--text-dim)">› .flake8</text>
-      <text x="720" y="330" font-family="var(--font-mono)" font-size="11" fill="var(--text-dim)">› anvil_lint/ plugin</text>
-      <text x="720" y="346" font-family="var(--font-mono)" font-size="11" fill="var(--text-dim)">› src/ seed + tests/</text>
-      <text x="720" y="362" font-family="var(--font-mono)" font-size="11" fill="var(--text-dim)">› conftest.py + mypy.ini</text>
-
-      <!-- Arrows to shared output -->
-      <line x1="160" y1="370" x2="350" y2="420" stroke="var(--text-dim)" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#arrow)"/>
-      <line x1="480" y1="370" x2="480" y2="420" stroke="var(--text-dim)" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#arrow)"/>
-      <line x1="800" y1="370" x2="610" y2="420" stroke="var(--text-dim)" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#arrow)"/>
-
-      <!-- Shared output -->
-      <rect x="290" y="425" width="380" height="75" rx="10" fill="var(--surface)" stroke="var(--teal)" stroke-width="1.5"/>
-      <text x="480" y="448" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--teal)" font-weight="600" letter-spacing="1.5">SHARED OUTPUT (ALL LANGUAGES)</text>
-      <text x="310" y="470" font-family="var(--font-mono)" font-size="11" fill="var(--text-dim)">AGENTS.md · .pre-commit-config.yaml</text>
-      <text x="310" y="486" font-family="var(--font-mono)" font-size="11" fill="var(--text-dim)">.anvil.lock · CI workflows · README.md</text>
-
-      <!-- Side: .anvil.lock -->
-      <rect x="20" y="430" width="160" height="55" rx="8" fill="var(--amber-dim)" stroke="var(--amber)" stroke-width="1"/>
-      <text x="100" y="452" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--amber)" font-weight="600">.anvil.lock</text>
-      <text x="100" y="470" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--text-dim)">version · lang · context</text>
-      <text x="100" y="482" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--text-dim)">3-way merge base</text>
-
-      <line x1="180" y1="460" x2="288" y2="460" stroke="var(--amber)" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#arrow)"/>
-
-      <!-- Side: doctor -->
-      <rect x="780" y="430" width="160" height="55" rx="8" fill="var(--green-dim)" stroke="var(--green)" stroke-width="1"/>
-      <text x="860" y="452" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--green)" font-weight="600">anvil doctor</text>
-      <text x="860" y="470" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--text-dim)">verify toolchain</text>
-      <text x="860" y="482" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--text-dim)">auto-fix safe issues</text>
-
-      <line x1="672" y1="460" x2="778" y2="460" stroke="var(--green)" stroke-width="1" stroke-dasharray="4 3"/>
-    </svg>
-  </div>
-
-
-  <!-- ═══════════════════════════════════════════════ -->
-  <!-- SECTION 3: CLI COMMANDS -->
-  <!-- ═══════════════════════════════════════════════ -->
-  <div class="section-break"><hr></div>
-  <h2><span class="num">03</span> CLI Commands</h2>
-
-  <div class="row-3">
-    <div class="card card--accent-red" style="--i: 0">
-      <div class="label label--forge">Command</div>
-      <h3>anvil init</h3>
-      <p>Scaffold a new or existing project with anti-slop lint rules, quality tooling, CI, and seed code.</p>
-      <ul class="item-list">
-        <li><code>--lang</code> golang | typescript | python</li>
-        <li><code>--ci</code> github | azure | both | none</li>
-        <li>Detects existing project structure</li>
-        <li>Detects pkg manager from lockfile</li>
-        <li>Provisions tools per language</li>
-      </ul>
-    </div>
-
-    <div class="card card--accent-amber" style="--i: 1">
-      <div class="label label--amber">Command</div>
-      <h3>anvil update</h3>
-      <p>Upgrade scaffolded files to a newer anvil version using 3-way merge for safe, lossless updates.</p>
-      <ul class="item-list">
-        <li><code>--force</code> allow major version bumps</li>
-        <li>3-way merge: base (lockfile re-render) vs theirs (new) vs ours (disk)</li>
-        <li>Auto-applies if user hasn't edited</li>
-        <li>Prompts on conflict with diff</li>
-        <li>Checks new files against disk</li>
-      </ul>
-    </div>
-
-    <div class="card card--accent-green" style="--i: 2">
-      <div class="label label--green">Command</div>
-      <h3>anvil doctor</h3>
-      <p>Verify that all required tools are installed and configured correctly. Auto-fixes safe issues.</p>
-      <ul class="item-list">
-        <li>Checks runtime versions</li>
-        <li>Verifies lint plugin wired</li>
-        <li>Validates CI config present</li>
-        <li>Checks gitleaks, pre-commit, uv</li>
-        <li>Auto-fixes: non-destructive only</li>
-      </ul>
+<div class="r2" style="margin-bottom:16px;">
+  <div class="ds" style="--i:0">
+    <div class="ds__header"><span style="color:var(--indigo);">&#9679;</span> ScaffoldContext</div>
+    <div class="ds__body">
+      <div class="ds__field"><span class="ds__field-name">projectName</span><span class="ds__field-type">string</span><span class="ds__field-desc">e.g. "my-api"</span></div>
+      <div class="ds__field"><span class="ds__field-name">lang</span><span class="ds__field-type">"golang" | "typescript" | "python"</span></div>
+      <div class="ds__field"><span class="ds__field-name">ci</span><span class="ds__field-type">"github" | "azure" | "both" | "none"</span></div>
+      <div class="ds__field"><span class="ds__field-name">targetDir</span><span class="ds__field-type">string</span><span class="ds__field-desc">absolute path</span></div>
+      <div class="ds__field"><span class="ds__field-name">hasExistingCode</span><span class="ds__field-type">boolean</span><span class="ds__field-desc">skip seed if true</span></div>
+      <div class="ds__field"><span class="ds__field-name">sourceDir?</span><span class="ds__field-type">string</span><span class="ds__field-desc">"src/", "internal/"</span></div>
+      <div class="ds__field"><span class="ds__field-name">packageManager?</span><span class="ds__field-type">string</span><span class="ds__field-desc">TS: npm/bun/pnpm/yarn</span></div>
+      <div class="ds__field"><span class="ds__field-name">defaultBranch?</span><span class="ds__field-type">string</span><span class="ds__field-desc">for CI (default: main)</span></div>
+      <div class="ds__field"><span class="ds__field-name">anvilVersion</span><span class="ds__field-type">string</span><span class="ds__field-desc">e.g. "1.0.0"</span></div>
     </div>
   </div>
-
-
-  <!-- ═══════════════════════════════════════════════ -->
-  <!-- SECTION 4: ANTI-SLOP RULES -->
-  <!-- ═══════════════════════════════════════════════ -->
-  <div class="section-break"><hr></div>
-  <h2><span class="num">04</span> Anti-Slop Rule Taxonomy</h2>
-  <p class="section-intro">21 custom lint rules organized in 3 families. These are the deterministic guardrails that catch AI-generated ceremony, placeholder code, and structural decay — wired into the agent's feedback loop via <code>make lint</code>.</p>
-
-  <!-- Rule families -->
-  <div class="row-3" style="margin-bottom: 16px;">
-    <div class="card card--accent-red" style="--i: 0">
-      <div class="label label--forge">8 Rules</div>
-      <h3>🛡️ Anti-Slop Rules</h3>
-      <p>Patterns AI agents generate reflexively without judgment.</p>
-      <ul class="item-list">
-        <li><code>RULE-01</code> no-empty-catch</li>
-        <li><code>RULE-02</code> no-console-log</li>
-        <li><code>RULE-03</code> no-todo-comment</li>
-        <li><code>RULE-04</code> no-redundant-else</li>
-        <li><code>RULE-05</code> no-trivial-type-alias</li>
-        <li><code>RULE-06</code> no-unnecessary-async</li>
-        <li><code>RULE-07</code> filename-match-export</li>
-        <li><code>RULE-08</code> error-path-assertion</li>
-      </ul>
-    </div>
-
-    <div class="card card--accent-indigo" style="--i: 1">
-      <div class="label label--indigo">8 Rules</div>
-      <h3>📐 Structural Rules</h3>
-      <p>Keep files focused, functions small, code organized.</p>
-      <ul class="item-list">
-        <li><code>STRUCT-01</code> file-too-long</li>
-        <li><code>STRUCT-02</code> function-too-long</li>
-        <li><code>STRUCT-03</code> too-many-params</li>
-        <li><code>STRUCT-04</code> no-barrel-files</li>
-        <li><code>STRUCT-05</code> no-god-file</li>
-        <li><code>STRUCT-06</code> single-purpose-file</li>
-        <li><code>STRUCT-07</code> no-default-export</li>
-        <li><code>STRUCT-08</code> max-nesting-depth</li>
-      </ul>
-    </div>
-
-    <div class="card card--accent-teal" style="--i: 2">
-      <div class="label label--teal">5 Rules</div>
-      <h3>🧪 Test Quality Rules</h3>
-      <p>Ensure tests actually test behavior, not boilerplate.</p>
-      <ul class="item-list">
-        <li><code>TEST-01</code> no-test-only</li>
-        <li><code>TEST-02</code> no-empty-test</li>
-        <li><code>TEST-03</code> assertion-required</li>
-        <li><code>TEST-04</code> no-duplicate-test-name</li>
-        <li><code>TEST-05</code> test-file-naming</li>
-      </ul>
+  <div class="ds" style="--i:1">
+    <div class="ds__header"><span style="color:var(--amber);">&#9679;</span> AnvilLockfile (.anvil.lock)</div>
+    <div class="ds__body">
+      <div class="ds__field"><span class="ds__field-name">version</span><span class="ds__field-type">string</span><span class="ds__field-desc">anvil version</span></div>
+      <div class="ds__field"><span class="ds__field-name">lang</span><span class="ds__field-type">string</span></div>
+      <div class="ds__field"><span class="ds__field-name">ci</span><span class="ds__field-type">string</span></div>
+      <div class="ds__sep"></div>
+      <div class="ds__field"><span class="ds__field-name">context.projectName</span><span class="ds__field-type">string</span><span class="ds__field-desc">for 3-way re-render</span></div>
+      <div class="ds__field"><span class="ds__field-name">context.packageManager?</span><span class="ds__field-type">string</span></div>
+      <div class="ds__field"><span class="ds__field-name">context.defaultBranch</span><span class="ds__field-type">string</span></div>
+      <div class="ds__sep"></div>
+      <div class="ds__field"><span class="ds__field-name">files[].path</span><span class="ds__field-type">string</span><span class="ds__field-desc">relative from root</span></div>
+      <div class="ds__field"><span class="ds__field-name">files[].checksum</span><span class="ds__field-type">string</span><span class="ds__field-desc">SHA-256</span></div>
+      <div class="ds__field"><span class="ds__field-name">files[].source</span><span class="ds__field-type">"static" | "template"</span></div>
     </div>
   </div>
+</div>
 
-  <!-- Implementation matrix -->
-  <div class="table-wrap" style="--i: 3">
-    <div class="table-scroll">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Implementation</th>
-            <th>Go</th>
-            <th>TypeScript / JS</th>
-            <th>Python</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><strong>Lint framework</strong></td>
-            <td><code>go vet -vettool</code></td>
-            <td><code>ESLint v9+</code> flat config</td>
-            <td><code>Flake8</code> plugin</td>
-          </tr>
-          <tr>
-            <td><strong>Plugin type</strong></td>
-            <td>Go binary via <code>multichecker.Main()</code></td>
-            <td>Local CJS plugin (project-local)</td>
-            <td>Local pip install -e (project-local)</td>
-          </tr>
-          <tr>
-            <td><strong>Rule count</strong></td>
-            <td>~16 analyzers</td>
-            <td>~19 rules (+ config-driven)</td>
-            <td>~17 checkers</td>
-          </tr>
-          <tr>
-            <td><strong>STRUCT-01/02</strong></td>
-            <td><span class="tag tag--go">funlen (golangci-lint)</span></td>
-            <td><span class="tag tag--ts">max-lines (built-in)</span></td>
-            <td><span class="tag tag--py">custom ANV checker</span></td>
-          </tr>
-          <tr>
-            <td><strong>STRUCT-07</strong></td>
-            <td><span class="tag tag--amber">N/A (Go has no default export)</span></td>
-            <td><span class="tag tag--ts">Custom rule</span></td>
-            <td><span class="tag tag--py">Custom checker</span></td>
-          </tr>
-          <tr>
-            <td><strong>Error code prefix</strong></td>
-            <td>n/a (analyzer names)</td>
-            <td>n/a (rule IDs)</td>
-            <td><code>ANV</code> (1-3 uppercase)</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+<!-- ══════════════════════════ 05 CONCRETE OUTPUT -->
+<div class="sb"><hr></div>
+<h2><span class="n">05</span> Concrete Example: Go Project Output</h2>
+<p class="si">What <code>anvil init --lang golang --ci github</code> creates on disk.</p>
+
+<div class="term" style="--i:0">
+  <div class="term__bar"><div class="term__dot term__dot--r"></div><div class="term__dot term__dot--y"></div><div class="term__dot term__dot--g"></div><span class="term__t">Project Tree &#8212; my-api/</span></div>
+  <div class="term__b"><span class="d">my-api/</span>
+&#9500;&#9472;&#9472; <span class="cmd">cmd/app/main.go</span>               <span class="d">&#128203; entry point</span>
+&#9500;&#9472;&#9472; <span class="cmd">internal/greeter/</span>             <span class="d">&#128203; seed module</span>
+&#9474;   &#9500;&#9472;&#9472; greeter.go                  <span class="d">   logic + structured logging</span>
+&#9474;   &#9500;&#9472;&#9472; greeter_test.go             <span class="d">   happy + error path tests</span>
+&#9474;   &#9500;&#9472;&#9472; types.go                    <span class="d">   exported types</span>
+&#9474;   &#9500;&#9472;&#9472; errors.go                   <span class="d">   custom error types</span>
+&#9474;   &#9500;&#9472;&#9472; constants.go                <span class="d">   module constants</span>
+&#9474;   &#9492;&#9472;&#9472; enums.go                    <span class="d">   GreetingLanguage iota</span>
+&#9500;&#9472;&#9472; <span class="cmd">tools/</span>
+&#9474;   &#9500;&#9472;&#9472; <span class="fl">go-analyzers/</span>               <span class="d">&#128203; custom lint (16 analyzers)</span>
+&#9474;   &#9474;   &#9500;&#9472;&#9472; cmd/anvil-lint/main.go  <span class="d">   multichecker entry</span>
+&#9474;   &#9474;   &#9500;&#9472;&#9472; anti_slop/              <span class="d">   7 packages</span>
+&#9474;   &#9474;   &#9500;&#9472;&#9472; structural/             <span class="d">   5 packages</span>
+&#9474;   &#9474;   &#9492;&#9472;&#9472; test_quality/           <span class="d">   4 packages</span>
+&#9474;   &#9500;&#9472;&#9472; <span class="fl">tools.go</span>                    <span class="d">&#128203; tool deps (blank imports)</span>
+&#9474;   &#9492;&#9472;&#9472; <span class="fl">crap-score.go</span>               <span class="d">&#128203; CRAP metric script</span>
+&#9500;&#9472;&#9472; <span class="w">go.mod</span>                          <span class="d">&#9881; module "my-api"</span>
+&#9500;&#9472;&#9472; <span class="w">.golangci.yml</span>                   <span class="d">&#9881; aggressive lint config</span>
+&#9500;&#9472;&#9472; <span class="w">Makefile</span>                        <span class="d">&#9881; lint/test/check/quality</span>
+&#9500;&#9472;&#9472; <span class="w">.github/workflows/ci.yml</span>        <span class="d">&#9881; CI &#8594; make check</span>
+&#9500;&#9472;&#9472; <span class="w">.pre-commit-config.yaml</span>         <span class="d">&#9881; hooks</span>
+&#9500;&#9472;&#9472; <span class="w">AGENTS.md</span>                       <span class="d">&#9881; agent instructions</span>
+&#9500;&#9472;&#9472; <span class="ok">.editorconfig</span>                   <span class="d">&#128203;</span>
+&#9500;&#9472;&#9472; <span class="ok">.gitleaks.toml</span>                  <span class="d">&#128203; secret scan</span>
+&#9492;&#9472;&#9472; <span class="ok">.anvil.lock</span>                     <span class="d">&#9881; provenance + checksums</span>
+<span class="d">&#9472;&#9472; 22 files, 0 conflicts &#9472;&#9472;</span></div>
+</div>
+
+<!-- ════════════════════════ 06 DX TERMINAL -->
+<div class="sb"><hr></div>
+<h2><span class="n">06</span> DX: Full Terminal Session</h2>
+<p class="si">What the developer (or agent) sees when scaffolding and running quality gates.</p>
+
+<div class="term" style="--i:0">
+  <div class="term__bar"><div class="term__dot term__dot--r"></div><div class="term__dot term__dot--y"></div><div class="term__dot term__dot--g"></div><span class="term__t">Terminal</span></div>
+  <div class="term__b"><span class="cmt"># Agent writes code, then runs lint</span>
+<span class="p">$</span> <span class="cmd">make lint</span>
+<span class="err">&#10007;</span> <span class="err">internal/service/handler.go:42</span>  <span class="w">no-log-and-continue</span>
+    <span class="out">Catch block only logs &#8212; handle the error or propagate it</span>
+<span class="err">&#10007;</span> <span class="err">internal/service/handler.go:1</span>   <span class="w">max-file-length</span>
+    <span class="out">File has 523 lines (max 500). Split into focused modules.</span>
+<span class="err">&#10007;</span> <span class="err">internal/service/types.go:15</span>   <span class="w">constants-file-organization</span>
+    <span class="out">Exported constant MaxRetries should be in constants.go</span>
+
+<span class="cmt"># Agent fixes violations, then runs full quality check</span>
+<span class="p">$</span> <span class="cmd">make check</span>
+<span class="ok">&#10003;</span> Lint ............. passed (0 violations)
+<span class="ok">&#10003;</span> Type check ....... passed (go vet + staticcheck)
+<span class="ok">&#10003;</span> Format ........... passed (gofmt)
+<span class="ok">&#10003;</span> Tests ............ passed (47 tests)
+<span class="ok">&#10003;</span> Coverage ......... 84.2% line (min: 80%)
+<span class="ok">&#10003;</span> Dead code ........ 0 unused exports
+<span class="ok">&#10003;</span> CRAP ............. 0 functions above threshold
+<span class="ok">&#10003;</span> Security ......... 0 findings (gosec)
+<span class="ok">&#10003;</span> Secrets .......... clean (gitleaks)
+<span class="ok">&#10003;</span> Dep audit ........ 0 vulnerabilities (govulncheck)
+
+<span class="cmt"># Later: anvil ships new rules. Update safely.</span>
+<span class="p">$</span> <span class="cmd">npx anvil update</span>
+<span class="out">Comparing anvil 1.0.0 &#8594; 1.1.0 (minor update)</span>
+<span class="ok">&#10003;</span> Makefile ......... auto-applied (you didn't modify)
+<span class="ok">&#10003;</span> .golangci.yml .... auto-applied (you didn't modify)
+<span class="w">&#9888;</span> AGENTS.md ........ <span class="w">conflict</span> (both sides changed)
+    <span class="d">Your edit: added "use slog for logging"</span>
+    <span class="d">Upstream:  added "prefer table-driven tests"</span>
+    <span class="d">[a]pply theirs  [k]eep yours  [m]erge  [d]iff</span>
+<span class="ok">&#10003;</span> 2 new analyzers .. created (no conflict)
+<span class="ok">&#10003;</span> Updated .anvil.lock &#8594; 1.1.0</div>
+</div>
+
+<!-- ═══════════════════════ 07 3-WAY MERGE -->
+<div class="sb"><hr></div>
+<h2><span class="n">07</span> Update Flow: 3-Way Merge Algorithm</h2>
+<p class="si">The lockfile&#8217;s <code>context</code> block enables deterministic re-rendering of original templates &#8212; giving us a true base for 3-way comparison.</p>
+
+<div class="dw" style="--i:0">
+  <svg viewBox="0 0 880 310" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:880px;height:auto;">
+    <defs><marker id="m1" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto-start-reverse"><path d="M0,0 L8,3 L0,6" fill="var(--text-dim)"/></marker></defs>
+    <rect x="20" y="25" width="170" height="55" rx="10" fill="var(--amber-dim)" stroke="var(--amber)" stroke-width="1.5"/>
+    <text x="105" y="45" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--amber)" font-weight="600">&#9312; READ LOCKFILE</text>
+    <text x="105" y="65" text-anchor="middle" font-family="var(--font-body)" font-size="11" fill="var(--text-dim)">version + context block</text>
+    <line x1="190" y1="52" x2="225" y2="52" stroke="var(--text-dim)" stroke-width="1.5" marker-end="url(#m1)"/>
+    <rect x="230" y="25" width="170" height="55" rx="10" fill="var(--indigo-dim)" stroke="var(--indigo)" stroke-width="1.5"/>
+    <text x="315" y="45" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--indigo)" font-weight="600">&#9313; RENDER BASE</text>
+    <text x="315" y="65" text-anchor="middle" font-family="var(--font-body)" font-size="11" fill="var(--text-dim)">old templates + old context</text>
+    <line x1="400" y1="52" x2="435" y2="52" stroke="var(--text-dim)" stroke-width="1.5" marker-end="url(#m1)"/>
+    <rect x="440" y="25" width="170" height="55" rx="10" fill="var(--teal-dim)" stroke="var(--teal)" stroke-width="1.5"/>
+    <text x="525" y="45" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--teal)" font-weight="600">&#9314; RENDER THEIRS</text>
+    <text x="525" y="65" text-anchor="middle" font-family="var(--font-body)" font-size="11" fill="var(--text-dim)">new templates + old context</text>
+    <line x1="610" y1="52" x2="645" y2="52" stroke="var(--text-dim)" stroke-width="1.5" marker-end="url(#m1)"/>
+    <rect x="650" y="15" width="200" height="75" rx="10" fill="var(--surface)" stroke="var(--accent)" stroke-width="1.5"/>
+    <text x="750" y="38" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--accent)" font-weight="600">&#9315; 3-WAY COMPARE</text>
+    <text x="750" y="56" text-anchor="middle" font-family="var(--font-body)" font-size="11" fill="var(--text)">base vs theirs vs ours</text>
+    <text x="750" y="75" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--text-dim)">ours = current disk content</text>
+    <line x1="700" y1="90" x2="160" y2="155" stroke="var(--green)" stroke-width="1.5" marker-end="url(#m1)"/>
+    <line x1="750" y1="90" x2="490" y2="155" stroke="var(--ts)" stroke-width="1.5" marker-end="url(#m1)"/>
+    <line x1="800" y1="90" x2="800" y2="155" stroke="var(--amber)" stroke-width="1.5" marker-end="url(#m1)"/>
+    <rect x="30" y="160" width="260" height="65" rx="10" fill="var(--green-dim)" stroke="var(--green)" stroke-width="1.5"/>
+    <text x="160" y="180" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--green)" font-weight="600">AUTO-APPLY</text>
+    <text x="160" y="198" text-anchor="middle" font-family="var(--font-body)" font-size="11" fill="var(--text-dim)">base === ours &#8594; user didn't edit</text>
+    <text x="160" y="214" text-anchor="middle" font-family="var(--font-body)" font-size="11" fill="var(--text-dim)">Replace with theirs silently</text>
+    <rect x="360" y="160" width="260" height="65" rx="10" fill="var(--ts-dim)" stroke="var(--ts)" stroke-width="1.5"/>
+    <text x="490" y="180" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ts)" font-weight="600">SKIP</text>
+    <text x="490" y="198" text-anchor="middle" font-family="var(--font-body)" font-size="11" fill="var(--text-dim)">base !== ours AND base === theirs</text>
+    <text x="490" y="214" text-anchor="middle" font-family="var(--font-body)" font-size="11" fill="var(--text-dim)">No upstream change &#8212; keep yours</text>
+    <rect x="700" y="160" width="160" height="65" rx="10" fill="var(--amber-dim)" stroke="var(--amber)" stroke-width="1.5"/>
+    <text x="780" y="180" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--amber)" font-weight="600">CONFLICT</text>
+    <text x="780" y="198" text-anchor="middle" font-family="var(--font-body)" font-size="11" fill="var(--text-dim)">Both sides changed</text>
+    <text x="780" y="214" text-anchor="middle" font-family="var(--font-body)" font-size="11" fill="var(--text-dim)">Show diff &#8594; prompt</text>
+    <line x1="160" y1="225" x2="400" y2="275" stroke="var(--text-dim)" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#m1)"/>
+    <line x1="490" y1="225" x2="480" y2="275" stroke="var(--text-dim)" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#m1)"/>
+    <line x1="780" y1="225" x2="560" y2="275" stroke="var(--text-dim)" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#m1)"/>
+    <rect x="370" y="270" width="220" height="35" rx="8" fill="var(--surface)" stroke="var(--accent)" stroke-width="1"/>
+    <text x="480" y="293" text-anchor="middle" font-family="var(--font-body)" font-size="12" fill="var(--text)" font-weight="600">Update .anvil.lock &#8594; new version</text>
+  </svg>
+</div>
+
+<!-- ════════════════════ 08 RULES -->
+<div class="sb"><hr></div>
+<h2><span class="n">08</span> Anti-Slop Rule Taxonomy</h2>
+<p class="si">21 custom lint rules in 3 families. Deterministic guardrails that catch AI-generated ceremony, placeholder code, and structural decay.</p>
+
+<div class="r3" style="margin-bottom:16px;">
+  <div class="c c--red" style="--i:0">
+    <div class="lb lb-red">8 Rules &#183; Anti-Slop</div>
+    <h3>&#128737; Catch Lazy Patterns</h3>
+    <ul class="il">
+      <li><code>RULE-01</code> no-log-and-continue</li>
+      <li><code>RULE-02</code> no-error-obscuring</li>
+      <li><code>RULE-03</code> no-placeholder-comments</li>
+      <li><code>RULE-04</code> no-pass-through-wrapper</li>
+      <li><code>RULE-05</code> no-log-and-throw</li>
+      <li><code>RULE-06</code> require-structured-logging</li>
+      <li><code>RULE-07</code> require-test-files</li>
+      <li><code>RULE-08</code> no-async-noise (TS only)</li>
+    </ul>
   </div>
-
-
-  <!-- ═══════════════════════════════════════════════ -->
-  <!-- SECTION 5: QUALITY TOOLCHAIN -->
-  <!-- ═══════════════════════════════════════════════ -->
-  <div class="section-break"><hr></div>
-  <h2><span class="num">05</span> Quality Toolchain</h2>
-  <p class="section-intro">Two tiers of quality gates. Tier 1 runs on every commit (pre-commit hook). Tier 2 runs in CI and on demand via <code>make check</code>. All tools are language-specific, project-local, and reproducible.</p>
-
-  <div class="row-2" style="margin-bottom: 16px;">
-    <div class="card card--accent-amber" style="--i: 0">
-      <div class="label label--amber">Tier 1 — Every Commit</div>
-      <h3>Fast Feedback</h3>
-      <p>Runs in the pre-commit hook. Subsecond to low-seconds.</p>
-      <ul class="item-list">
-        <li><strong>Lint</strong> — anti-slop + structural + test rules</li>
-        <li><strong>Type check</strong> — tsc / go vet+staticcheck / mypy</li>
-        <li><strong>Format</strong> — Prettier / gofmt / Ruff format</li>
-        <li><strong>Secrets</strong> — gitleaks pre-commit hook</li>
-      </ul>
-    </div>
-
-    <div class="card card--accent-green" style="--i: 1">
-      <div class="label label--green">Tier 2 — CI &amp; On Demand</div>
-      <h3>Deep Analysis</h3>
-      <p>Full quality suite via <code>make check</code>. Minutes.</p>
-      <ul class="item-list">
-        <li><strong>Coverage</strong> — line 80%, branch 70% (Go: line only)</li>
-        <li><strong>Mutation</strong> — 70% kill rate threshold</li>
-        <li><strong>Dead code</strong> — zero unused exports</li>
-        <li><strong>CRAP</strong> — complexity × coverage metric</li>
-        <li><strong>Security</strong> — vulnerability scanning</li>
-        <li><strong>Dep audit</strong> — known vulnerability check</li>
-      </ul>
-    </div>
+  <div class="c c--indigo" style="--i:1">
+    <div class="lb lb-indigo">8 Rules &#183; Structural</div>
+    <h3>&#128208; Enforce Organization</h3>
+    <ul class="il">
+      <li><code>STRUCT-01</code> max-file-length</li>
+      <li><code>STRUCT-02</code> max-function-length</li>
+      <li><code>STRUCT-03</code> types-file-organization</li>
+      <li><code>STRUCT-04</code> errors-file-organization</li>
+      <li><code>STRUCT-05</code> constants-file-organization</li>
+      <li><code>STRUCT-06</code> enums-file-organization</li>
+      <li><code>STRUCT-07</code> filename-match-export</li>
+      <li><code>STRUCT-08</code> no-exported-func-expressions</li>
+    </ul>
   </div>
-
-  <!-- Tool matrix table -->
-  <div class="table-wrap" style="--i: 2">
-    <div class="table-scroll">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Capability</th>
-            <th style="color: var(--go);">Go</th>
-            <th style="color: var(--ts);">TypeScript / JS</th>
-            <th style="color: var(--py-text);">Python</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><strong>Coverage</strong></td>
-            <td>go test -cover</td>
-            <td>Vitest (v8 provider)</td>
-            <td>pytest-cov</td>
-          </tr>
-          <tr>
-            <td><strong>Mutation</strong></td>
-            <td>go-mutesting</td>
-            <td>StrykerJS</td>
-            <td>mutmut</td>
-          </tr>
-          <tr>
-            <td><strong>Dead code</strong></td>
-            <td>deadcode</td>
-            <td>Knip</td>
-            <td>Vulture</td>
-          </tr>
-          <tr>
-            <td><strong>CRAP score</strong></td>
-            <td>Custom script</td>
-            <td>Custom script</td>
-            <td>pytest-crap</td>
-          </tr>
-          <tr>
-            <td><strong>Security</strong></td>
-            <td>gosec</td>
-            <td>eslint-plugin-security</td>
-            <td>Bandit (via Ruff)</td>
-          </tr>
-          <tr>
-            <td><strong>Type check</strong></td>
-            <td>go vet + staticcheck</td>
-            <td>tsc --noEmit</td>
-            <td>mypy (strict)</td>
-          </tr>
-          <tr>
-            <td><strong>Dep audit</strong></td>
-            <td>govulncheck</td>
-            <td>npm audit</td>
-            <td>pip-audit</td>
-          </tr>
-          <tr>
-            <td><strong>Secrets</strong></td>
-            <td colspan="3" style="text-align: center;"><span class="tag tag--teal">gitleaks (all languages)</span></td>
-          </tr>
-          <tr>
-            <td><strong>Pkg manager</strong></td>
-            <td>go mod</td>
-            <td>detect: npm / bun / pnpm / yarn</td>
-            <td>uv</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+  <div class="c c--teal" style="--i:2">
+    <div class="lb lb-teal">5 Rules &#183; Test Quality</div>
+    <h3>&#129514; Verify Real Tests</h3>
+    <ul class="il">
+      <li><code>TEST-01</code> no-empty-tests</li>
+      <li><code>TEST-02</code> no-tautological-assertions</li>
+      <li><code>TEST-03</code> no-disabled-tests-w/o-reason</li>
+      <li><code>TEST-04</code> require-error-path-tests</li>
+      <li><code>TEST-05</code> no-snapshot-only-tests (TS)</li>
+    </ul>
   </div>
+</div>
 
+<!-- ══════════════════════ 09 QUALITY TIERS -->
+<div class="sb"><hr></div>
+<h2><span class="n">09</span> Quality Toolchain: 3 Tiers</h2>
+<p class="si">All tools unified behind <code>make</code> targets. Tier 1 on every commit. Tier 2 in CI. Tier 3 on demand.</p>
 
-  <!-- ═══════════════════════════════════════════════ -->
-  <!-- SECTION 6: SCAFFOLD OUTPUT -->
-  <!-- ═══════════════════════════════════════════════ -->
-  <div class="section-break"><hr></div>
-  <h2><span class="num">06</span> Scaffold Output</h2>
-  <p class="section-intro">What gets created when you run <code>anvil init</code>. Every file lands in its standard project location — no managed directory, no vendor lock-in.</p>
-
-  <div class="row-3">
-    <!-- Go output -->
-    <div class="card card--accent-go" style="--i: 0">
-      <div class="label label--go">Go Project</div>
-      <h3>Scaffold Output</h3>
-      <ul class="item-list" style="margin-top: 4px;">
-        <li><code>go.mod</code> module definition</li>
-        <li><code>Makefile</code> lint/test/check targets</li>
-        <li><code>.golangci.yml</code> linter config</li>
-        <li><code>tools/tools.go</code> tool deps</li>
-        <li><code>cmd/greeter/main.go</code> seed</li>
-        <li><code>internal/greeter/</code> seed pkg</li>
-        <li><code>analyzers/</code> custom go vet plugin</li>
-        <li><code>.pre-commit-config.yaml</code></li>
-        <li><code>AGENTS.md</code></li>
-        <li><code>.anvil.lock</code></li>
-      </ul>
-    </div>
-
-    <!-- TS output -->
-    <div class="card card--accent-ts" style="--i: 1">
-      <div class="label label--ts">TypeScript / JS Project</div>
-      <h3>Scaffold Output</h3>
-      <ul class="item-list" style="margin-top: 4px;">
-        <li><code>package.json</code> deps + scripts</li>
-        <li><code>tsconfig.json</code> strict config</li>
-        <li><code>eslint.config.mjs</code> flat config</li>
-        <li><code>vitest.config.ts</code> test runner</li>
-        <li><code>.anvil/eslint-plugin/</code> rules</li>
-        <li><code>src/greeter/</code> seed module</li>
-        <li><code>tests/greeter/</code> seed tests</li>
-        <li><code>.prettierrc</code> formatting</li>
-        <li><code>.pre-commit-config.yaml</code></li>
-        <li><code>AGENTS.md</code> + <code>.anvil.lock</code></li>
-      </ul>
-    </div>
-
-    <!-- Python output -->
-    <div class="card card--accent-py" style="--i: 2">
-      <div class="label label--py">Python Project</div>
-      <h3>Scaffold Output</h3>
-      <ul class="item-list" style="margin-top: 4px;">
-        <li><code>pyproject.toml</code> project + deps</li>
-        <li><code>.flake8</code> linter config</li>
-        <li><code>mypy.ini</code> strict type check</li>
-        <li><code>Makefile</code> lint/test/check</li>
-        <li><code>anvil_lint/</code> Flake8 plugin</li>
-        <li><code>src/greeter/</code> seed package</li>
-        <li><code>tests/</code> seed tests</li>
-        <li><code>conftest.py</code> pytest config</li>
-        <li><code>.pre-commit-config.yaml</code></li>
-        <li><code>AGENTS.md</code> + <code>.anvil.lock</code></li>
-      </ul>
-    </div>
+<div class="r3" style="margin-bottom:16px;">
+  <div class="c c--amber" style="--i:0">
+    <div class="lb lb-amber">Tier 1 &#8212; Every Commit</div>
+    <h3>Pre-commit Hook (&lt;30s)</h3>
+    <ul class="il">
+      <li><code>make lint</code> &#8212; all 21 rules</li>
+      <li><code>make format</code> &#8212; Prettier / gofmt / Ruff</li>
+      <li><code>make typecheck</code> &#8212; tsc / go vet / mypy</li>
+      <li><code>gitleaks</code> &#8212; secrets on staged files</li>
+    </ul>
   </div>
-
-
-  <!-- ═══════════════════════════════════════════════ -->
-  <!-- SECTION 7: UPDATE FLOW (3-WAY MERGE) -->
-  <!-- ═══════════════════════════════════════════════ -->
-  <div class="section-break"><hr></div>
-  <h2><span class="num">07</span> Update Flow — 3-Way Merge</h2>
-  <p class="section-intro">When anvil ships new rules or tool updates, <code>anvil update</code> uses 3-way merge via the lockfile context block to safely apply changes without clobbering user edits.</p>
-
-  <div class="diagram-wrap" style="--i: 0">
-    <svg viewBox="0 0 880 340" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:880px;height:auto;">
-      <defs>
-        <marker id="arrow2" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto-start-reverse">
-          <path d="M0,0 L8,3 L0,6" fill="var(--text-dim)"/>
-        </marker>
-        <marker id="arrow-green" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto-start-reverse">
-          <path d="M0,0 L8,3 L0,6" fill="var(--green)"/>
-        </marker>
-        <marker id="arrow-amber" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto-start-reverse">
-          <path d="M0,0 L8,3 L0,6" fill="var(--amber)"/>
-        </marker>
-      </defs>
-
-      <!-- Step 1: Read lockfile -->
-      <rect x="20" y="30" width="180" height="60" rx="10" fill="var(--amber-dim)" stroke="var(--amber)" stroke-width="1.5"/>
-      <text x="110" y="52" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--amber)" font-weight="600">STEP 1</text>
-      <text x="110" y="72" text-anchor="middle" font-family="var(--font-body)" font-size="13" fill="var(--text)" font-weight="600">Read .anvil.lock</text>
-
-      <line x1="200" y1="60" x2="255" y2="60" stroke="var(--text-dim)" stroke-width="1.5" marker-end="url(#arrow2)"/>
-
-      <!-- Step 2: Render base -->
-      <rect x="260" y="30" width="180" height="60" rx="10" fill="var(--indigo-dim)" stroke="var(--indigo)" stroke-width="1.5"/>
-      <text x="350" y="52" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--indigo)" font-weight="600">STEP 2</text>
-      <text x="350" y="72" text-anchor="middle" font-family="var(--font-body)" font-size="13" fill="var(--text)" font-weight="600">Re-render Base</text>
-
-      <line x1="440" y1="60" x2="495" y2="60" stroke="var(--text-dim)" stroke-width="1.5" marker-end="url(#arrow2)"/>
-
-      <!-- Step 3: Render new -->
-      <rect x="500" y="30" width="180" height="60" rx="10" fill="var(--teal-dim)" stroke="var(--teal)" stroke-width="1.5"/>
-      <text x="590" y="52" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--teal)" font-weight="600">STEP 3</text>
-      <text x="590" y="72" text-anchor="middle" font-family="var(--font-body)" font-size="13" fill="var(--text)" font-weight="600">Render Theirs</text>
-
-      <line x1="680" y1="60" x2="695" y2="60" stroke="var(--text-dim)" stroke-width="1.5" marker-end="url(#arrow2)"/>
-
-      <!-- Step 4: Compare -->
-      <rect x="700" y="20" width="160" height="80" rx="10" fill="var(--surface)" stroke="var(--accent)" stroke-width="1.5"/>
-      <text x="780" y="45" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--accent)" font-weight="600">STEP 4</text>
-      <text x="780" y="65" text-anchor="middle" font-family="var(--font-body)" font-size="13" fill="var(--text)" font-weight="600">3-Way Compare</text>
-      <text x="780" y="85" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--text-dim)">base · theirs · ours</text>
-
-      <!-- Three outcome branches -->
-      <!-- Outcome A: Auto-apply -->
-      <line x1="740" y1="100" x2="180" y2="175" stroke="var(--green)" stroke-width="1.5" marker-end="url(#arrow-green)"/>
-      <rect x="30" y="160" width="300" height="70" rx="10" fill="var(--green-dim)" stroke="var(--green)" stroke-width="1.5"/>
-      <text x="180" y="185" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--green)" font-weight="600">AUTO-APPLY</text>
-      <text x="180" y="205" text-anchor="middle" font-family="var(--font-body)" font-size="12" fill="var(--text-dim)">base === ours (user didn't edit)</text>
-      <text x="180" y="220" text-anchor="middle" font-family="var(--font-body)" font-size="12" fill="var(--text-dim)">→ Replace with theirs silently</text>
-
-      <!-- Outcome B: Skip -->
-      <line x1="780" y1="100" x2="530" y2="175" stroke="var(--ts)" stroke-width="1.5" marker-end="url(#arrow2)"/>
-      <rect x="380" y="160" width="300" height="70" rx="10" fill="var(--ts-dim)" stroke="var(--ts)" stroke-width="1.5"/>
-      <text x="530" y="185" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ts)" font-weight="600">SKIP (NO CHANGE)</text>
-      <text x="530" y="205" text-anchor="middle" font-family="var(--font-body)" font-size="12" fill="var(--text-dim)">base !== ours AND base === theirs</text>
-      <text x="530" y="220" text-anchor="middle" font-family="var(--font-body)" font-size="12" fill="var(--text-dim)">→ No upstream change, keep ours</text>
-
-      <!-- Outcome C: Conflict -->
-      <line x1="820" y1="100" x2="820" y2="175" stroke="var(--amber)" stroke-width="1.5" marker-end="url(#arrow-amber)"/>
-      <rect x="700" y="160" width="160" height="70" rx="10" fill="var(--amber-dim)" stroke="var(--amber)" stroke-width="1.5"/>
-      <text x="780" y="185" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--amber)" font-weight="600">CONFLICT</text>
-      <text x="780" y="205" text-anchor="middle" font-family="var(--font-body)" font-size="12" fill="var(--text-dim)">both changed</text>
-      <text x="780" y="220" text-anchor="middle" font-family="var(--font-body)" font-size="12" fill="var(--text-dim)">→ Show 3-way diff</text>
-
-      <!-- Final: update lockfile -->
-      <line x1="180" y1="230" x2="420" y2="290" stroke="var(--text-dim)" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#arrow2)"/>
-      <line x1="530" y1="230" x2="500" y2="290" stroke="var(--text-dim)" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#arrow2)"/>
-      <line x1="780" y1="230" x2="580" y2="290" stroke="var(--text-dim)" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#arrow2)"/>
-
-      <rect x="380" y="280" width="240" height="45" rx="8" fill="var(--surface)" stroke="var(--accent)" stroke-width="1"/>
-      <text x="500" y="307" text-anchor="middle" font-family="var(--font-body)" font-size="13" fill="var(--text)" font-weight="600">Update .anvil.lock</text>
-      <text x="500" y="320" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--text-dim)">new version + context snapshot</text>
-    </svg>
+  <div class="c c--green" style="--i:1">
+    <div class="lb lb-green">Tier 2 &#8212; CI Pipeline</div>
+    <h3>make check (&lt;5min)</h3>
+    <ul class="il">
+      <li>All Tier 1 checks</li>
+      <li><code>make coverage</code> &#8212; 80% line, 70% branch</li>
+      <li><code>make deadcode</code> &#8212; 0 unused exports</li>
+      <li><code>make crap</code> &#8212; complexity &#215; coverage</li>
+      <li><code>make audit</code> &#8212; dep vulnerability scan</li>
+    </ul>
   </div>
-
-
-  <!-- ═══════════════════════════════════════════════ -->
-  <!-- SECTION 8: AGENTS.MD -->
-  <!-- ═══════════════════════════════════════════════ -->
-  <div class="section-break"><hr></div>
-  <h2><span class="num">08</span> AGENTS.md — Agent Instructions</h2>
-  <p class="section-intro">Under 40 lines. Complements the lint rules with conventions that can't be enforced by a linter. Seeded into every scaffolded project.</p>
-
-  <div class="row-2">
-    <div class="card card--accent-purple" style="--i: 0">
-      <div class="label label--purple">What It Contains</div>
-      <h3>Seeded Conventions</h3>
-      <ul class="item-list">
-        <li>Validate before commit: <code>make check</code></li>
-        <li>Testing rules: test behavior, not implementation</li>
-        <li>File organization: one concept per file</li>
-        <li>Error handling: propagate, don't swallow</li>
-        <li>No dead code: delete instead of commenting out</li>
-        <li>Naming: descriptive, no abbreviations</li>
-        <li>Prefer stdlib over new dependencies</li>
-      </ul>
-    </div>
-
-    <div class="card card--accent-cyan" style="--i: 1">
-      <div class="label label--cyan">What It Doesn't</div>
-      <h3>Left to Lint Rules</h3>
-      <p>These are enforced mechanically by the 21 custom rules and quality gates — no need for prose instructions:</p>
-      <ul class="item-list">
-        <li>File/function length limits</li>
-        <li>Empty catch block detection</li>
-        <li>Console.log / print cleanup</li>
-        <li>TODO comment enforcement</li>
-        <li>Test quality requirements</li>
-        <li>Coverage and mutation thresholds</li>
-        <li>Security scanning</li>
-      </ul>
-    </div>
+  <div class="c c--purple" style="--i:2">
+    <div class="lb lb-purple">Tier 3 &#8212; On Demand</div>
+    <h3>make quality</h3>
+    <ul class="il">
+      <li>All Tier 2 checks</li>
+      <li><code>make mutate</code> &#8212; 70% kill rate</li>
+      <li>Full CRAP report</li>
+      <li>Too slow for CI; run before releases</li>
+    </ul>
   </div>
+</div>
 
-
-  <!-- ═══════════════════════════════════════════════ -->
-  <!-- SECTION 9: TOOL PROVISIONING -->
-  <!-- ═══════════════════════════════════════════════ -->
-  <div class="section-break"><hr></div>
-  <h2><span class="num">09</span> Tool Provisioning</h2>
-  <p class="section-intro">Every tool is installed as a project-local dependency. Only gitleaks and pre-commit are global (checked by <code>anvil doctor</code>).</p>
-
-  <div class="row-3">
-    <div class="card card--accent-go" style="--i: 0">
-      <div class="label label--go">Go</div>
-      <h3>tools/tools.go</h3>
-      <p>Blank imports + <code>go install</code> targets in Makefile. All tools pinned in <code>go.mod</code>.</p>
-      <div style="margin-top: 8px;">
-        <span class="tag tag--go">gosec</span>
-        <span class="tag tag--go">staticcheck</span>
-        <span class="tag tag--go">deadcode</span>
-        <span class="tag tag--go">govulncheck</span>
-        <span class="tag tag--go">go-mutesting</span>
-      </div>
-    </div>
-
-    <div class="card card--accent-ts" style="--i: 1">
-      <div class="label label--ts">TypeScript / JS</div>
-      <h3>devDependencies</h3>
-      <p>All tools listed in <code>package.json</code> devDependencies. Standard <code>npm ci</code>.</p>
-      <div style="margin-top: 8px;">
-        <span class="tag tag--ts">eslint</span>
-        <span class="tag tag--ts">vitest</span>
-        <span class="tag tag--ts">stryker</span>
-        <span class="tag tag--ts">knip</span>
-        <span class="tag tag--ts">prettier</span>
-      </div>
-    </div>
-
-    <div class="card card--accent-py" style="--i: 2">
-      <div class="label label--py">Python</div>
-      <h3>pyproject.toml [dev]</h3>
-      <p>Optional dependencies group via <code>uv sync --extra dev</code>. Lockfile-managed.</p>
-      <div style="margin-top: 8px;">
-        <span class="tag tag--py">flake8</span>
-        <span class="tag tag--py">pytest</span>
-        <span class="tag tag--py">mutmut</span>
-        <span class="tag tag--py">vulture</span>
-        <span class="tag tag--py">mypy</span>
-      </div>
-    </div>
+<div class="tw" style="--i:3">
+  <div style="overflow-x:auto">
+    <table class="dt">
+      <thead><tr><th>Capability</th><th style="color:var(--go);">Go</th><th style="color:var(--ts);">TypeScript / JS</th><th style="color:var(--py-text);">Python</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Lint (built-in)</strong></td><td>golangci-lint</td><td>ESLint v9+ strict</td><td>Ruff</td></tr>
+        <tr><td><strong>Lint (custom)</strong></td><td>go vet -vettool</td><td>ESLint local plugin</td><td>Flake8 ANV</td></tr>
+        <tr><td><strong>Format</strong></td><td>gofmt</td><td>Prettier</td><td>Ruff format</td></tr>
+        <tr><td><strong>Type check</strong></td><td>go vet + staticcheck</td><td>tsc --noEmit</td><td>mypy (strict)</td></tr>
+        <tr><td><strong>Coverage</strong></td><td>go test -cover (line)</td><td>Vitest v8 (line+branch)</td><td>pytest-cov</td></tr>
+        <tr><td><strong>Mutation</strong></td><td>go-mutesting</td><td>StrykerJS</td><td>mutmut</td></tr>
+        <tr><td><strong>Dead code</strong></td><td>deadcode</td><td>Knip</td><td>Vulture</td></tr>
+        <tr><td><strong>CRAP</strong></td><td>Custom script</td><td>Custom script</td><td>pytest-crap</td></tr>
+        <tr><td><strong>Security</strong></td><td>gosec</td><td>eslint-plugin-security</td><td>Bandit S (Ruff)</td></tr>
+        <tr><td><strong>Dep audit</strong></td><td>govulncheck</td><td>npm/bun audit</td><td>pip-audit</td></tr>
+        <tr><td><strong>Secrets</strong></td><td colspan="3" style="text-align:center"><span class="tg tg-teal">gitleaks (all languages)</span></td></tr>
+        <tr><td><strong>Tool install</strong></td><td>tools/tools.go</td><td>devDependencies</td><td>pyproject [dev]</td></tr>
+      </tbody>
+    </table>
   </div>
+</div>
 
+<!-- ════════════════ 10 FEEDBACK LOOP -->
+<div class="sb"><hr></div>
+<h2><span class="n">10</span> The Anti-Slop Feedback Loop</h2>
+<p class="si">The core insight: coding agents respond to deterministic signals. By placing lint rules in their feedback loop, agents self-correct.</p>
 
-  <!-- ═══════════════════════════════════════════════ -->
-  <!-- SECTION 10: THE FEEDBACK LOOP -->
-  <!-- ═══════════════════════════════════════════════ -->
-  <div class="section-break"><hr></div>
-  <h2><span class="num">10</span> The Anti-Slop Feedback Loop</h2>
-  <p class="section-intro">The core insight: coding agents respond to deterministic signals. By placing lint rules and quality gates in their feedback loop, agents self-correct. No human review needed for mechanical issues.</p>
+<div class="dw" style="--i:0">
+  <svg viewBox="0 0 700 250" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:700px;height:auto;">
+    <defs>
+      <marker id="l1" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto-start-reverse"><path d="M0,0 L8,3 L0,6" fill="var(--text-dim)"/></marker>
+      <marker id="l2" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto-start-reverse"><path d="M0,0 L8,3 L0,6" fill="var(--green)"/></marker>
+      <marker id="l3" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto-start-reverse"><path d="M0,0 L8,3 L0,6" fill="var(--red)"/></marker>
+    </defs>
+    <rect x="40" y="55" width="160" height="60" rx="10" fill="var(--surface)" stroke="var(--ts)" stroke-width="1.5"/>
+    <text x="120" y="78" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ts)" font-weight="600">AGENT</text>
+    <text x="120" y="98" text-anchor="middle" font-family="var(--font-body)" font-size="13" fill="var(--text)" font-weight="600">Writes Code</text>
+    <line x1="200" y1="85" x2="265" y2="85" stroke="var(--text-dim)" stroke-width="1.5" marker-end="url(#l1)"/>
+    <rect x="270" y="55" width="160" height="60" rx="10" fill="var(--surface)" stroke="var(--amber)" stroke-width="1.5"/>
+    <text x="350" y="78" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--amber)" font-weight="600">GATE</text>
+    <text x="350" y="98" text-anchor="middle" font-family="var(--font-body)" font-size="13" fill="var(--text)" font-weight="600">make lint</text>
+    <line x1="430" y1="85" x2="525" y2="85" stroke="var(--text-dim)" stroke-width="1.5" marker-end="url(#l1)"/>
+    <polygon points="530,85 580,55 630,85 580,115" fill="var(--surface)" stroke="var(--accent)" stroke-width="1.5"/>
+    <text x="580" y="89" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--text)" font-weight="600">Pass?</text>
+    <rect x="570" y="15" width="90" height="28" rx="14" fill="var(--green-dim)" stroke="var(--green)" stroke-width="1.5"/>
+    <text x="615" y="34" text-anchor="middle" font-family="var(--font-body)" font-size="12" fill="var(--green)" font-weight="600">&#10003; Ship</text>
+    <line x1="600" y1="55" x2="612" y2="45" stroke="var(--green)" stroke-width="1.5" marker-end="url(#l2)"/>
+    <path d="M 555,115 C 555,190 120,190 120,115" fill="none" stroke="var(--red)" stroke-width="1.5" stroke-dasharray="6 3" marker-end="url(#l3)"/>
+    <text x="340" y="208" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--red)" font-weight="600">FAIL &#8594; agent reads errors &#8594; fixes &#8594; retries</text>
+    <text x="40" y="240" font-family="var(--font-body)" font-size="12" fill="var(--text-dim)">Deterministic: same code &#8594; same errors &#8594; same fix &#8594; convergence</text>
+  </svg>
+</div>
 
-  <div class="diagram-wrap" style="--i: 0">
-    <svg viewBox="0 0 700 280" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:700px;height:auto;">
-      <defs>
-        <marker id="arrow3" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto-start-reverse">
-          <path d="M0,0 L8,3 L0,6" fill="var(--text-dim)"/>
-        </marker>
-        <marker id="arrow3-green" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto-start-reverse">
-          <path d="M0,0 L8,3 L0,6" fill="var(--green)"/>
-        </marker>
-        <marker id="arrow3-red" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto-start-reverse">
-          <path d="M0,0 L8,3 L0,6" fill="var(--red)"/>
-        </marker>
-      </defs>
-
-      <!-- Agent writes code -->
-      <rect x="40" y="60" width="160" height="60" rx="10" fill="var(--surface)" stroke="var(--ts)" stroke-width="1.5"/>
-      <text x="120" y="82" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ts)" font-weight="600">AGENT</text>
-      <text x="120" y="102" text-anchor="middle" font-family="var(--font-body)" font-size="13" fill="var(--text)" font-weight="600">Writes Code</text>
-
-      <!-- Arrow right -->
-      <line x1="200" y1="90" x2="265" y2="90" stroke="var(--text-dim)" stroke-width="1.5" marker-end="url(#arrow3)"/>
-
-      <!-- Lint check -->
-      <rect x="270" y="60" width="160" height="60" rx="10" fill="var(--surface)" stroke="var(--amber)" stroke-width="1.5"/>
-      <text x="350" y="82" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--amber)" font-weight="600">GATE</text>
-      <text x="350" y="102" text-anchor="middle" font-family="var(--font-body)" font-size="13" fill="var(--text)" font-weight="600">make lint</text>
-
-      <!-- Decision diamond -->
-      <polygon points="530,90 580,60 630,90 580,120" fill="var(--surface)" stroke="var(--accent)" stroke-width="1.5"/>
-      <text x="580" y="94" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--text)" font-weight="600">Pass?</text>
-
-      <line x1="430" y1="90" x2="528" y2="90" stroke="var(--text-dim)" stroke-width="1.5" marker-end="url(#arrow3)"/>
-
-      <!-- Fail path (loop back) -->
-      <path d="M 555,120 C 555,200 120,200 120,120" fill="none" stroke="var(--red)" stroke-width="1.5" stroke-dasharray="6 3" marker-end="url(#arrow3-red)"/>
-      <text x="340" y="218" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--red)" font-weight="600">FAIL → fix violations → retry</text>
-
-      <!-- Pass path -->
-      <line x1="630" y1="90" x2="655" y2="90" stroke="var(--green)" stroke-width="1.5" marker-end="url(#arrow3-green)"/>
-
-      <!-- Ship -->
-      <rect x="570" y="20" width="100" height="30" rx="15" fill="var(--green-dim)" stroke="var(--green)" stroke-width="1.5"/>
-      <text x="620" y="40" text-anchor="middle" font-family="var(--font-body)" font-size="12" fill="var(--green)" font-weight="600">✓ Ship</text>
-      <line x1="605" y1="60" x2="618" y2="52" stroke="var(--green)" stroke-width="1.5" marker-end="url(#arrow3-green)"/>
-
-      <!-- Annotations -->
-      <text x="40" y="260" font-family="var(--font-body)" font-size="12" fill="var(--text-dim)">
-        The loop is deterministic: same code → same errors → same fix → convergence.
-      </text>
-    </svg>
+<!-- ══════════════ 11 CLI COMMANDS -->
+<div class="sb"><hr></div>
+<h2><span class="n">11</span> CLI Commands</h2>
+<div class="r3">
+  <div class="c c--red" style="--i:0">
+    <div class="lb lb-red">Command</div>
+    <h3>anvil init</h3>
+    <p>Scaffold a new or existing project.</p>
+    <ul class="il">
+      <li><code>--lang</code> golang | typescript | python</li>
+      <li><code>--ci</code> github | azure | both | none</li>
+      <li>Detects existing code + pkg manager</li>
+      <li>Provisions all tools per language</li>
+      <li>Runs post-scaffold install</li>
+    </ul>
   </div>
-
-  <details class="collapsible" style="--i: 1; margin-top: 16px;">
-    <summary>Why This Works for AI Agents</summary>
-    <div class="collapse-body">
-      <p>Unlike human code review (subjective, slow, inconsistent), lint rules provide:</p>
-      <ul class="item-list" style="margin: 8px 0;">
-        <li><strong>Determinism</strong> — same input always produces same output</li>
-        <li><strong>Immediacy</strong> — errors appear in milliseconds, not hours</li>
-        <li><strong>Specificity</strong> — exact file, line, and fix suggestion</li>
-        <li><strong>Completeness</strong> — every file checked every time</li>
-      </ul>
-      <p style="margin-top: 8px;">Agents naturally iterate when they see compiler-style errors. By encoding anti-slop heuristics as lint rules, we turn subjective "code smell" judgments into objective, fixable violations that agents handle automatically.</p>
-    </div>
-  </details>
-
-  <!-- Footer -->
-  <div class="footer">
-    anvil v1 specification · 36 locked design decisions · 4 formal specs<br>
-    Go · TypeScript / JS · Python
+  <div class="c c--amber" style="--i:1">
+    <div class="lb lb-amber">Command</div>
+    <h3>anvil update</h3>
+    <p>Upgrade to newer anvil version.</p>
+    <ul class="il">
+      <li><code>--force</code> allow major version bumps</li>
+      <li><code>--dry-run</code> preview changes</li>
+      <li>3-way merge via lockfile context</li>
+      <li>Auto-applies if user didn't edit</li>
+      <li>Prompts on conflict with diff</li>
+    </ul>
   </div>
+  <div class="c c--green" style="--i:2">
+    <div class="lb lb-green">Command</div>
+    <h3>anvil doctor</h3>
+    <p>Verify and fix toolchain.</p>
+    <ul class="il">
+      <li>Checks runtime versions</li>
+      <li>Verifies lint plugin wired</li>
+      <li>Validates CI config present</li>
+      <li>Checks gitleaks, pre-commit, uv</li>
+      <li>Auto-fixes non-destructive only</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ══════════ 12 AGENTS + SEED -->
+<div class="sb"><hr></div>
+<h2><span class="n">12</span> AGENTS.md &amp; Seed Code</h2>
+<div class="r2">
+  <div class="c c--purple" style="--i:0">
+    <div class="lb lb-purple">AGENTS.md &#8212; Under 40 Lines</div>
+    <h3>Complements Lint (Not Duplicates)</h3>
+    <ul class="il">
+      <li>Run <code>make check</code> before every commit</li>
+      <li>Test behavior, not implementation</li>
+      <li>One concept per file</li>
+      <li>Propagate errors, don't swallow</li>
+      <li>Delete dead code instead of commenting</li>
+      <li>Descriptive names, no abbreviations</li>
+      <li>Prefer stdlib; consider industry-standard OSS</li>
+    </ul>
+  </div>
+  <div class="c c--cyan" style="--i:1">
+    <div class="lb lb-cyan">Seed Code &#8212; Greeter Module</div>
+    <h3>Teaches By Example</h3>
+    <ul class="il">
+      <li><code>greeter.{ext}</code> &#8212; logic + structured logging</li>
+      <li><code>types.{ext}</code> &#8212; exported types</li>
+      <li><code>errors.{ext}</code> &#8212; custom error types</li>
+      <li><code>constants.{ext}</code> &#8212; module constants</li>
+      <li><code>enums.{ext}</code> &#8212; enum definitions</li>
+      <li><code>greeter.test.{ext}</code> &#8212; happy + error paths</li>
+      <li>Every file &lt;100 lines, every function &lt;50</li>
+    </ul>
+  </div>
+</div>
+
+<div class="footer">
+  anvil v1 design document &#183; 36 locked decisions &#183; 4 formal specs &#183; 3 rounds of review<br>
+  Go &#183; TypeScript / JS &#183; Python
+</div>
 
 </div>
 </body>
