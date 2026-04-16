@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Anvil v1 — Ticket Decomposition</title>
+  <style>
+    :root {
+      --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --font-mono: ui-monospace, 'Cascadia Code', 'SF Mono', Consolas, monospace;
+      --bg: #0d1117;
+      --surface: #161b22;
+      --surface-alt: #1c2129;
+      --border: #30363d;
+      --border-subtle: #21262d;
+      --text: #e6edf3;
+      --text-dim: #8b949e;
+      --text-muted: #6e7681;
+      --accent-blue: #58a6ff;
+      --accent-purple: #bc8cff;
+      --accent-green: #3fb950;
+      --accent-orange: #d29922;
+      --accent-red: #f85149;
+      --accent-cyan: #79c0ff;
+      --story-bg: #1a1f2e;
+      --feature-bg: #1a2420;
+      --deliverable-bg: #1c1c26;
+      --ready-glow: rgba(63, 185, 80, 0.15);
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f6f8fa;
+        --surface: #ffffff;
+        --surface-alt: #f0f3f6;
+        --border: #d0d7de;
+        --border-subtle: #e1e4e8;
+        --text: #1f2328;
+        --text-dim: #656d76;
+        --text-muted: #8c959f;
+        --accent-blue: #0969da;
+        --accent-purple: #8250df;
+        --accent-green: #1a7f37;
+        --accent-orange: #9a6700;
+        --accent-red: #cf222e;
+        --accent-cyan: #0550ae;
+        --story-bg: #f0f3ff;
+        --feature-bg: #f0faf4;
+        --deliverable-bg: #f5f0ff;
+        --ready-glow: rgba(26, 127, 55, 0.08);
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-body);
+      background: var(--bg);
+      color: var(--text);
+      padding: 2rem;
+      line-height: 1.5;
+    }
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin-bottom: 0.25rem;
+      background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .subtitle {
+      color: var(--text-dim);
+      font-size: 0.9rem;
+      margin-bottom: 2rem;
+    }
+    .stats {
+      display: flex;
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+      flex-wrap: wrap;
+    }
+    .stat {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem 1.25rem;
+      text-align: center;
+      min-width: 100px;
+    }
+    .stat-value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      font-family: var(--font-mono);
+    }
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .stat-value.stories { color: var(--accent-blue); }
+    .stat-value.features { color: var(--accent-green); }
+    .stat-value.deliverables { color: var(--accent-purple); }
+    .stat-value.ready { color: var(--accent-orange); }
+
+    .legend {
+      display: flex;
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+      font-size: 0.8rem;
+      color: var(--text-dim);
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .legend-dot.story { background: var(--accent-blue); }
+    .legend-dot.feature { background: var(--accent-green); }
+    .legend-dot.deliverable { background: var(--accent-purple); }
+    .legend-dot.ready { background: var(--accent-orange); border: 2px solid var(--accent-orange); }
+
+    .story {
+      background: var(--story-bg);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent-blue);
+      border-radius: 8px;
+      margin-bottom: 1.5rem;
+      overflow: hidden;
+      animation: fadeIn 0.3s ease-out backwards;
+    }
+    .story:nth-child(1) { animation-delay: 0.05s; }
+    .story:nth-child(2) { animation-delay: 0.1s; }
+    .story:nth-child(3) { animation-delay: 0.15s; }
+    .story:nth-child(4) { animation-delay: 0.2s; }
+    .story:nth-child(5) { animation-delay: 0.25s; }
+
+    .story-header {
+      padding: 0.75rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: pointer;
+      user-select: none;
+    }
+    .story-header:hover { background: rgba(88, 166, 255, 0.05); }
+    .story-id {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--accent-blue);
+      background: rgba(88, 166, 255, 0.1);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+    .story-title {
+      font-weight: 600;
+      font-size: 0.95rem;
+      flex: 1;
+    }
+    .chevron {
+      color: var(--text-muted);
+      transition: transform 0.2s;
+      font-size: 0.8rem;
+    }
+    .story.collapsed .chevron { transform: rotate(-90deg); }
+    .story.collapsed .story-body { display: none; }
+    .story-body { padding: 0 0.75rem 0.75rem; }
+
+    .feature {
+      background: var(--feature-bg);
+      border: 1px solid var(--border-subtle);
+      border-left: 3px solid var(--accent-green);
+      border-radius: 6px;
+      margin-bottom: 0.5rem;
+      overflow: hidden;
+    }
+    .feature-header {
+      padding: 0.5rem 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: pointer;
+      user-select: none;
+    }
+    .feature-header:hover { background: rgba(63, 185, 80, 0.05); }
+    .feature-id {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--accent-green);
+      background: rgba(63, 185, 80, 0.1);
+      padding: 0.1rem 0.35rem;
+      border-radius: 3px;
+      white-space: nowrap;
+    }
+    .feature-title {
+      font-weight: 500;
+      font-size: 0.85rem;
+      flex: 1;
+    }
+    .feature-count {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+    .feature.collapsed .feature-body { display: none; }
+    .feature.collapsed .chevron { transform: rotate(-90deg); }
+    .feature-body { padding: 0.25rem 0.5rem 0.5rem; }
+
+    .deliverable {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+      padding: 0.4rem 0.5rem;
+      border-radius: 4px;
+      margin-bottom: 0.25rem;
+      font-size: 0.8rem;
+      border: 1px solid transparent;
+      transition: background 0.15s;
+    }
+    .deliverable:hover {
+      background: rgba(188, 140, 255, 0.05);
+      border-color: var(--border-subtle);
+    }
+    .deliverable.ready {
+      background: var(--ready-glow);
+      border-color: rgba(63, 185, 80, 0.2);
+    }
+    .d-id {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--accent-purple);
+      background: rgba(188, 140, 255, 0.1);
+      padding: 0.1rem 0.35rem;
+      border-radius: 3px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .d-title {
+      flex: 1;
+      color: var(--text);
+    }
+    .d-deps {
+      font-family: var(--font-mono);
+      font-size: 0.6rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .d-ready-badge {
+      font-size: 0.6rem;
+      color: var(--accent-green);
+      background: rgba(63, 185, 80, 0.15);
+      padding: 0.1rem 0.3rem;
+      border-radius: 3px;
+      font-weight: 600;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .dep-graph {
+      margin-top: 2rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+    }
+    .dep-graph h2 {
+      font-size: 1.1rem;
+      margin-bottom: 1rem;
+      color: var(--text);
+    }
+    .phases {
+      display: flex;
+      gap: 0.5rem;
+      overflow-x: auto;
+      padding-bottom: 0.5rem;
+    }
+    .phase {
+      min-width: 160px;
+      flex-shrink: 0;
+    }
+    .phase-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+      margin-bottom: 0.5rem;
+      text-align: center;
+    }
+    .phase-items {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+    .phase-item {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      padding: 0.3rem 0.4rem;
+      border-radius: 4px;
+      text-align: center;
+      border: 1px solid var(--border-subtle);
+    }
+    .phase-item.core { background: rgba(88, 166, 255, 0.1); color: var(--accent-blue); }
+    .phase-item.ts { background: rgba(210, 153, 34, 0.1); color: var(--accent-orange); }
+    .phase-item.go { background: rgba(121, 192, 255, 0.1); color: var(--accent-cyan); }
+    .phase-item.py { background: rgba(63, 185, 80, 0.1); color: var(--accent-green); }
+    .phase-item.parity { background: rgba(188, 140, 255, 0.1); color: var(--accent-purple); }
+    .phase-arrow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      font-size: 1.2rem;
+      min-width: 30px;
+      flex-shrink: 0;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .story, .chevron { animation: none; transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <h1>anvil v1 — Ticket Decomposition</h1>
+  <p class="subtitle">5 stories · 11 features · 35 deliverables — spec-driven, agent-ready</p>
+
+  <div class="stats">
+    <div class="stat"><div class="stat-value stories">5</div><div class="stat-label">Stories</div></div>
+    <div class="stat"><div class="stat-value features">11</div><div class="stat-label">Features</div></div>
+    <div class="stat"><div class="stat-value deliverables">35</div><div class="stat-label">Deliverables</div></div>
+    <div class="stat"><div class="stat-value ready">4</div><div class="stat-label">Ready Now</div></div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot story"></div>Story</div>
+    <div class="legend-item"><div class="legend-dot feature"></div>Feature</div>
+    <div class="legend-item"><div class="legend-dot deliverable"></div>Deliverable</div>
+    <div class="legend-item"><div class="legend-dot ready"></div>Ready (no blockers)</div>
+  </div>
+
+  <!-- Story 1 -->
+  <div class="story" id="s1">
+    <div class="story-header" onclick="toggle('s1')">
+      <span class="story-id">TIX-000001</span>
+      <span class="story-title">Core Scaffold Engine</span>
+      <span style="color:var(--text-muted);font-size:0.75rem">11 deliverables</span>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="story-body">
+      <div class="feature" id="f1">
+        <div class="feature-header" onclick="toggle('f1')">
+          <span class="feature-id">TIX-000006</span>
+          <span class="feature-title">CLI Foundation</span>
+          <span class="feature-count">2</span>
+          <span class="chevron">▼</span>
+        </div>
+        <div class="feature-body">
+          <div class="deliverable ready">
+            <span class="d-id">017</span>
+            <span class="d-title">Project bootstrap + CLI entry point</span>
+            <span class="d-ready-badge">READY</span>
+          </div>
+          <div class="deliverable">
+            <span class="d-id">018</span>
+            <span class="d-title">Template directory schema + asset manifest</span>
+            <span class="d-deps">← 017</span>
+          </div>
+        </div>
+      </div>
+      <div class="feature" id="f2">
+        <div class="feature-header" onclick="toggle('f2')">
+          <span class="feature-id">TIX-000007</span>
+          <span class="feature-title">Scaffold Pipeline</span>
+          <span class="feature-count">5</span>
+          <span class="chevron">▼</span>
+        </div>
+        <div class="feature-body">
+          <div class="deliverable ready">
+            <span class="d-id">019</span>
+            <span class="d-title">Lockfile module (read/write/diff/checksum)</span>
+            <span class="d-ready-badge">READY</span>
+          </div>
+          <div class="deliverable ready">
+            <span class="d-id">020</span>
+            <span class="d-title">Project detection (language + pkg manager)</span>
+            <span class="d-ready-badge">READY</span>
+          </div>
+          <div class="deliverable">
+            <span class="d-id">021</span>
+            <span class="d-title">Scaffold engine core</span>
+            <span class="d-deps">← 018, 019</span>
+          </div>
+          <div class="deliverable ready">
+            <span class="d-id">022</span>
+            <span class="d-title">Conflict resolution</span>
+            <span class="d-ready-badge">READY</span>
+          </div>
+          <div class="deliverable">
+            <span class="d-id">023</span>
+            <span class="d-title">Init command wiring</span>
+            <span class="d-deps">← 019–022</span>
+          </div>
+        </div>
+      </div>
+      <div class="feature" id="f3">
+        <div class="feature-header" onclick="toggle('f3')">
+          <span class="feature-id">TIX-000008</span>
+          <span class="feature-title">Update System</span>
+          <span class="feature-count">2</span>
+          <span class="chevron">▼</span>
+        </div>
+        <div class="feature-body">
+          <div class="deliverable">
+            <span class="d-id">024</span>
+            <span class="d-title">3-way merge engine</span>
+            <span class="d-deps">← 019, 021</span>
+          </div>
+          <div class="deliverable">
+            <span class="d-id">025</span>
+            <span class="d-title">Update command</span>
+            <span class="d-deps">← 023, 024</span>
+          </div>
+        </div>
+      </div>
+      <div class="feature" id="f4">
+        <div class="feature-header" onclick="toggle('f4')">
+          <span class="feature-id">TIX-000009</span>
+          <span class="feature-title">Doctor &amp; Distribution</span>
+          <span class="feature-count">2</span>
+          <span class="chevron">▼</span>
+        </div>
+        <div class="feature-body">
+          <div class="deliverable">
+            <span class="d-id">026</span>
+            <span class="d-title">Doctor command</span>
+            <span class="d-deps">← 023</span>
+          </div>
+          <div class="deliverable">
+            <span class="d-id">027</span>
+            <span class="d-title">Distribution build</span>
+            <span class="d-deps">← 023</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Story 2 -->
+  <div class="story" id="s2">
+    <div class="story-header" onclick="toggle('s2')">
+      <span class="story-id">TIX-000002</span>
+      <span class="story-title">TypeScript/JS Language Support</span>
+      <span style="color:var(--text-muted);font-size:0.75rem">8 deliverables · 19 ESLint rules</span>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="story-body">
+      <div class="feature" id="f5">
+        <div class="feature-header" onclick="toggle('f5')">
+          <span class="feature-id">TIX-000010</span>
+          <span class="feature-title">TS Custom Lint Rules</span>
+          <span class="feature-count">5</span>
+          <span class="chevron">▼</span>
+        </div>
+        <div class="feature-body">
+          <div class="deliverable">
+            <span class="d-id">028</span>
+            <span class="d-title">ESLint plugin harness + test infrastructure</span>
+            <span class="d-deps">← 018</span>
+          </div>
+          <div class="deliverable">
+            <span class="d-id">029</span>
+            <span class="d-title">Anti-slop batch A: catch/error + regex (4 rules)</span>
+            <span class="d-deps">← 028</span>
+          </div>
+          <div class="deliverable">
+            <span class="d-id">030</span>
+            <span class="d-title">Anti-slop batch B: function + cross-file (4 rules)</span>
+            <span class="d-deps">← 028</span>
+          </div>
+          <div class="deliverable">
+            <span class="d-id">031</span>
+            <span class="d-title">Structural rules (6 rules)</span>
+            <span class="d-deps">← 028</span>
+          </div>
+          <div class="deliverable">
+            <span class="d-id">032</span>
+            <span class="d-title">Test quality rules (5 rules)</span>
+            <span class="d-deps">← 028</span>
+          </div>
+        </div>
+      </div>
+      <div class="feature" id="f6">
+        <div class="feature-header" onclick="toggle('f6')">
+          <span class="feature-id">TIX-000011</span>
+          <span class="feature-title">TS Scaffold Output</span>
+          <span class="feature-count">3</span>
+          <span class="chevron">▼</span>
+        </div>
+        <div class="feature-body">
+          <div class="deliverable">
+            <span class="d-id">033</span>
+            <span class="d-title">Seed code + CRAP script + static files</span>
+            <span class="d-deps">← 029–032</span>
+          </div>
+          <div class="deliverable">
+            <span class="d-id">034</span>
+            <span class="d-title">Dynamic config templates (10 EJS)</span>
+            <span class="d-deps">← 018, 033</span>
+          </div>
+          <div class="deliverable">
+            <span class="d-id">035</span>
+            <span class="d-title">E2E validation</span>
+            <span class="d-deps">← 023, 033, 034</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Story 3 -->
+  <div class="story" id="s3">
+    <div class="story-header" onclick="toggle('s3')">
+      <span class="story-id">TIX-000003</span>
+      <span class="story-title">Go Language Support</span>
+      <span style="color:var(--text-muted);font-size:0.75rem">8 deliverables · 16 analyzers</span>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="story-body">
+      <div class="feature" id="f7">
+        <div class="feature-header" onclick="toggle('f7')">
+          <span class="feature-id">TIX-000012</span>
+          <span class="feature-title">Go Custom Analyzers</span>
+          <span class="feature-count">5</span>
+          <span class="chevron">▼</span>
+        </div>
+        <div class="feature-body">
+          <div class="deliverable">
+            <span class="d-id">036</span>
+            <span class="d-title">Multichecker harness + analysistest infra</span>
+            <span class="d-deps">← 018</span>
+          </div>
+          <div class="deliverable">
+            <span class="d-id">037</span>
+            <span class="d-title">Anti-slop batch A: error handling (4 analyzers)</span>
+            <span class="d-deps">← 036</span>
+          </div>
+          <div class="deliverable">
+            <span class="d-id">038</span>
+            <span class="d-title">Anti-slop batch B: function + cross-file (3 analyzers)</span>
+            <span class="d-deps">← 036</span>
+          </div>
+          <div class="deliverable">
+            <span class="d-id">039</span>
+            <span class="d-title">Structural analyzers (5 analyzers)</span>
+            <span class="d-deps">← 036</span>
+          </div>
+          <div class="deliverable">
+            <span class="d-id">040</span>
+            <span class="d-title">Test quality analyzers (4 analyzers)</span>
+            <span class="d-deps">← 036</span>
+          </div>
+        </div>
+      </div>
+      <div class="feature" id="f8">
+        <div class="feature-header" onclick="toggle('f8')">
+          <span class="feature-id">TIX-000013</span>
+          <span class="feature-title">Go Scaffold Output</span>
+          <span class="feature-count">3</span>
+          <span class="chevron">▼</span>
+        </div>
+        <div class="feature-body">
+          <div class="deliverable">
+            <span class="d-id">041</span>
+            <span class="d-title">Seed code + CRAP script + static files</span>
+            <span class="d-deps">← 037–040</span>
+          </div>
+          <div class="deliverable">
+            <span class="d-id">042</span>
+            <span class="d-title">Dynamic config templates (8 EJS)</span>
+            <span class="d-deps">← 018, 041</span>
+          </div>
+          <div class="deliverable">
+            <span class="d-id">043</span>
+            <span class="d-title">E2E validation</span>
+            <span class="d-deps">← 023, 041, 042</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Story 4 -->
+  <div class="story" id="s4">
+    <div class="story-header" onclick="toggle('s4')">
+      <span class="story-id">TIX-000004</span>
+      <span class="story-title">Python Language Support</span>
+      <span style="color:var(--text-muted);font-size:0.75rem">7 deliverables · 19 Flake8 checkers</span>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="story-body">
+      <div class="feature" id="f9">
+        <div class="feature-header" onclick="toggle('f9')">
+          <span class="feature-id">TIX-000014</span>
+          <span class="feature-title">Python Custom Lint Rules</span>
+          <span class="feature-count">4</span>
+          <span class="chevron">▼</span>
+        </div>
+        <div class="feature-body">
+          <div class="deliverable">
+            <span class="d-id">044</span>
+            <span class="d-title">Flake8 plugin harness + test infrastructure</span>
+            <span class="d-deps">← 018</span>
+          </div>
+          <div class="deliverable">
+            <span class="d-id">045</span>
+            <span class="d-title">Anti-slop checkers (7 rules)</span>
+            <span class="d-deps">← 044</span>
+          </div>
+          <div class="deliverable">
+            <span class="d-id">046</span>
+            <span class="d-title">Structural checkers (8 checkers, incl. custom length)</span>
+            <span class="d-deps">← 044</span>
+          </div>
+          <div class="deliverable">
+            <span class="d-id">047</span>
+            <span class="d-title">Test quality checkers (4 checkers)</span>
+            <span class="d-deps">← 044</span>
+          </div>
+        </div>
+      </div>
+      <div class="feature" id="f10">
+        <div class="feature-header" onclick="toggle('f10')">
+          <span class="feature-id">TIX-000015</span>
+          <span class="feature-title">Python Scaffold Output</span>
+          <span class="feature-count">3</span>
+          <span class="chevron">▼</span>
+        </div>
+        <div class="feature-body">
+          <div class="deliverable">
+            <span class="d-id">048</span>
+            <span class="d-title">Seed code + static files</span>
+            <span class="d-deps">← 045–047</span>
+          </div>
+          <div class="deliverable">
+            <span class="d-id">049</span>
+            <span class="d-title">Dynamic config templates (7 EJS)</span>
+            <span class="d-deps">← 018, 048</span>
+          </div>
+          <div class="deliverable">
+            <span class="d-id">050</span>
+            <span class="d-title">E2E validation</span>
+            <span class="d-deps">← 023, 048, 049</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Story 5 -->
+  <div class="story" id="s5">
+    <div class="story-header" onclick="toggle('s5')">
+      <span class="story-id">TIX-000005</span>
+      <span class="story-title">Cross-Language Integration</span>
+      <span style="color:var(--text-muted);font-size:0.75rem">1 deliverable</span>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="story-body">
+      <div class="feature" id="f11">
+        <div class="feature-header" onclick="toggle('f11')">
+          <span class="feature-id">TIX-000016</span>
+          <span class="feature-title">Cross-Language Parity</span>
+          <span class="feature-count">1</span>
+          <span class="chevron">▼</span>
+        </div>
+        <div class="feature-body">
+          <div class="deliverable">
+            <span class="d-id">051</span>
+            <span class="d-title">Lint parity tests (~52 checks across 3 languages)</span>
+            <span class="d-deps">← 035, 043, 050</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Execution phases -->
+  <div class="dep-graph">
+    <h2>Execution Phases</h2>
+    <div class="phases">
+      <div class="phase">
+        <div class="phase-label">Phase 1</div>
+        <div class="phase-items">
+          <div class="phase-item core">017 CLI bootstrap</div>
+          <div class="phase-item core">019 Lockfile</div>
+          <div class="phase-item core">020 Detection</div>
+          <div class="phase-item core">022 Conflict</div>
+        </div>
+      </div>
+      <div class="phase-arrow">→</div>
+      <div class="phase">
+        <div class="phase-label">Phase 2</div>
+        <div class="phase-items">
+          <div class="phase-item core">018 Manifest</div>
+          <div class="phase-item core">021 Engine</div>
+          <div class="phase-item core">023 Init cmd</div>
+        </div>
+      </div>
+      <div class="phase-arrow">→</div>
+      <div class="phase">
+        <div class="phase-label">Phase 3 (parallel)</div>
+        <div class="phase-items">
+          <div class="phase-item ts">028–032 TS rules</div>
+          <div class="phase-item go">036–040 Go analyzers</div>
+          <div class="phase-item py">044–047 Py checkers</div>
+          <div class="phase-item core">024 Merge engine</div>
+        </div>
+      </div>
+      <div class="phase-arrow">→</div>
+      <div class="phase">
+        <div class="phase-label">Phase 4 (parallel)</div>
+        <div class="phase-items">
+          <div class="phase-item ts">033–034 TS output</div>
+          <div class="phase-item go">041–042 Go output</div>
+          <div class="phase-item py">048–049 Py output</div>
+          <div class="phase-item core">025 Update cmd</div>
+          <div class="phase-item core">026 Doctor</div>
+        </div>
+      </div>
+      <div class="phase-arrow">→</div>
+      <div class="phase">
+        <div class="phase-label">Phase 5</div>
+        <div class="phase-items">
+          <div class="phase-item ts">035 TS E2E</div>
+          <div class="phase-item go">043 Go E2E</div>
+          <div class="phase-item py">050 Py E2E</div>
+          <div class="phase-item core">027 Distribution</div>
+        </div>
+      </div>
+      <div class="phase-arrow">→</div>
+      <div class="phase">
+        <div class="phase-label">Phase 6</div>
+        <div class="phase-items">
+          <div class="phase-item parity">051 Parity tests</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function toggle(id) {
+      document.getElementById(id).classList.toggle('collapsed');
+    }
+  </script>
+</body>
+</html>
