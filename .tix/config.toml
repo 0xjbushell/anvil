@@ -1,0 +1,10 @@
+schema = "tix/config/v1"
+
+[storage]
+engine = "file"
+
+[storage.file]
+mode = "repo"
+
+[sync.ado.auto]
+on_change = true
