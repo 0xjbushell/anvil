@@ -190,7 +190,7 @@ For source file `src/{module}/{name}.py`, the rule checks for corresponding test
 1. `tests/test_{name}.py` (flat test directory)
 2. `tests/{module}/test_{name}.py` (mirrored directory)
 
-If either exists, the rule is satisfied. This matches the seed code layout (`src/greeter/greeter.py` → `tests/test_greeter.py`).
+If either exists, the rule is satisfied. This matches the seed code layout (`src/seed/seed.py` → `tests/test_seed.py`).
 
 ### Key Interfaces
 

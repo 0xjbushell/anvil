@@ -64,7 +64,7 @@
 
 ### Scaffold Output (SCAF-xx)
 
-- **SCAF-01**: Seed code — exemplar greeter module per language demonstrating all conventions. Passes all lint rules.
+- **SCAF-01**: Seed code — exemplar `seed` module per language demonstrating all conventions. Passes all lint rules.
 - **SCAF-02**: AGENTS.md — concise agent instructions covering validation, reference code, rules, testing, dependencies.
 - **SCAF-03**: Makefile — unified targets: lint, format, test, typecheck, security, coverage, deadcode, crap, mutate, quality, audit.
 - **SCAF-04**: Pre-commit config — per-language hooks via pre-commit framework.

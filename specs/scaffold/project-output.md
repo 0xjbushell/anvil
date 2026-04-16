@@ -35,7 +35,7 @@ When `anvil init` runs, it must produce a project that looks identical to one a 
 | Decision | Choice | Source |
 |----------|--------|--------|
 | Scaffold model | Direct into standard locations | `[user]` D-01 |
-| Seed code | Real working greeter module per language | `[user]` D-20 |
+| Seed code | Real working `seed` module per language — teaches by existing, no special comments | `[user]` D-20, D-37 |
 | AGENTS.md | Under 40 lines, complements lint | `[user]` D-21 |
 | Existing project handling | Additive; skip seed if code exists | `[user]` D-08 |
 | CI platforms | GitHub Actions + Azure Pipelines | `[user]` D-14 |
@@ -53,13 +53,13 @@ What `anvil init --lang <lang> --ci <ci>` generates. Files marked with 📋 are 
 ```
 project-root/
 ├── src/
-│   └── greeter/                📋 Seed code module
-│       ├── greeter.ts          📋 Main module (function, error handling, structured logging)
-│       ├── greeter.test.ts     📋 Tests (happy path + error path + edge cases)
+│   └── seed/                   📋 Seed code module (D-37)
+│       ├── seed.ts             📋 Main module (function, error handling, structured logging)
+│       ├── seed.test.ts        📋 Tests (happy path + error path + edge cases)
 │       ├── types.ts            📋 Exported types for the module
 │       ├── errors.ts           📋 Custom error classes
 │       ├── constants.ts        📋 Module constants
-│       └── enums.ts            📋 Module enums (e.g., GreetingLanguage)
+│       └── enums.ts            📋 Module enums
 ├── tools/
 │   ├── lint-rules/             📋 ESLint plugin source
 │   │   ├── plugin.js
@@ -90,13 +90,13 @@ project-root/
 ```
 project-root/
 ├── internal/
-│   └── greeter/                📋 Seed code module
-│       ├── greeter.go          📋 Main module
-│       ├── greeter_test.go     📋 Tests
+│   └── seed/                   📋 Seed code module (D-37)
+│       ├── seed.go             📋 Main module
+│       ├── seed_test.go        📋 Tests
 │       ├── types.go            📋 Exported types
 │       ├── errors.go           📋 Custom error types
 │       ├── constants.go        📋 Module constants
-│       └── enums.go            📋 Module enums (e.g., Language iota)
+│       └── enums.go            📋 Module enums
 ├── cmd/
 │   └── app/
 │       └── main.go             📋 Entry point
@@ -128,15 +128,15 @@ project-root/
 ```
 project-root/
 ├── src/
-│   └── greeter/                📋 Seed code module
+│   └── seed/                   📋 Seed code module (D-37)
 │       ├── __init__.py         📋 Package init (defines __all__)
-│       ├── greeter.py          📋 Main module
+│       ├── seed.py             📋 Main module
 │       ├── types.py            📋 Type definitions (TypedDict, Protocol)
 │       ├── errors.py           📋 Custom exceptions
 │       ├── constants.py        📋 Module constants
-│       └── enums.py            📋 Module enums (e.g., GreetingLanguage Enum)
+│       └── enums.py            📋 Module enums
 ├── tests/
-│   └── test_greeter.py         📋 Tests
+│   └── test_seed.py            📋 Tests
 ├── tools/
 │   └── flake8-plugin/          📋 Custom Flake8 plugin
 │       ├── anvil_lint/
@@ -144,7 +144,7 @@ project-root/
 │       └── setup.cfg
 ├── pyproject.toml              ⚙️ Project config (Ruff, mypy, pytest, coverage, Python path)
 │                                    # Includes [tool.pytest.ini_options] pythonpath = ["src"]
-│                                    # so tests can `from greeter import ...`
+│                                    # so tests can `from seed import ...`
 ├── Makefile                    ⚙️ Unified make targets (uses `uv` for Python env, D-28)
 ├── .pre-commit-config.yaml     ⚙️ Pre-commit hooks
 ├── .github/workflows/ci.yml   ⚙️ GitHub Actions CI (if --ci github|both)
@@ -169,14 +169,18 @@ Each seed module demonstrates:
 6. **File size** — each file under 100 lines (well under thresholds)
 7. **Naming** — filename matches primary export
 
-The seed module is a **greeter** — simple enough to understand in minutes, complex enough to demonstrate all patterns. It:
+The seed module is named **`seed`** (D-37) — simple enough to understand in minutes, complex enough to demonstrate all patterns. It:
 - Takes a name and language, returns a greeting
 - Validates input (demonstrates error path)
 - Has a custom error type (demonstrates errors.{ext})
 - Uses constants for configuration values (demonstrates constants.{ext})
-- Defines a GreetingLanguage enum (demonstrates enums.{ext})
-- Defines a GreetingResult type (demonstrates types.{ext})
-- Logs the greeting operation (demonstrates structured logging)
+- Defines a Language enum (demonstrates enums.{ext})
+- Defines a Result type (demonstrates types.{ext})
+- Logs the operation (demonstrates structured logging)
+
+The seed module contains **no comments, READMEs, or markers** signaling it is disposable. It must look identical to production code so agents treat it as the gold standard to mimic. The human receives the "this is seed code" signal exclusively from CLI output at scaffold time (see CLI Output section).
+
+When the project has its own modules and the structure is established through real project code, the user can safely delete `src/seed/` / `internal/seed/` at any time.
 
 ### AGENTS.md Template
 
@@ -219,7 +223,7 @@ Don't worry about these — lint will catch them:
 - Formatting
 ```
 
-Where `<seed_path>` is language-specific: `src/greeter/` (TS/Python), `internal/greeter/` (Go).
+Where `<seed_path>` is language-specific: `src/seed/` (TS/Python), `internal/seed/` (Go). Note: AGENTS.md references the seed path for file organization patterns but does **not** describe it as disposable or temporary — the agent must treat it as real code to mimic (D-37).
 
 ### .anvil.lock Format
 

@@ -344,13 +344,13 @@
   <div class="term__bar"><div class="term__dot term__dot--r"></div><div class="term__dot term__dot--y"></div><div class="term__dot term__dot--g"></div><span class="term__t">Project Tree &#8212; my-api/</span></div>
   <div class="term__b"><span class="d">my-api/</span>
 &#9500;&#9472;&#9472; <span class="cmd">cmd/app/main.go</span>               <span class="d">&#128203; entry point</span>
-&#9500;&#9472;&#9472; <span class="cmd">internal/greeter/</span>             <span class="d">&#128203; seed module</span>
-&#9474;   &#9500;&#9472;&#9472; greeter.go                  <span class="d">   logic + structured logging</span>
-&#9474;   &#9500;&#9472;&#9472; greeter_test.go             <span class="d">   happy + error path tests</span>
+&#9500;&#9472;&#9472; <span class="cmd">internal/seed/</span>                <span class="d">&#128203; seed module</span>
+&#9474;   &#9500;&#9472;&#9472; seed.go                     <span class="d">   logic + structured logging</span>
+&#9474;   &#9500;&#9472;&#9472; seed_test.go                <span class="d">   happy + error path tests</span>
 &#9474;   &#9500;&#9472;&#9472; types.go                    <span class="d">   exported types</span>
 &#9474;   &#9500;&#9472;&#9472; errors.go                   <span class="d">   custom error types</span>
 &#9474;   &#9500;&#9472;&#9472; constants.go                <span class="d">   module constants</span>
-&#9474;   &#9492;&#9472;&#9472; enums.go                    <span class="d">   GreetingLanguage iota</span>
+&#9474;   &#9492;&#9472;&#9472; enums.go                    <span class="d">   Language iota</span>
 &#9500;&#9472;&#9472; <span class="cmd">tools/</span>
 &#9474;   &#9500;&#9472;&#9472; <span class="fl">go-analyzers/</span>               <span class="d">&#128203; custom lint (16 analyzers)</span>
 &#9474;   &#9474;   &#9500;&#9472;&#9472; cmd/anvil-lint/main.go  <span class="d">   multichecker entry</span>
@@ -662,12 +662,12 @@
     <div class="lb lb-cyan">Seed Code &#8212; Greeter Module</div>
     <h3>Teaches By Example</h3>
     <ul class="il">
-      <li><code>greeter.{ext}</code> &#8212; logic + structured logging</li>
+      <li><code>seed.{ext}</code> &#8212; logic + structured logging</li>
       <li><code>types.{ext}</code> &#8212; exported types</li>
       <li><code>errors.{ext}</code> &#8212; custom error types</li>
       <li><code>constants.{ext}</code> &#8212; module constants</li>
       <li><code>enums.{ext}</code> &#8212; enum definitions</li>
-      <li><code>greeter.test.{ext}</code> &#8212; happy + error paths</li>
+      <li><code>seed.test.{ext}</code> &#8212; happy + error paths</li>
       <li>Every file &lt;100 lines, every function &lt;50</li>
     </ul>
   </div>

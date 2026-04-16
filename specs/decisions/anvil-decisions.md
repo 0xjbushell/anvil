@@ -234,7 +234,7 @@ Locked decisions for anvil v1. Each decision includes the choice, rationale, alt
 
 ## D-20: Seed code — real working code in conventional locations
 
-**Choice:** `anvil init` generates a small working module (e.g., `src/greeter/` or language equivalent) with correct file organization, tests, error handling, and structured logging.
+**Choice:** `anvil init` generates a small working module (e.g., `src/seed/` or language equivalent) with correct file organization, tests, error handling, and structured logging.
 
 **Rationale:** Agents follow existing convention really well. Seed code teaches by example — showing the agent how code should be structured. More effective than documentation alone.
 
@@ -414,6 +414,27 @@ For ESLint: rule option in `eslint.config.mjs`. For Go: analyzer flag. For Flake
 
 These rules are config-driven for TS and Go (not counted in custom analyzer totals), custom-only for Python.
 
-**Rationale:** Using existing tools avoids reimplementing well-solved problems. Only Python lacks a suitable built-in.
-
 **Confidence:** High.
+
+---
+
+## D-37: Seed module naming — `seed`, no disposability signals
+
+**Choice:** The seed module is named `seed` (placed at `src/seed/` for TS/Python, `internal/seed/` for Go). It contains no comments, no README, and no markers indicating it is starter/disposable code. The agent must treat it as real production code to mimic.
+
+**Rationale:** Agents follow patterns from existing code. If the seed contains comments like "this is just a starter" or a README saying "delete when ready," agents may deprioritize the patterns or reproduce those disclaimers in new code. The seed teaches by existing, not by explaining itself.
+
+The human receives the disposability signal exclusively from CLI output at scaffold time — an ephemeral message the agent never sees:
+```
+✓ Created src/seed/ — conventions module.
+  Safe to remove once your project has its own modules.
+```
+
+AGENTS.md references the seed path for file organization patterns but does not describe it as temporary.
+
+**Alternatives rejected:**
+- `greeter` — felt artificial and disconnected from user's actual project
+- `_seed/` or `examples/` — outside standard source tree; agent wouldn't treat it as production patterns
+- Comments/README in seed — risk changing agent behavior (ignoring or deprioritizing the patterns)
+
+**Confidence:** High — user explicitly defined this model.

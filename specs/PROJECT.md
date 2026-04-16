@@ -42,7 +42,7 @@ See `REQUIREMENTS.md` for the full categorized list.
 | Direct scaffold model (no .anvil/ directory) | Output should look like a manually-configured project | .anvil.lock tracks provenance; anvil update diffs and merges |
 | Init on existing projects: additive + smart detection | Most real usage is on existing repos | Language-aware heuristics skip seed code if app code exists |
 | Structural rules default-on, not opt-in | Agents scattering types/errors everywhere IS slop | File organization rules ship enabled |
-| Seed code as real src/, not examples/ | Agents learn from existing code, not docs | Greeter module in src/ demonstrates all conventions |
+| Seed code as real src/, not examples/ | Agents learn from existing code, not docs | `seed` module in src/ demonstrates all conventions; no markers signaling disposability (D-37) |
 | AGENTS.md complements lint, doesn't duplicate | Lint catches violations automatically | AGENTS.md covers judgment calls, validation commands, reference pointers |
 | pre-commit over husky | Multi-language project needs language-agnostic hooks | pre-commit framework with per-language hooks |
 | Three feedback tiers | Mutation testing too slow for pre-commit | Inner loop (<30s) → CI (<5min) → Quality gate (on-demand) |
@@ -57,3 +57,4 @@ See `REQUIREMENTS.md` for the full categorized list.
 | Source dirs configurable (D-34) | Existing projects use diverse layouts (`lib/`, `app/`, etc.) | Cross-file rules read source dir from lint config, not hardcoded |
 | Tool provisioning explicit (D-35) | CI and clean machines need reproducible tool installation | All tools declared as project deps; only gitleaks/pre-commit are global |
 | STRUCT-01/02 config-driven (D-36) | ESLint max-lines, golangci-lint funlen already solve file/function length | Custom checkers only for Python; TS/Go use existing tools |
+| Seed module naming (D-37) | Agent must treat seed code as real code to mimic | Named `seed`, no comments/READMEs marking it disposable; human gets signal from CLI output only |
