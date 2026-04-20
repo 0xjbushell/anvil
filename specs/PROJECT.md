@@ -23,7 +23,7 @@ See `REQUIREMENTS.md` for the full categorized list.
 | Type | What | Why |
 |------|------|-----|
 | Runtime | Bun + TypeScript | Fast, good DX, matches team expertise |
-| Distribution | npx + bunx + standalone binary | Go/Python devs shouldn't need Node; TS/JS devs use npx |
+| Distribution | bunx + standalone binary (D-45) | Go/Python devs use compiled binary; TS/JS devs use bunx. npx deferred. |
 | Scaffold model | Direct scaffold into standard locations | No `.anvil/` managed directory; `.anvil.lock` tracks provenance |
 | Languages | Go, TypeScript/JS, Python | Three most common agent-target languages. CLI flag uses `golang` (the ecosystem name); prose uses "Go" (the language name). |
 | CI | Dropped — anvil owns the dev environment, not deployment (D-38) | Local-first: pre-commit + pre-push hooks replace CI as enforcement |
@@ -39,7 +39,7 @@ See `REQUIREMENTS.md` for the full categorized list.
 |----------|-----------|---------|
 | Go custom rules via go vet -vettool, not golangci-lint plugins | Learning test proved golangci-lint has no module plugin system | multichecker.Main() binary, one pass over codebase |
 | File organization: exported-only enforcement | Factory battle-tested this approach | Private declarations stay wherever; exported must be organized |
-| Direct scaffold model (no .anvil/ directory) | Output should look like a manually-configured project | .anvil.lock tracks provenance; anvil update diffs and merges |
+| Direct scaffold model (no .anvil/ directory) | Output should look like a manually-configured project | .anvil.lock tracks provenance; idempotent re-scaffold via `anvil init` (D-39) |
 | Init on existing projects: additive + smart detection | Most real usage is on existing repos | Language-aware heuristics skip seed code if app code exists |
 | Structural rules default-on, not opt-in | Agents scattering types/errors everywhere IS slop | File organization rules ship enabled |
 | Seed code as real src/, not examples/ | Agents learn from existing code, not docs | `seed` module in src/ demonstrates all conventions; no markers signaling disposability (D-37) |
@@ -51,10 +51,10 @@ See `REQUIREMENTS.md` for the full categorized list.
 | Package manager detection (D-29) | TS/JS ecosystem has 4 package managers | Detect from lockfile; prompt if not found |
 | Go branch coverage: line-only (C3) | `go test -coverprofile` only supports statement coverage | AGENTS.md guides agents on branch coverage; no threshold enforced |
 | Existing adoption: no special handling (D-24) | Agents fix violations iteratively — that IS the de-slop mechanism | No lint profile relaxation; init + `make lint` → agent fixes |
-| JS support via TS flag (D-31) | ESLint/Vitest/Prettier handle both TS and JS natively | `--lang typescript` adapts for JS-only projects; seed code is TS |
-| 3-way merge for updates (D-32) | Lockfile context enables re-rendering original templates | Distinguishes user edits from upstream changes; true smart merge |
-| Update safety for new files (D-33) | Direct-scaffold model means user files may exist at new upstream paths | New upstream files prompt if disk path already exists |
+| JS support via TS flag (D-31) | ESLint/Vitest/Prettier handle both TS and JS natively | `--lang typescript` always emits TS config; JS files linted natively; JS-only detection deferred (D-46) |
+| Idempotent re-scaffold (D-39) | 3-way merge is the hardest part of any scaffolder; Cruft's update is its buggiest feature | Re-run `anvil init`; FsTree classifies CREATE/UPDATE; per-file prompts for changes |
+| Update safety for new files (D-39) | Direct-scaffold model means user files may exist at new upstream paths | Re-scaffold prompts if disk path already exists for UPDATE files |
 | Source dirs configurable (D-34) | Existing projects use diverse layouts (`lib/`, `app/`, etc.) | Cross-file rules read source dir from lint config, not hardcoded |
-| Tool provisioning explicit (D-35) | CI and clean machines need reproducible tool installation | All tools declared as project deps; only gitleaks/pre-commit are global |
-| STRUCT-01/02 config-driven (D-36) | ESLint max-lines, golangci-lint funlen already solve file/function length | Custom checkers only for Python; TS/Go use existing tools |
+| Tool provisioning explicit (D-35) | Clean machines need reproducible tool installation | All tools declared as project deps; only gitleaks/pre-commit are global |
+| STRUCT-01/02 config-driven (D-36) | ESLint max-lines already solve file/function length; Go funlen handles function length only | Custom checkers for Python; TS uses existing ESLint rules; Go uses funlen (function) + custom analyzer (file) |
 | Seed module naming (D-37) | Agent must treat seed code as real code to mimic | Named `seed`, no comments/READMEs marking it disposable; human gets signal from CLI output only |

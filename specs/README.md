@@ -15,16 +15,16 @@ Specifications for the **anvil** project — an agentic engineering project scaf
 | cli | `specs/cli/` | CLI commands, scaffold engine, lockfile management |
 | rules | `specs/rules/` | Custom lint rules (anti-slop, structural, test quality) |
 | toolchain | `specs/toolchain/` | Quality toolchain (coverage, mutation, CRAP, dead code, security) |
-| scaffold | `specs/scaffold/` | Scaffolding output (seed code, AGENTS.md, configs, CI) |
+| scaffold | `specs/scaffold/` | Scaffolding output (seed code, AGENTS.md, configs, git hooks) |
 
 ### Specs Index
 
 | Spec | Subsystem | Requirements |
 |------|-----------|-------------|
-| `cli/scaffold-engine.md` | cli | CLI-01..04 |
-| `rules/lint-rules.md` | rules | RULE-01..08, STRUCT-01..08, TEST-01..05 |
+| `cli/scaffold-engine.md` | cli | CLI-01, CLI-03..07 |
+| `rules/lint-rules.md` | rules | RULE-01..09, STRUCT-01..08, TEST-01..05 |
 | `toolchain/quality-toolchain.md` | toolchain | CONFIG-01..03, QUAL-01..05, SEC-01..02, TYPE-01 |
-| `scaffold/project-output.md` | scaffold | SCAF-01..07 |
+| `scaffold/project-output.md` | scaffold | SCAF-01..04, SCAF-06..07 |
 
 Do **not** guess placement — propose a new subsystem with rationale if none fits.
 

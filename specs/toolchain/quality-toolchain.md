@@ -5,7 +5,7 @@
 - **Shared Key**: `quality-toolchain`
 - **Spec Path**: `specs/toolchain/quality-toolchain.md`
 - **Requirement Refs**: `CONFIG-01` through `CONFIG-03`, `QUAL-01` through `QUAL-05`, `SEC-01`, `SEC-02`, `TYPE-01`
-- **Decision Refs**: `specs/decisions/anvil-decisions.md` (D-10, D-18, D-28, D-35, D-36)
+- **Decision Refs**: `specs/decisions/anvil-decisions.md` (D-10, D-18, D-28, D-35, D-36, D-38, D-47, D-55, D-57, D-58)
 
 ## Problem Statement
 
@@ -69,7 +69,9 @@ These tools must be pre-configured and wired into a unified Makefile interface w
 | **Dead code** | Knip | deadcode | Vulture |
 | **CRAP score** | Custom script | Custom script | pytest-crap |
 | **Security** | eslint-plugin-security | gosec (via golangci-lint) | Bandit S rules (via Ruff) |
-| **Dep audit** | npm audit / bun audit | govulncheck | uv pip-audit |
+| **Dep audit** | npm audit / pnpm audit / yarn audit | govulncheck | pip-audit |
+
+> **Note:** Bun does not provide a `bun audit` command. For Bun projects, the Makefile uses `$(PKG_EXEC) better-npm-audit audit` instead. `better-npm-audit` is included as a devDependency for Bun projects (D-58).
 | **Secret scan** | gitleaks | gitleaks | gitleaks |
 
 ### Feedback Tiers
@@ -107,11 +109,16 @@ These tools must be pre-configured and wired into a unified Makefile interface w
 └─────────────────────────────────────────────────────────┘
 
 Agent workflow (driven by AGENTS.md, not hooks):
-  • make lint    → fast inner loop, run often
-  • make check   → full Tier 1 + 2 gate, before every commit
-  • make quality → all tiers + mutation, before marking done
+  • make lint    → fast inner loop feedback, run often during development
+  • make check   → Tier 1 + Tier 2, run before considering work done
+  • make quality → All tiers including mutation, run before marking complete
 
-Hooks are safety nets. Agents drive quality via make targets.
+Hooks are SAFETY NETS — they catch things agents/humans forgot.
+Make targets are the PRIMARY INTERFACE — agents actively run these.
+  • Pre-commit hook runs Tier 1 on commit (fast safety net)
+  • Pre-push hook runs Tier 2 checks on push (slower safety net)
+  • make check = Tier 1 + Tier 2 = what agents run proactively
+  • make quality adds mutation testing (Tier 3)
 CI is not generated — users add their own if needed.
 make check is CI-ready by design.
 ```
@@ -141,29 +148,80 @@ check:          ## Run tier 1 + tier 2 (pre-push equivalent, what agents run)
 fix:            ## Auto-fix lint + format issues
 ```
 
-### Concrete `make lint` Commands Per Language
+**`make check` semantics:** `make check` runs all Tier 1 + Tier 2 checks sequentially. It is designed to be the single command for both agents and CI. Its exit code is 0 only if ALL checks pass.
+
+### Concrete Make Target Commands Per Language
+
+All JS tooling is invoked via `$(PKG_EXEC)` — a Make variable assigned at scaffold time based on the detected package manager:
+
+```makefile
+# PKG_EXEC := bunx        (if bun)
+# PKG_EXEC := npx         (if npm)
+# PKG_EXEC := pnpm exec   (if pnpm)
+# PKG_EXEC := yarn exec   (if yarn)
+# Users can override: make lint PKG_EXEC=npx
+```
 
 **TypeScript/JS:**
 ```bash
-npx eslint . # ESLint with local plugin handles both built-in and custom rules
+# Tier 1
+lint:      $(PKG_EXEC) eslint .
+format:    $(PKG_EXEC) prettier --check .
+typecheck: $(PKG_EXEC) tsc --noEmit
+# Tier 2
+test:      $(PKG_EXEC) vitest run
+coverage:  $(PKG_EXEC) vitest run --coverage  # thresholds in vitest.config
+deadcode:  $(PKG_EXEC) knip
+crap:      $(PKG_EXEC) tsx scripts/crap-report.ts
+audit:     $(PKG_EXEC) better-npm-audit audit  # hard-fail on high/critical (D-58, D-60)
+# Tier 3
+mutate:    $(PKG_EXEC) stryker run
+# Convenience
+fix:       $(PKG_EXEC) eslint . --fix && $(PKG_EXEC) prettier --write .
 ```
 
 **Go:**
 ```bash
-golangci-lint run ./...  # Built-in rules via config
-# Custom analyzers (built on first run):
-make -C tools/go-analyzers build
-go vet -vettool=tools/go-analyzers/bin/anvil-lint ./...
+# Tier 1
+lint:      golangci-lint run ./... && \
+           make -C tools/go-analyzers build && \
+           go vet -vettool=tools/go-analyzers/bin/anvil-lint ./...
+format:    gofmt -l . | (! grep .)
+typecheck: go build ./...
+# Tier 2
+test:      go test ./...
+coverage:  go test -coverprofile=coverage.out ./... && \
+           go tool cover -func=coverage.out | scripts/check-coverage.sh
+deadcode:  deadcode ./...
+crap:      go run ./tools/go-analyzers/cmd/crap-report
+audit:     govulncheck ./...  # hard-fail on any finding
+# Tier 3
+mutate:    go run github.com/zimmski/go-mutesting/cmd/go-mutesting ./...
+# Convenience
+fix:       gofmt -w . && golangci-lint run --fix ./...
 ```
 
 **Python:**
 ```bash
-uv pip install -e tools/flake8-plugin/ --quiet  # Ensure custom plugin installed
-uv run ruff check .                               # Built-in rules (fast)
-uv run flake8 --select=ANV src tests              # Custom ANV rules only (avoids duplicating Ruff)
+# Tier 1
+lint:      uv pip install -e tools/flake8-plugin/ --quiet && \
+           uv run ruff check . && \
+           uv run flake8 --select=ANV src tests
+format:    uv run ruff format --check .
+typecheck: uv run mypy src
+# Tier 2
+test:      uv run pytest
+coverage:  uv run pytest --cov=src --cov-fail-under=<threshold>
+deadcode:  uv run vulture src
+crap:      uv run python scripts/crap_report.py
+audit:     uv run pip-audit  # hard-fail on any finding
+# Tier 3
+mutate:    uv run mutmut run
+# Convenience
+fix:       uv run ruff check --fix . && uv run ruff format .
 ```
 
-The `make lint` target combines all applicable commands for the project's language. Python commands use `uv` to handle virtualenv transparently and avoid PEP 668 issues (D-28). The `--select=ANV` flag ensures Flake8 only runs custom anvil rules, avoiding duplicate warnings with Ruff.
+Python commands use `uv run` to handle virtualenv transparently and avoid PEP 668 issues (D-28). The `--select=ANV` flag ensures Flake8 only runs custom anvil rules, avoiding duplicate warnings with Ruff. `make check` is the aggregate of Tier 1 + Tier 2 targets.
 
 ### `make security` Clarification
 
@@ -199,7 +257,9 @@ golangci-lint config enables:
 - `gochecknoglobals` — no global variables
 - `revive` — opinionated linter
 - `staticcheck` — advanced static analysis
-- `funlen` — function length (lines: 80, statements: 50) AND file length (lines: 500) — covers STRUCT-01 and STRUCT-02 (D-36)
+- `funlen` — function length (lines: 80) — covers STRUCT-02 at error threshold (D-36). `statements` limit is intentionally omitted so `funlen` aligns 1:1 with the 80-line rule; statement count is not a STRUCT-02 criterion.
+
+**Note on Go file length (STRUCT-01, D-36):** golangci-lint has no built-in file-length linter. `funlen` covers function length only. Go file length enforcement uses a custom analyzer in the `anvil-lint` binary (the same binary that hosts custom go vet analyzers). This parallels the TS/JS approach (ESLint `max-lines`) and Python approach (custom Flake8 checker). See the lint-rules spec for implementation details.
 
 #### Python (CONFIG-03)
 
@@ -230,9 +290,9 @@ CRAP(fn) = complexity² × (1 - coverage)³ + complexity
 
 **TS/JS pipeline:**
 1. Run `vitest run --coverage` with `coverage.provider: 'v8'` and `coverage.reporter: ['json']` configured in `vitest.config.ts` → produces `coverage/coverage-final.json`
-2. Parse coverage JSON: extract `fnMap` (function definitions with line ranges), `statementMap`, `branchMap` with hit counts
+2. Parse coverage JSON (Istanbul format): each file entry has `fnMap` (function definitions with names/locations), `f` (function hit counts), `statementMap` (statement locations), `s` (statement hit counts), `branchMap` (branch locations), `b` (branch hit counts — arrays for each branch arm)
 3. For each function: compute coverage by line-range containment (statements + branches within function's line range)
-4. Compute cyclomatic complexity via lexical keyword counting (`if`, `else`, `for`, `while`, `switch`, `case`, `catch`, `&&`, `||`, `??`, `?.`)
+4. Compute cyclomatic complexity via lexical keyword counting (`if`, `for`, `while`, `do-while`, `switch`, `case`, `catch`, `&&`, `||`, `? :` (ternary))
 5. Calculate CRAP score per function
 6. Flag functions with CRAP > 30 (warn) or CRAP > 45 (error)
 
@@ -249,6 +309,7 @@ CRAP(fn) = complexity² × (1 - coverage)³ + complexity
 **Note:** Type checking (`tsc --noEmit`, `mypy`) can take 10-30+ seconds on medium-to-large projects, which may exceed the <30s inner loop target. If type checking is slow, users can remove the `typecheck` hook from pre-commit and rely on `make check` instead. The generated `.pre-commit-config.yaml` includes a comment documenting this trade-off.
 
 ```yaml
+default_install_hook_types: [pre-commit, pre-push]
 repos:
   - repo: local
     hooks:
@@ -285,6 +346,8 @@ repos:
         stages: [pre-commit]
 ```
 
+**Pre-push hook installation:** By default, `pre-commit install` only installs the pre-commit hook. The `default_install_hook_types: [pre-commit, pre-push]` key in `.pre-commit-config.yaml` ensures `pre-commit install` sets up both hooks automatically. Anvil uses this approach so that the post-scaffold step only needs to run `pre-commit install` (no extra `--hook-type pre-push` flag).
+
 ## What Changes
 
 ### New Artifacts
@@ -297,7 +360,7 @@ repos:
 | `mypy.ini` or `pyproject.toml [tool.mypy]` | Strict mypy config (Python projects) |
 | `Makefile` | Unified make targets for all tiers |
 | `.pre-commit-config.yaml` | Pre-commit hooks config |
-| `tools/crap-score.ts` or `tools/crap-score.go` | CRAP score computation script |
+| `tools/crap-score.ts` or `cmd/crap-score/main.go` | CRAP score computation script |
 | `knip.json` | Knip dead code config (TS projects) |
 | `stryker.config.mjs` | StrykerJS config (TS projects) |
 | `.gitleaks.toml` | Gitleaks config |

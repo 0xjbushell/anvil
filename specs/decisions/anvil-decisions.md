@@ -8,13 +8,15 @@ Locked decisions for anvil v1. Each decision includes the choice, rationale, alt
 
 **Choice:** Anvil scaffolds files directly into standard project locations. No `.anvil/` managed directory.
 
-**Rationale:** The user wants `anvil init` output to look identical to a manually-configured project. No black-box directories. Files live where a developer would put them (`eslint.config.mjs` at root, `tools/lint-rules/` for custom rules, `.github/workflows/ci.yml`, etc.).
+**Rationale:** The user wants `anvil init` output to look identical to a manually-configured project. No black-box directories. Files live where a developer would put them (`eslint.config.mjs` at root, `tools/lint-rules/` for custom rules, `Makefile`, etc.).
 
-**Tracking:** `.anvil.lock` at project root tracks which anvil version generated which files, enabling `anvil update` to diff and merge.
+**Tracking:** `.anvil.lock` at project root tracks which anvil version generated which files, enabling idempotent re-scaffold to detect changes.
 
 **Alternatives rejected:**
 - `.anvil/` managed directory with eject — adds abstraction layer, doesn't match user's mental model
-- No tracking at all — makes `anvil update` impossible
+- No tracking at all — makes re-scaffold change detection impossible
+
+> **Note:** Update/merge references in the original rationale are superseded by D-39 (idempotent re-scaffold).
 
 **Confidence:** High — user explicitly defined this model.
 
@@ -22,9 +24,11 @@ Locked decisions for anvil v1. Each decision includes the choice, rationale, alt
 
 ## D-02: Eject command — deferred to v2
 
+> **Note:** The `anvil update` reference below is superseded by D-39 (idempotent re-scaffold). Users re-run `anvil init` instead.
+
 **Choice:** No `anvil eject` in v1. Since files are scaffolded directly into standard locations, users already own everything.
 
-**Rationale:** Eject solves "I want to customize managed files" — but there are no managed files in the direct-scaffold model. Users can modify any file. `anvil update` handles upstream changes via diff/merge against `.anvil.lock`.
+**Rationale:** Eject solves "I want to customize managed files" — but there are no managed files in the direct-scaffold model. Users can modify any file. Re-running `anvil init` handles upstream changes via per-file prompts against `.anvil.lock` context.
 
 **Confidence:** High.
 
@@ -76,12 +80,12 @@ Locked decisions for anvil v1. Each decision includes the choice, rationale, alt
 
 **Choice:** Ship language-specific defaults (Go higher, Python lower, TS middle). Users can override per-language in config.
 
-**Default thresholds:**
-- TypeScript/JS: 250 warn / 400 error
-- Go: 350 warn / 500 error
-- Python: 200 warn / 350 error
+**Default thresholds (error level, single threshold per tool limitation):**
+- TypeScript/JS: 400
+- Go: 500
+- Python: 350
 
-**Rationale:** Languages have genuinely different conventions. Go files tend to be longer (interface + implementation). Python values brevity. One-size-fits-all ignores this.
+**Rationale:** Languages have genuinely different conventions. Go files tend to be longer (interface + implementation). Python values brevity. One-size-fits-all ignores this. Single error-level thresholds used because ESLint `max-lines` and Go `funlen` don't support dual warn/error thresholds in one rule instance. Teams wanting stricter enforcement lower the threshold.
 
 **Confidence:** Medium — thresholds may need tuning based on real-world usage.
 
@@ -101,7 +105,7 @@ Locked decisions for anvil v1. Each decision includes the choice, rationale, alt
 
 ## D-08: Init on existing projects — additive with smart detection
 
-**Choice:** `anvil init` works on existing repos. It detects whether application code already exists using language-aware heuristics and skips seed code generation if so. Adds lint rules, configs, CI, Makefile, AGENTS.md with conflict prompts for existing files.
+**Choice:** `anvil init` works on existing repos. It detects whether application code already exists using language-aware heuristics and skips seed code generation if so. Adds lint rules, configs, git hooks, Makefile, AGENTS.md with conflict prompts for existing files.
 
 **Detection heuristics:**
 - Go: `.go` files, `go.mod`
@@ -119,6 +123,8 @@ Locked decisions for anvil v1. Each decision includes the choice, rationale, alt
 ---
 
 ## D-09: Update strategy — semver-aware
+
+> **Superseded by D-39.** `anvil update` is deferred to v2. The semver strategy below applies to future update implementation.
 
 **Choice:** `anvil update` applies minor/patch updates additively (new rules, config additions). Breaking changes only in major versions. `anvil update` refuses to cross major versions without `--force`.
 
@@ -143,6 +149,8 @@ Locked decisions for anvil v1. Each decision includes the choice, rationale, alt
 ---
 
 ## D-11: Distribution — npx + bunx + standalone binary
+
+> **Partially superseded by D-45.** v1 ships Bun-only (`bunx`) + compiled binary. npx distribution deferred.
 
 **Choice:** Available via `npx anvil`, `bunx anvil`, and standalone compiled binary (via `bun build --compile`). Install script for binary (`curl -sSL | sh`).
 
@@ -196,7 +204,7 @@ Locked decisions for anvil v1. Each decision includes the choice, rationale, alt
 
 **Choice:** All custom Go analyzers combined into a single binary using `multichecker.Main()`, invoked via `go vet -vettool`. One binary, one pass over the codebase.
 
-**Rationale:** golangci-lint v2 has NO module plugin system. Learning test LT2 confirmed this — no `custom-gcl.yml`, no way to load custom tools. `go vet -vettool` is standard Go infrastructure with zero third-party dependencies. Using `multichecker` (not `singlechecker`) avoids 17 separate passes over the codebase — one binary runs all analyzers in a single pass.
+**Rationale:** golangci-lint v2 has NO module plugin system. Learning test LT2 confirmed this — no `custom-gcl.yml`, no way to load custom tools. `go vet -vettool` is standard Go infrastructure with zero third-party dependencies. Using `multichecker` (not `singlechecker`) avoids 14 separate passes over the codebase — one binary runs all analyzers in a single pass.
 
 **Confidence:** High — validated by learning test.
 
@@ -349,15 +357,19 @@ Locked decisions for anvil v1. Each decision includes the choice, rationale, alt
 
 ## D-31: JavaScript support — TS-first, JS supported
 
-**Choice:** `--lang typescript` scaffolds TypeScript-first but also supports plain JavaScript projects. Seed code is `.ts`-only; ESLint config handles `.js`/`.mjs` files natively. Detection heuristics recognize existing `.js`-only projects and skip `tsconfig.json` strict type-checked rules if no `.ts` files exist. A `--lang javascript` alias is NOT added in v1 — the flag stays `typescript` and the scaffold adapts based on detection.
+> **JS-only detection deferred to v2 by D-46.** v1 generates TypeScript config that handles .js files natively. True JS-only support (skipping tsconfig, omitting type-checked rules) is post-v1.
 
-**Rationale:** ESLint flat config, Vitest, Prettier, and the custom plugin all work on both TS and JS. The only TS-specific artifacts are `tsconfig.json` and type-checked ESLint rules. Supporting JS requires minimal additional work and avoids an artificial limitation.
+**Choice:** `--lang typescript` scaffolds TypeScript-first. Seed code is `.ts`-only; ESLint config handles `.js`/`.mjs` files natively (linting works on both TS and JS without changes). v1 always emits `tsconfig.json` and type-checked ESLint rules. A `--lang javascript` alias is NOT added in v1 — the flag stays `typescript`. True JS-only support (detecting `.js`-only projects and conditionally skipping `tsconfig.json` / type-checked rules) is deferred to post-v1 per D-46.
+
+**Rationale:** ESLint flat config, Vitest, Prettier, and the custom plugin all work on both TS and JS. The generated config handles mixed TS/JS codebases. Deferring true JS-only detection avoids conditional template logic complexity for a niche v1 use case.
 
 **Confidence:** High.
 
 ---
 
 ## D-32: Update merge model — 3-way merge via lockfile context
+
+> **Superseded by D-39.** 3-way merge is deferred to v2. v1 uses idempotent re-scaffold with per-file prompts instead.
 
 **Choice:** `anvil update` performs 3-way merge for modified files. The lockfile stores the full generation context (C1), enabling anvil to re-render the *original* template output (base version). The three inputs are: (1) base = re-rendered original template, (2) theirs = new template output, (3) ours = current disk content. If base matches disk → auto-apply new version. If base differs from disk → show 3-way diff and prompt.
 
@@ -368,6 +380,8 @@ Locked decisions for anvil v1. Each decision includes the choice, rationale, alt
 ---
 
 ## D-33: Update safety — check disk for new files
+
+> **Superseded by D-39.** The per-file conflict behavior described here is preserved in the re-scaffold flow (FsTree classifies UPDATE → prompt), but the `anvil update` command itself is deferred.
 
 **Choice:** During `anvil update`, new upstream files (not tracked in `.anvil.lock`) that already exist on disk are treated as conflicts — prompt user to overwrite/skip/diff. Only truly new paths (no disk file, no lockfile entry) are created without prompting.
 
@@ -393,9 +407,9 @@ For ESLint: rule option in `eslint.config.mjs`. For Go: analyzer flag. For Flake
 
 **Choice:** Each scaffolded project includes explicit tool installation in its setup:
 
-- **TS/JS:** All tools as `devDependencies` in `package.json` (eslint, prettier, vitest, knip, stryker, eslint-plugin-security, eslint-plugin-barrel-files). Global tools: `gitleaks`, `pre-commit` (documented in README, checked by `anvil doctor`).
-- **Go:** Module-vendored tools in `tools/tools.go` using blank import pattern (`_ "github.com/golangci/golangci-lint/..."`), plus `go install` targets in Makefile. Global tools: `gitleaks`, `pre-commit`.
-- **Python:** Dev dependencies in `pyproject.toml` `[project.optional-dependencies.dev]` installed via `uv pip install -e ".[dev]"` (ruff, flake8, mypy, pytest, pytest-cov, vulture, mutmut, bandit). Global tools: `gitleaks`, `pre-commit`.
+- **TS/JS:** All tools as `devDependencies` in `package.json` (eslint, prettier, vitest, knip, stryker, eslint-plugin-security, eslint-plugin-import, typescript, @typescript-eslint/eslint-plugin, @typescript-eslint/parser). Seed logger: `pino` as a `dependency` (D-61). Bun projects also include `better-npm-audit` (D-58). Global tools: `gitleaks`, `pre-commit` (documented in README, checked by `anvil doctor`).
+- **Go:** Module-vendored tools in `tools/tools.go` using blank import pattern (`_ "github.com/golangci/golangci-lint/..."`), plus `go install` targets in Makefile. Tools are version-pinned in `go.mod` and installed to `GOBIN` via `go install` — this is Go's standard project-local tool pattern. Global tools: `gitleaks`, `pre-commit`.
+- **Python:** Dev dependencies in `pyproject.toml` `[project.optional-dependencies.dev]` installed via `uv pip install -e ".[dev]"` (ruff, flake8, mypy, pytest, pytest-cov, pytest-crap, vulture, mutmut, pip-audit). Bandit S rules are provided by Ruff's `S` rule set — no separate `bandit` package needed. Global tools: `gitleaks`, `pre-commit`.
 
 **Rationale:** Reproducible builds require pinned, declared dependencies. "Assume it's installed" fails on new developer machines.
 
@@ -408,10 +422,10 @@ For ESLint: rule option in `eslint.config.mjs`. For Go: analyzer flag. For Flake
 **Choice:** File length and function length rules have different implementation strategies per language:
 
 - **TS/JS:** Use ESLint built-in `max-lines` (STRUCT-01) and `max-lines-per-function` (STRUCT-02) — configured in aggressive lint config, NOT custom rules.
-- **Go:** `funlen` linter in golangci-lint handles both file length (`lines`) and function length (`statements`) — configured in `.golangci.yml`. NOT custom analyzers.
+- **Go:** `funlen` in golangci-lint handles **function length only** (STRUCT-02) — configured in `.golangci.yml`, NOT a custom analyzer. **File length** (STRUCT-01) uses a custom analyzer in the `anvil-lint` binary (golangci-lint has no built-in file-length linter). STRUCT-01 IS counted in custom analyzer totals.
 - **Python:** Custom Flake8 checkers in `structural.py` for both (Python's Flake8 has no built-in equivalent with configurable thresholds).
 
-These rules are config-driven for TS and Go (not counted in custom analyzer totals), custom-only for Python.
+These rules are config-driven for TS/JS (not counted in custom totals). For Go, STRUCT-02 is config-driven but STRUCT-01 is a custom analyzer. Both are custom for Python.
 
 **Confidence:** High.
 
@@ -447,7 +461,7 @@ AGENTS.md references the seed path for file organization patterns but does not d
 - **Pre-commit hook (Tier 1, <30s):** lint, format, typecheck, secrets — fires on `git commit`
 - **Pre-push hook (Tier 2, <5min):** tests, coverage, deadcode, CRAP, audit — fires on `git push`
 - **On-demand (Tier 3, `make quality`):** mutation testing — AGENTS.md instructs "run before marking work complete"
-- **`make` targets** are the primary interface for agents. AGENTS.md says "run `make check` before every commit" and "run `make quality` before marking work complete."
+- **`make` targets** are the primary interface for agents. AGENTS.md instructs: "run `make lint` often during development, run `make check` before considering work done, run `make quality` before marking work complete" (D-55).
 - **Git hooks** are safety nets that catch anything that slipped through, for both agents and humans. Agents trigger hooks naturally via `git commit` / `git push`.
 
 **Rationale:** In the agentic development model, the agent's feedback loop is local. CI is a team/org infrastructure decision with too many variables (GitHub Actions vs Azure vs GitLab vs Jenkins, deployment targets, environments, approvals). Baking in opinionated CI couples anvil to platform choices, creates files users immediately customize or delete, and is outside anvil's core value prop (anti-slop guardrails for the dev environment).
@@ -466,3 +480,322 @@ AGENTS.md references the seed path for file organization patterns but does not d
 - Dropped SCAF-05 (CI workflows)
 
 **Confidence:** High — user explicitly defined this model.
+
+
+---
+
+## D-39: Drop `anvil update` from v1 — idempotent re-scaffold instead
+
+**Choice:** No `anvil update` command in v1. Users re-run `anvil init` on an existing project to get updated files. The FsTree virtual file system classifies every file as CREATE (new), UPDATE (changed), or no-op (unchanged) — prompting only for UPDATEs.
+
+**Rationale:** 3-way merge (base/theirs/ours) is the hardest part of any scaffolder. Cruft's update is its buggiest feature. Cookiecutter has no update at all. Yeoman, Create React App, and most scaffolders are one-shot. By making `anvil init` idempotent, we get 80% of the value of an update command with 10% of the complexity. Users who modified a file get a per-file prompt; unchanged files are silently updated.
+
+**What this eliminates:**
+- `anvil update` command and `src/commands/update.ts`
+- 3-way merge algorithm
+- `.anvil/base/` directory for storing original template renders
+- Per-file provenance tracking (`source: "static" | "template"`) in lockfile
+- Semver-aware version comparison logic
+
+**Alternatives rejected:**
+- Full 3-way merge (Cruft model) — extremely complex, buggy in practice, Cruft's #1 issue category
+- Diff-and-patch (git format-patch model) — fragile, breaks on minor whitespace changes
+
+**Confidence:** High — user explicitly approved.
+
+---
+
+## D-40: FsTree virtual file system — in-memory staging (from Nx)
+
+**Choice:** All scaffold file operations go through an in-memory FsTree. Changes are staged, classified (CREATE/UPDATE/DELETE), and flushed to disk. Adapted from Nx's `packages/nx/src/generators/tree.ts` (~466 LOC).
+
+**Rationale:** FsTree gives us: (1) dry-run for free — render everything, print changes, write nothing; (2) re-scaffold for free — FsTree compares in-memory vs disk and auto-classifies; (3) idempotent writes — re-run fixes any partial state; (4) testability — inject FsTree in tests, no temp directories needed.
+
+**Key behaviors (verified against Nx source):**
+- Internal `recordedChanges` dictionary stages all writes in memory
+- Smart dedup (Nx lines 184-191): if written content === existing disk content, change is removed (no-op)
+- `listChanges()` (Nx lines 297-323): classifies CREATE (not on disk), UPDATE (on disk, different), DELETE
+- `flushChanges()` is a **standalone function** (not a tree method) — writes files sequentially with recursive `mkdirSync`. Not transactional (matching Nx), but safe because scaffold operations are idempotent.
+- Our interface omits Nx's `isFile()`, `children()`, `changePermissions()` — not needed for scaffolding
+- Estimated ~200 lines of TypeScript
+
+**Alternatives rejected:**
+- Direct fs.writeFile (Hygen model) — no staging, no dry-run, no re-scaffold detection
+- mem-fs/mem-fs-editor (Yeoman model) — heavyweight, 50+ transitive deps, vinyl-based
+
+**Confidence:** High — validated by Nx source code analysis.
+
+---
+
+## D-41: Idempotent re-scaffold flow
+
+**Choice:** Re-running `anvil init` on an existing anvil project:
+1. Detects `.anvil.lock` → loads stored context (pre-fills prompts)
+2. Renders all templates into FsTree (in-memory)
+3. `tree.listChanges()` classifies every file automatically
+4. CREATE files are added without prompting
+5. UPDATE files trigger per-file prompts (overwrite / skip / diff-preview / abort)
+6. Unchanged files are silently skipped (FsTree dedup)
+7. Approved changes are flushed; lockfile is updated
+
+**Rationale:** This makes `anvil init` safe to run multiple times — the FsTree handles all the complexity of detecting what changed. The per-file conflict UX comes from Yeoman's proven model.
+
+**Confidence:** High.
+
+---
+
+## D-42: Core engine size estimate — ~800 LOC
+
+**Choice:** Target ~800 lines of TypeScript for the core scaffold engine:
+- `src/engine/tree.ts` (~200) — FsTree virtual file system
+- `src/engine/render.ts` (~100) — EJS template rendering + static copy
+- `src/engine/conflict.ts` (~80) — per-file conflict prompts
+- `src/engine/lockfile.ts` (~60) — .anvil.lock read/write/checksum
+- `src/engine/detect.ts` (~80) — project detection heuristics
+- `src/manifests/index.ts` (~120) — per-language file manifest aggregator
+- `src/cli.ts` (~100) — CLI commands
+- `src/engine/post.ts` (~60) — post-scaffold tasks
+
+**Rationale:** Hygen proves a scaffold engine can be ~600 LOC. Our FsTree adds ~200 LOC but eliminates the need for external file system abstraction libraries. Keeping the core small ensures agents can understand and modify it.
+
+**Confidence:** Medium — estimates may shift during implementation.
+
+---
+
+## D-43: Manifest ownership — per-language files + aggregator
+
+**Choice:** Each language has its own manifest file defining the files it generates (`src/manifests/typescript.ts`, `src/manifests/golang.ts`, `src/manifests/python.ts`). A shared aggregator (`src/manifests/index.ts`) loads the right manifest based on the `--lang` flag.
+
+**Rationale:** Keeps language-specific file lists close to their generators. Adding a new language means adding one manifest file + one generator file. The aggregator is a simple switch/map.
+
+**Alternatives rejected:**
+- Single manifest file — grows unwieldy with 3 languages, harder to review
+- JSON manifests — less flexible, can't compute paths dynamically
+
+**Confidence:** High.
+
+---
+
+## D-44: Shared types ownership — TIX-000017
+
+**Choice:** `src/types.ts` (shared TypeScript interfaces: ScaffoldContext, FsTree, LockfileEntry, etc.) is owned by TIX-000017 (CLI foundation ticket). All other tickets depend on it.
+
+**Rationale:** Types must be defined before any implementation. Having a single owner prevents merge conflicts and ensures a consistent contract across the codebase.
+
+**Confidence:** High.
+
+---
+
+## D-45: Distribution — Bun-only + compiled binary for v1
+
+**Choice:** v1 distributes anvil via:
+1. `bunx anvil` — primary distribution (requires Bun installed)
+2. `bun build --compile` standalone binary — for users without Bun
+
+npx/npm distribution is deferred. Bun is both the runtime and build tool.
+
+**Rationale:** Anvil is built with Bun and uses Bun APIs. Supporting npm/npx requires transpilation to Node.js-compatible code. Not worth the complexity for v1. The compiled binary covers the "no Bun installed" case.
+
+**Alternatives rejected:**
+- npm + npx distribution — requires Node.js compatibility layer, doubles testing surface
+- Docker distribution — overkill for a CLI tool
+- Homebrew — platform-limited, packaging overhead
+
+**Confidence:** Medium — may revisit if Bun adoption is lower than expected.
+
+---
+
+## D-46: JS-only project support — deferred to post-v1
+
+**Choice:** v1's `typescript` language flag generates TypeScript configuration. ESLint config handles `.js` and `.mjs` files natively, but the scaffold assumes TypeScript. True JS-only support (skipping `tsconfig.json`, omitting type-checked rules) is deferred.
+
+**Rationale:** YAGNI for v1. Most new JS projects should use TypeScript. The generated config works for mixed TS/JS codebases. True JS-only is a niche case that adds detection complexity and conditional template logic.
+
+**Confidence:** Medium-High.
+
+---
+
+## D-47: Go STRUCT-03..06 — scaffold-only, not lint-enforced
+
+**Choice:** File organization rules (types in `types.go`, errors in `errors.go`, constants in `constants.go`, enums in `enums.go`) are reflected in Go seed code and AGENTS.md guidance but are NOT enforced by custom Go analyzers.
+
+**Rationale:** Go's idiomatic style places types, constants, and errors close to their usage within a package. Enforcing `types.go` via lint fights established Go conventions (e.g., `net/http` defines `Request` in `request.go`, not `types.go`). The seed code demonstrates the pattern for small modules; AGENTS.md recommends it; but lint doesn't enforce it.
+
+**Alternatives rejected:**
+- Enforce for Go anyway — fights Go conventions, high false-positive rate
+- Skip entirely for Go — loses the teaching benefit of seed code structure
+
+**Confidence:** High — Go community convention is clear.
+
+---
+
+## D-48: STRUCT-07 — single-export files only
+
+**Choice:** The `filename-match-export` rule only applies to files that export exactly one symbol. Files with multiple exports are exempt — "primary export" is undefined when a file has multiple exports.
+
+**Rationale:** Many legitimate files export multiple related items (e.g., a component + its props type, or a class + its factory function). Requiring filename match only for single-export files catches the clearest cases (file named `utils.ts` exporting only `formatDate`) while avoiding false positives.
+
+**Confidence:** High.
+
+---
+
+## D-49: Re-exports don't count for file organization rules
+
+**Choice:** `export { Foo } from './types'` (re-exports) do not count as "exported declaration" for STRUCT-03 through STRUCT-07. Only the definition site determines where a declaration must live.
+
+**Rationale:** Barrel files (`index.ts`) and module entry points legitimately re-export types, constants, etc. from their canonical files. Counting re-exports would flag every `index.ts` that re-exports from `types.ts`.
+
+**Confidence:** High.
+
+---
+
+## D-50: RULE-09 — `no-silent-error-swallow` (new rule)
+
+**Choice:** Add RULE-09 to detect empty catch/except/recover blocks with no handling at all. This is distinct from RULE-01 (`no-log-and-continue`) which catches the "log-only" pattern. RULE-09 catches the worse pattern: complete silence.
+
+**Detection:** Empty catch body (no statements, no comments explaining intentional suppression). Go: empty `if err != nil {}` blocks. Python: `except: pass`.
+
+**Exception:** A comment explicitly explaining intentional suppression (e.g., `// intentionally ignored`, `// best-effort cleanup`) exempts the block.
+
+**Confidence:** High — this is a well-known anti-pattern.
+
+---
+
+## D-51: CONFIG-01 owns `console.*`, not RULE-06
+
+**Choice:** `console.log` / `console.warn` / `console.error` banning for TS/JS is handled by ESLint's built-in `no-console` rule (enabled in CONFIG-01's aggressive config). RULE-06 (`require-structured-logging`) is a complementary custom rule that catches structured-logger misuse — e.g., `logger.info('User ' + name)` instead of `logger.info('User logged in', { name })`.
+
+**Rationale:** Using CONFIG-01's `no-console` for the obvious case avoids reimplementing a well-tested ESLint rule. RULE-06 adds value by catching the subtler pattern of using a structured logger incorrectly.
+
+**Confidence:** High.
+
+---
+
+## D-52: RULE-07 index.ts exemption — all directory levels
+
+**Choice:** `index.ts` / `index.js` files at any directory level are exempt from `require-test-files`. Not just the project root `index.ts`.
+
+**Rationale:** Index files at any level serve as barrel files — they re-export from the directory, containing no business logic of their own. Testing them would mean testing re-exports, which is tautological.
+
+**Confidence:** High.
+
+---
+
+## D-53: Go `break`/`continue` — NOT acceptable error handling
+
+**Choice:** In Go's `if err != nil` blocks, `break` and `continue` are NOT considered acceptable error handling for RULE-09 (`no-silent-error-swallow`) purposes. They suppress the error silently — the caller gets no signal that an error occurred.
+
+**Rationale:** `break` exits a loop, `continue` skips an iteration — neither propagates, wraps, or handles the error. At best, they silently skip a failed item. This is silent error swallowing — the error is discarded without logging, wrapping, or propagation.
+
+**Acceptable Go error handling:** `return err`, `return fmt.Errorf("...: %w", err)`, explicit recovery logic, `log.Fatal(err)`.
+
+**Confidence:** High.
+
+---
+
+## D-54: Test mapping — fixed conventions per language, no config for v1
+
+**Choice:** RULE-07 (`require-test-files`) uses fixed directory/naming conventions per language:
+
+- **TS/JS:** `src/{path}/{name}.test.ts` (co-located) or `src/{path}/__tests__/{name}.test.ts` (jest-style)
+- **Go:** `{path}/{name}_test.go` (same directory — Go convention, non-negotiable)
+- **Python:** `tests/test_{name}.py` (flat) or `tests/{module}/test_{name}.py` (mirrored)
+
+No configuration for test directory mapping in v1. If the user uses a non-standard layout, they disable the rule.
+
+**Rationale:** Convention over configuration. The fixed mappings cover 90%+ of projects. Adding configurable test paths doubles the complexity of a cross-file rule.
+
+**Confidence:** Medium-High — may need config escape hatch in v2 if feedback demands it.
+
+---
+
+## D-55: Feedback tiers — lint before commit, check before push
+
+**Choice:** Three feedback tiers with clear ownership:
+
+| Tier | When | What | Target |
+|------|------|------|--------|
+| 1 | pre-commit hook | lint, format, typecheck, secrets | `make lint` + `make format` + `make typecheck` + `make security` |
+| 2 | pre-push hook | Tier 1 + tests, coverage, deadcode, CRAP, audit | `make check` |
+| 3 | on-demand | Tier 2 + mutation testing | `make quality` |
+
+**Agent workflow** (driven by AGENTS.md):
+- `make lint` → fast inner loop, run often during development
+- `make check` → full validation (Tier 1 + Tier 2), run before considering work done
+- `make quality` → full + mutation (Tier 3), run before marking work complete
+
+**Hooks** are safety nets — they catch things agents/humans forgot. Agents drive quality via make targets.
+
+**Confidence:** High — user explicitly defined this model.
+
+---
+
+## D-56: --non-interactive default resolution
+
+**Choice:** When `--non-interactive` is set (or stdin is not a TTY), all prompts are skipped. Default values use detection-first precedence:
+
+| Prompt | Resolution |
+|--------|-----------|
+| `projectName` | Directory basename of target path |
+| `packageManager` | Detected from lockfile (`bun.lock` → bun, `package-lock.json` → npm, `pnpm-lock.yaml` → pnpm, `yarn.lock` → yarn); falls back to `bun` if no lockfile |
+| `defaultBranch` | `main` |
+| `seed` | Skip if existing application code detected (`hasCode` heuristic); include otherwise |
+| UPDATE conflicts | All default to `skip` (never overwrite without explicit consent) |
+| Exit | Exit 0 with summary of what was scaffolded and what was skipped |
+
+**Rationale:** Agents and CI systems run without a TTY. Defaults must be safe (never destructively overwrite) and deterministic (same inputs → same outputs). Detection-first means `--non-interactive` on an existing project preserves detected state rather than imposing arbitrary defaults.
+
+**Confidence:** High.
+
+---
+
+## D-57: Barrel files allowed — `eslint-plugin-barrel-files` removed
+
+**Choice:** `eslint-plugin-barrel-files` (`no-barrel-files` rule) is NOT included in CONFIG-01. Index/barrel files (`index.ts`/`index.js`) are an accepted organizational pattern.
+
+**Rationale:** D-52 explicitly exempts `index.ts`/`index.js`/`index.mjs` at any directory level as legitimate barrel files. Including `no-barrel-files` in CONFIG-01 would contradict this — the same file pattern would be simultaneously allowed (RULE-07 exemption) and banned (CONFIG-01). Users commonly add barrel files as their project grows; the lint config should not prevent this.
+
+**Confidence:** High.
+
+---
+
+## D-58: Bun audit fallback
+
+**Choice:** Bun does not provide a `bun audit` command. For Bun-managed TS/JS projects, the `make audit` target (Tier 2 / `make check`) uses `$(PKG_EXEC) better-npm-audit audit` as the audit command. `better-npm-audit` is added to `devDependencies` for Bun projects only (D-35). If the tool is not installed, the audit step fails (consistent with other missing tools).
+
+**Rationale:** Bun's CLI has no audit subcommand. Rather than silently skipping security auditing, we use a well-maintained npm-compatible alternative. Making it a soft warning rather than hard failure prevents blocking development in environments where the fallback isn't installed.
+
+**Confidence:** Medium — may switch to `socket` CLI or Bun-native audit if/when available.
+
+---
+
+## D-59: Directory lockfile prevents concurrent scaffold
+
+**Choice:** `anvil init` acquires an exclusive process lockfile (`.anvil.lock.pid`) in the target directory before reading disk state. A second concurrent `anvil init` targeting the same directory exits immediately with an error. The lockfile is released after flush + `.anvil.lock` write completes (or on abort/error). Stale lockfiles (owning PID no longer running) are automatically removed.
+
+**Rationale:** The scaffold pipeline reads disk state (classify CREATE/UPDATE), prompts, then flushes — a TOCTOU window exists between classify and flush. Without a lock, a concurrent scaffold or external file change can be silently overwritten. The PID lockfile is the simplest correct solution — no external dependencies, works on all platforms, and stale-lock recovery is automatic.
+
+**Confidence:** High.
+
+---
+
+## D-60: Cross-language re-scaffold is a hard error
+
+**Choice:** If `.anvil.lock` exists and its `lang` field does not match the `--lang` flag, `anvil init` exits non-zero with a clear message: "This project was scaffolded for {lock.lang}. Cross-language migration is not supported in v1. Use a separate directory or delete .anvil.lock to start fresh."
+
+**Rationale:** v1 lockfiles, templates, and generated configs are all single-language. Silently scaffolding a different language on top would create an unresolvable mess of conflicting configs. `anvil migrate` is the v2 path for this (D-04).
+
+**Confidence:** High.
+
+---
+
+## D-61: Seed code logger choices
+
+**Choice:** Each language seed module uses a specific structured logger:
+- **TS/JS:** `pino` — lightweight, fast, structured JSON output, zero-config
+- **Go:** `log/slog` — stdlib, no external dependency needed
+- **Python:** stdlib `logging` — no external dependency, `logging.info("msg", extra={...})`
+
+**Rationale:** Seed code must demonstrate structured logging patterns. Choosing zero-dependency or stdlib loggers avoids coupling the scaffold to a specific logging ecosystem opinion. Users can switch to their preferred logger — the lint rules enforce correct usage of any allowlisted logger, not a specific one.
+
+**Confidence:** High.
