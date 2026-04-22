@@ -804,7 +804,7 @@ No configuration for test directory mapping in v1. If the user uses a non-standa
 
 ---
 
-## D-62: Add STRUCT-09 `no-barrel-density` (TS only)
+## D-62: Add STRUCT-09 `no-barrel-density` (TS/JS)
 
 **Choice:** Add a structural rule that flags `index.{ts,js,mjs,tsx}` files that are dominated by re-exports. Threshold: file has ≥3 `export ... from '...'` statements AND re-exports comprise >80% of top-level statements. Pure file-local AST analysis — no fs reads. TS/JS only (Go and Python idioms differ).
 
@@ -814,7 +814,7 @@ No configuration for test directory mapping in v1. If the user uses a non-standa
 
 ---
 
-## D-63: Add STRUCT-10 `no-over-fragmentation` (TS only)
+## D-63: Add STRUCT-10 `no-over-fragmentation` (TS/JS)
 
 **Choice:** Add a directory-scope structural rule that flags directories dominated by tiny single-purpose wrapper files. Implementation uses an ESLint sentinel pattern: when ESLint visits a file, the rule checks if the file is the alphabetically-first non-test, non-index source file in its directory; if yes, the rule reads sibling files via `fs.readdirSync` + `fs.readFileSync` and computes directory metrics. This guarantees the rule fires exactly once per directory. Same fs-read pattern already used by RULE-07 and TEST-04.
 

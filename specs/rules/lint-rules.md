@@ -123,7 +123,7 @@ static/
 | RULE-05 | `no-log-and-throw` | Log + throw/return-error in same block (duplicate error reporting). Log + throw/return-error must be in the **same catch block or error-handling branch**. Logging in one function and throwing in a caller does not trigger this rule. | TS, Go, Py |
 | RULE-06 | `require-structured-logging` | Flags unstructured log calls: `fmt.Println()`, `print()`, `logger.info("string " + var)`. Accepts: any call with object/key-value arguments. **Go:** allowlists known structured loggers (`log/slog`, `zap`, `zerolog`, `logrus`); flags `fmt.Print*`, `log.Print*`, and string formatting in logger calls. **TS/JS:** Does NOT flag `console.*` — that is handled by CONFIG-01's `no-console` rule (D-51). RULE-06 allowlists known structured loggers (`pino`, `winston`, `bunyan`, `log4js`, `roarr`); flags string concatenation/template literals in their method calls (e.g., `logger.info('User ' + name)` instead of `logger.info({ name }, 'User logged in')`). Unrecognized `logger.*` calls are NOT flagged — the rule only enforces correct usage of known loggers. The allowlist is configurable via ESLint rule options (`structuredLoggers: ["pino", "winston", ...]`) to support project-specific loggers. **Python:** flags `print()` and string formatting in `logging.*` calls (e.g., `logging.info(f"User {name}")` instead of `logging.info("User %s", name)`). | TS, Go, Py |
 | RULE-07 | `require-test-files` | Source file in source directory has no corresponding `*_test.go` / `*.test.ts` / `test_*.py`. Exempts: declaration-only files (types, errors, constants, enums); entry points (Go `cmd/**/main.go`, TS/JS `index.ts`/`index.js`/`index.mjs` at any directory level (barrel files that re-export from the directory), Python `__main__.py`). Index files at any level are exempt because they are organizational barrel files — their purpose is re-exporting, not containing business logic. They should not require their own test file. (D-52) Source directories configurable via lint config (D-34); defaults: TS→`src/`, Go→`internal/`+`pkg/`, Python→`src/`. | TS, Go, Py |
-| RULE-08 | `no-async-noise` | Redundant `return await`, async functions that never `await` | TS only |
+| RULE-08 | `no-async-noise` | Redundant `return await`, async functions that never `await` | TS, JS |
 | RULE-09 | `no-silent-error-swallow` | Empty catch/except/recover blocks with no handling at all (no logging, no re-throw, no comment explaining why). Different from RULE-01 which catches "log-only" handling. **Go clarification (D-53):** `break` and `continue` inside `if err != nil` blocks are also considered silent error swallowing — they suppress the error without propagation. Only `return err`, `return fmt.Errorf(...)`, `log.Fatal(err)`, or explicit error-handling logic is acceptable. (D-50) | TS, Go, Py |
 
 **RULE-09 implementation notes:**
@@ -154,8 +154,8 @@ STRUCT-01 and STRUCT-02 are NOT counted in custom analyzer/checker totals for TS
 | STRUCT-06 | `enums-file-organization` | Exported enum outside `enums.{ext}` | TS, Py (Go: scaffold-only) | — |
 | STRUCT-07 | `filename-match-export` | File exports exactly one symbol, and that symbol's name doesn't match the filename (case-insensitive, kebab-case to camelCase allowed). Files with multiple exports are exempt — 'primary export' is only defined for single-export files. (D-48) | TS, Py | — |
 | STRUCT-08 | `no-exported-function-expressions` | TS: `export const fn = () => {}` instead of `export function fn() {}`. Go: `var Fn = func() {}` instead of `func Fn() {}`. Python: module-level `fn = lambda: ...` instead of `def fn(): ...` | TS, Go, Py |
-| STRUCT-09 | `no-barrel-density` | `index.{ts,js,mjs,tsx}` file with ≥3 `export ... from '...'` re-exports AND re-exports are >80% of top-level statements. Closes the loophole where RULE-07 exempts index files. (D-62) | TS only |
-| STRUCT-10 | `no-over-fragmentation` | Directory dominated by tiny single-purpose wrapper files — ≥4 non-test/non-index source files AND ≥60% are <30 LOC with ≤1 export each. Sentinel pattern: rule fires once per directory (on alphabetically-first non-test, non-index source file). (D-63) | TS only |
+| STRUCT-09 | `no-barrel-density` | `index.{ts,js,mjs,tsx}` file with ≥3 `export ... from '...'` re-exports AND re-exports are >80% of top-level statements. Closes the loophole where RULE-07 exempts index files. (D-62) | TS, JS |
+| STRUCT-10 | `no-over-fragmentation` | Directory dominated by tiny single-purpose wrapper files — ≥4 non-test/non-index source files AND ≥60% are <30 LOC with ≤1 export each. Sentinel pattern: rule fires once per directory (on alphabetically-first non-test, non-index source file). (D-63) | TS, JS |
 
 **File organization rules (STRUCT-03 through STRUCT-06):** Follow Factory's approach — only **exported** declarations are flagged. Non-exported (private) types, constants, errors, and enums can live wherever. Additionally, `types.ts` files can only contain type declarations (bidirectional enforcement).
 
@@ -168,13 +168,13 @@ STRUCT-01 and STRUCT-02 are NOT counted in custom analyzer/checker totals for TS
 **STRUCT-07 Go exemption:** `filename-match-export` does not apply to Go. Go files routinely contain multiple exported symbols at package scope, making "primary export" undefined. (D-30)
 
 **STRUCT-09 implementation notes (D-62):**
-- **TS only.** Rule activates only when `context.filename` matches `/(^|\/)index\.(ts|tsx|js|mjs)$/`.
+- **TS/JS.** Rule activates only when `context.filename` matches `/(^|\/)index\.(ts|tsx|js|mjs)$/`.
 - Walk top-level statements. Count `ExportAllDeclaration` nodes and `ExportNamedDeclaration` nodes whose `source` property is non-null (these are re-exports). Any other top-level statement (including non-re-export `ExportNamedDeclaration`, `ExportDefaultDeclaration` of a value, `FunctionDeclaration`, `VariableDeclaration`, etc.) counts as non-re-export.
 - Threshold: re-export count ≥ 3 AND re-exports / total top-level statements > 0.8 → report at line 1.
 - Pure file-local AST walk, no fs reads, no options.
 
 **STRUCT-10 implementation notes (D-63):**
-- **TS only.** Sentinel pattern — the rule must fire exactly once per directory.
+- **TS/JS.** Sentinel pattern — the rule must fire exactly once per directory.
 - In the `Program` visitor: compute `dir = path.dirname(context.filename)`. List `dir` via `fs.readdirSync(dir)`. Filter to source files matching `/\.(ts|tsx|js|mjs)$/` excluding `*.test.*`, `*.spec.*`, and any `index.*`. Sort alphabetically. If `path.basename(context.filename)` !== first entry, return immediately.
 - For each non-excluded sibling in `dir`: read with `fs.readFileSync`, count non-blank non-comment lines (strip `//` line comments and `/* */` block comments via a simple regex pass; LOC accuracy does not need to be perfect). Count exported declarations via lightweight regex (`/^\s*export\s+(?:const|let|var|function|class|interface|type|enum|default)\b/m` plus `export\s+\{`). A file is **tiny+single-export** if LOC < 30 AND export count ≤ 1.
 - Threshold: `siblingCount >= 4` AND `tinyFraction >= 0.6` → report at line 1.
@@ -198,7 +198,7 @@ STRUCT-01 and STRUCT-02 are NOT counted in custom analyzer/checker totals for TS
 | TEST-02 | `no-tautological-assertions` | `expect(true).toBe(true)`, `assert.Equal(t, 1, 1)`, `assert True` | TS, Go, Py |
 | TEST-03 | `no-disabled-tests-without-reason` | `.skip` / `t.Skip()` / `@pytest.mark.skip` without explanation string | TS, Go, Py |
 | TEST-04 | `require-error-path-tests` | Source file has error handling (try/catch, if err, try/except) but corresponding test file has zero error-path assertions. This rule uses AST analysis (not regex) to detect error-handling patterns in source and assertion patterns in tests. It looks for AST nodes representing try/catch/except blocks in source, and assertion call expressions matching error-testing patterns in tests. **Concrete patterns per language:** TS: `expect(...).toThrow()`, `expect(...).rejects`, `catch` in test. Go: `require.Error()`, `assert.Error()`, `if err != nil` in test. Python: `pytest.raises(...)`, `self.assertRaises(...)`. | TS, Go, Py |
-| TEST-05 | `no-snapshot-only-tests` | Test file uses only `toMatchSnapshot()` / `toMatchInlineSnapshot()` with no behavioral assertions | TS only |
+| TEST-05 | `no-snapshot-only-tests` | Test file uses only `toMatchSnapshot()` / `toMatchInlineSnapshot()` with no behavioral assertions | TS, JS |
 
 ### Language-Specific Implementation Notes
 
