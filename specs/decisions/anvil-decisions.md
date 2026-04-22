@@ -801,3 +801,27 @@ No configuration for test directory mapping in v1. If the user uses a non-standa
 **Rationale:** Seed code must demonstrate structured logging patterns. Choosing zero-dependency or stdlib loggers avoids coupling the scaffold to a specific logging ecosystem opinion. Users can switch to their preferred logger — the lint rules enforce correct usage of any allowlisted logger, not a specific one.
 
 **Confidence:** High.
+
+---
+
+## D-62: Add STRUCT-09 `no-barrel-density` (TS only)
+
+**Choice:** Add a structural rule that flags `index.{ts,js,mjs,tsx}` files that are dominated by re-exports. Threshold: file has ≥3 `export ... from '...'` statements AND re-exports comprise >80% of top-level statements. Pure file-local AST analysis — no fs reads. TS/JS only (Go and Python idioms differ).
+
+**Rationale:** Anvil's RULE-07 exempts `index.*` files from `require-test-files` because they are organizational barrels (D-52). Without an upper bound, a god-barrel `index.ts` re-exporting 50 symbols slips through every other rule. Slop-scan ships `barrel-density` as a default rule for this exact reason — agents love generating fat barrels. Implementing as an ESLint rule keeps the TS lint surface in one tool (no pluggable analyzers, no external scanner).
+
+**Confidence:** High.
+
+---
+
+## D-63: Add STRUCT-10 `no-over-fragmentation` (TS only)
+
+**Choice:** Add a directory-scope structural rule that flags directories dominated by tiny single-purpose wrapper files. Implementation uses an ESLint sentinel pattern: when ESLint visits a file, the rule checks if the file is the alphabetically-first non-test, non-index source file in its directory; if yes, the rule reads sibling files via `fs.readdirSync` + `fs.readFileSync` and computes directory metrics. This guarantees the rule fires exactly once per directory. Same fs-read pattern already used by RULE-07 and TEST-04.
+
+**Thresholds:** Directory has ≥4 source files (excluding `*.test.*`, `index.*`, `__tests__/`) AND ≥60% of those files are "tiny" (<30 LOC stripping blanks/comments) with ≤1 export each. Skip allowlisted directory paths: `**/icons/**`, `**/assets/**`, `**/__generated__/**`, `**/migrations/**`. Allowlist configurable via rule option (`ignoreDirectories: string[]`).
+
+**Rationale:** Anvil enforces "files too big" (STRUCT-01) but has no counterweight for "too many files too small." Slop-scan ships `over-fragmentation` because LLMs frequently split implementations into microscopic wrappers/forwards instead of cohesive modules. Implementing as an ESLint rule (vs. a separate scanner) preserves anvil's "one lint tool per language" rule (avoids splintering the agent guardrail surface). The sentinel pattern is the same approach already proven in RULE-07/TEST-04 — no new infrastructure.
+
+**Confidence:** Medium-high. Threshold values may need tuning post-dogfood, but the architecture is sound.
+
+---

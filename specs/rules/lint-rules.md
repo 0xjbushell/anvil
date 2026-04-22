@@ -4,8 +4,8 @@
 
 - **Shared Key**: `lint-rules`
 - **Spec Path**: `specs/rules/lint-rules.md`
-- **Requirement Refs**: `RULE-01` through `RULE-09`, `STRUCT-01` through `STRUCT-08`, `TEST-01` through `TEST-05`
-- **Decision Refs**: `specs/decisions/anvil-decisions.md` (D-05, D-06, D-07, D-15, D-16, D-17, D-19, D-25, D-26, D-27, D-30, D-34, D-36, D-47, D-48, D-49, D-50, D-51, D-52, D-53, D-54)
+- **Requirement Refs**: `RULE-01` through `RULE-09`, `STRUCT-01` through `STRUCT-10`, `TEST-01` through `TEST-05`
+- **Decision Refs**: `specs/decisions/anvil-decisions.md` (D-05, D-06, D-07, D-15, D-16, D-17, D-19, D-25, D-26, D-27, D-30, D-34, D-36, D-47, D-48, D-49, D-50, D-51, D-52, D-53, D-54, D-62, D-63)
 
 ## Problem Statement
 
@@ -16,7 +16,7 @@ Coding agents produce code that passes basic linting but exhibits "slop" — str
 ### In Scope
 
 - 9 anti-slop rules (RULE-01 through RULE-09)
-- 8 structural rules (STRUCT-01 through STRUCT-08)
+- 10 structural rules (STRUCT-01 through STRUCT-10)
 - 5 test quality rules (TEST-01 through TEST-05)
 - Implementation in 3 lint ecosystems: ESLint (TS/JS), go vet -vettool (Go), Flake8 (Python)
 - Cross-file analysis where needed (require-test-files, require-error-path-tests)
@@ -67,7 +67,9 @@ static/
 │   │   ├── constants-file-organization.js
 │   │   ├── enums-file-organization.js
 │   │   ├── filename-match-export.js
-│   │   └── no-exported-function-expressions.js
+│   │   ├── no-exported-function-expressions.js
+│   │   ├── no-barrel-density.js
+│   │   └── no-over-fragmentation.js
 │   └── test-quality/
 │       ├── no-empty-tests.js
 │       ├── no-tautological-assertions.js
@@ -152,6 +154,8 @@ STRUCT-01 and STRUCT-02 are NOT counted in custom analyzer/checker totals for TS
 | STRUCT-06 | `enums-file-organization` | Exported enum outside `enums.{ext}` | TS, Py (Go: scaffold-only) | — |
 | STRUCT-07 | `filename-match-export` | File exports exactly one symbol, and that symbol's name doesn't match the filename (case-insensitive, kebab-case to camelCase allowed). Files with multiple exports are exempt — 'primary export' is only defined for single-export files. (D-48) | TS, Py | — |
 | STRUCT-08 | `no-exported-function-expressions` | TS: `export const fn = () => {}` instead of `export function fn() {}`. Go: `var Fn = func() {}` instead of `func Fn() {}`. Python: module-level `fn = lambda: ...` instead of `def fn(): ...` | TS, Go, Py |
+| STRUCT-09 | `no-barrel-density` | `index.{ts,js,mjs,tsx}` file with ≥3 `export ... from '...'` re-exports AND re-exports are >80% of top-level statements. Closes the loophole where RULE-07 exempts index files. (D-62) | TS only |
+| STRUCT-10 | `no-over-fragmentation` | Directory dominated by tiny single-purpose wrapper files — ≥4 non-test/non-index source files AND ≥60% are <30 LOC with ≤1 export each. Sentinel pattern: rule fires once per directory (on alphabetically-first non-test, non-index source file). (D-63) | TS only |
 
 **File organization rules (STRUCT-03 through STRUCT-06):** Follow Factory's approach — only **exported** declarations are flagged. Non-exported (private) types, constants, errors, and enums can live wherever. Additionally, `types.ts` files can only contain type declarations (bidirectional enforcement).
 
@@ -163,7 +167,30 @@ STRUCT-01 and STRUCT-02 are NOT counted in custom analyzer/checker totals for TS
 
 **STRUCT-07 Go exemption:** `filename-match-export` does not apply to Go. Go files routinely contain multiple exported symbols at package scope, making "primary export" undefined. (D-30)
 
-#### Category C: Test Quality Rules
+**STRUCT-09 implementation notes (D-62):**
+- **TS only.** Rule activates only when `context.filename` matches `/(^|\/)index\.(ts|tsx|js|mjs)$/`.
+- Walk top-level statements. Count `ExportAllDeclaration` nodes and `ExportNamedDeclaration` nodes whose `source` property is non-null (these are re-exports). Any other top-level statement (including non-re-export `ExportNamedDeclaration`, `ExportDefaultDeclaration` of a value, `FunctionDeclaration`, `VariableDeclaration`, etc.) counts as non-re-export.
+- Threshold: re-export count ≥ 3 AND re-exports / total top-level statements > 0.8 → report at line 1.
+- Pure file-local AST walk, no fs reads, no options.
+
+**STRUCT-10 implementation notes (D-63):**
+- **TS only.** Sentinel pattern — the rule must fire exactly once per directory.
+- In the `Program` visitor: compute `dir = path.dirname(context.filename)`. List `dir` via `fs.readdirSync(dir)`. Filter to source files matching `/\.(ts|tsx|js|mjs)$/` excluding `*.test.*`, `*.spec.*`, and any `index.*`. Sort alphabetically. If `path.basename(context.filename)` !== first entry, return immediately.
+- For each non-excluded sibling in `dir`: read with `fs.readFileSync`, count non-blank non-comment lines (strip `//` line comments and `/* */` block comments via a simple regex pass; LOC accuracy does not need to be perfect). Count exported declarations via lightweight regex (`/^\s*export\s+(?:const|let|var|function|class|interface|type|enum|default)\b/m` plus `export\s+\{`). A file is **tiny+single-export** if LOC < 30 AND export count ≤ 1.
+- Threshold: `siblingCount >= 4` AND `tinyFraction >= 0.6` → report at line 1.
+- Skip the directory entirely if its path matches any entry in the configured `ignoreDirectories` list. Default ignore list: `['icons', 'assets', '__generated__', 'migrations']` matched as path-segment containment (case-insensitive).
+- Rule options schema:
+  ```json
+  { "type": "object", "properties": {
+      "ignoreDirectories": { "type": "array", "items": { "type": "string" } },
+      "minSiblings": { "type": "integer", "minimum": 2 },
+      "tinyLineThreshold": { "type": "integer", "minimum": 1 },
+      "tinyFractionThreshold": { "type": "number", "minimum": 0, "maximum": 1 }
+  }}
+  ```
+- Defaults: `minSiblings: 4`, `tinyLineThreshold: 30`, `tinyFractionThreshold: 0.6`.
+
+
 
 | ID | Rule | What it detects | Languages |
 |----|------|-----------------|-----------|
