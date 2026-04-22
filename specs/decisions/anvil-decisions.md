@@ -771,9 +771,11 @@ No configuration for test directory mapping in v1. If the user uses a non-standa
 
 ## D-59: Directory lockfile prevents concurrent scaffold
 
-**Choice:** `anvil init` acquires an exclusive process lockfile (`.anvil.lock.pid`) in the target directory before reading disk state. A second concurrent `anvil init` targeting the same directory exits immediately with an error. The lockfile is released after flush + `.anvil.lock` write completes (or on abort/error). Stale lockfiles (owning PID no longer running) are automatically removed.
+**Choice:** `anvil init` acquires an exclusive process lockfile (`.anvil.lock.pid`) in the target directory before reading disk state. A second concurrent `anvil init` targeting the same directory exits immediately with an error. The lockfile is released after flush + `.anvil.lock` write completes (or on abort/error). Stale lockfiles are automatically reclaimed.
 
-**Rationale:** The scaffold pipeline reads disk state (classify CREATE/UPDATE), prompts, then flushes — a TOCTOU window exists between classify and flush. Without a lock, a concurrent scaffold or external file change can be silently overwritten. The PID lockfile is the simplest correct solution — no external dependencies, works on all platforms, and stale-lock recovery is automatic.
+**Stale-detection algorithm:** The lockfile records `{ pid, startTime }` (process start time, ms-since-epoch). A lock is **live** iff the recorded PID is alive AND the live process's start time matches the recorded `startTime` — this defends against PID reuse. Otherwise the lock is stale (process is dead OR PID was reused) and is reclaimed. No wall-clock timeout is used.
+
+**Rationale:** The scaffold pipeline reads disk state (classify CREATE/UPDATE), prompts, then flushes — a TOCTOU window exists between classify and flush. Without a lock, a concurrent scaffold or external file change can be silently overwritten. The PID + start-time lockfile is the simplest correct solution — no external dependencies, works on all platforms, and stale-lock recovery is automatic and PID-reuse safe.
 
 **Confidence:** High.
 

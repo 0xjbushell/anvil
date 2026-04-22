@@ -32,6 +32,7 @@ See `REQUIREMENTS.md` for the full categorized list.
 | Python linting | Ruff (built-in rules) + Flake8 (custom plugins) | Ruff has no plugin system; Flake8 does |
 | Python env | uv (virtualenv + package management) | Modern standard, avoids PEP 668 issues, same team as Ruff |
 | Pre-commit | pre-commit framework (not husky) | Language-agnostic, multi-language projects |
+| Telemetry | None — anvil collects no telemetry | Local-first, agent-target tool; no analytics, no opt-out flag, no network calls beyond explicit installs |
 
 ## Key Decisions
 
