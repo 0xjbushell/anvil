@@ -8,7 +8,7 @@
 - ~~**CLI-02**: `anvil update`~~ — **Deferred to v2 (D-39).** Users re-run `anvil init` for idempotent re-scaffold. FsTree auto-classifies changes (CREATE/UPDATE) and prompts for modified files only.
 - **CLI-03**: `anvil doctor` verifies lint/quality config health, reports misconfigurations, and auto-fixes non-destructive issues (missing config keys, gitignore entries). Reports but does not auto-fix destructive changes.
 - **CLI-04**: `anvil init` on existing projects detects application code via language-aware heuristics (Go: .go files/go.mod; TS: .ts/.js files/package.json; Python: .py files/__init__.py) and skips seed code generation. Adds tooling with conflict prompts.
-- **CLI-05**: `anvil init --non-interactive` runs scaffold without prompts. Also activates when stdin is not a TTY (D-56). All conflict prompts default to "skip" (never overwrite without explicit consent). Enables headless/CI usage.
+- **CLI-05**: `anvil init --non-interactive` runs scaffold without prompts (explicit opt-in only — pipe-without-flag is an error, not a silent mode switch; D-67 supersedes D-56). Setup prompts resolve via detected → lockfile → safe default. **Conflicts trigger a structured diff report on stderr and exit non-zero with no files written** (all-or-nothing); the agent edits/deletes/leaves the conflicting files and re-runs. Enables headless and agent usage.
 - **CLI-06**: `anvil init --dry-run` previews all changes without writing to disk. Powered by FsTree — renders all files in memory, classifies changes, and prints the summary.
 - **CLI-07**: `anvil --version` prints the anvil version and exits. No subcommand — standard `--version` flag only.
 

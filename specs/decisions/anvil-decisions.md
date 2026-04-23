@@ -732,6 +732,8 @@ No configuration for test directory mapping in v1. If the user uses a non-standa
 
 ## D-56: --non-interactive default resolution
 
+> **Superseded by D-67.** The auto-non-interactive-on-non-TTY behavior is removed; mode is now opt-in via explicit `--non-interactive` flag only. Conflict handling moved from "default to skip" to "report + exit non-zero, no writes." Setup-prompt resolution chain (detected → lockfile → safe default) is preserved by D-67.
+
 **Choice:** When `--non-interactive` is set (or stdin is not a TTY), all prompts are skipped. Default values use detection-first precedence:
 
 | Prompt | Resolution |
@@ -885,5 +887,118 @@ No configuration for test directory mapping in v1. If the user uses a non-standa
 **Open question (revisit post-v1):** What does dependency hygiene look like when agents own most PRs? Is there still a role for scheduled bots, or does this collapse into the agent's normal work queue?
 
 **Confidence:** High on v1 scope. Open question explicitly logged for v2.
+
+---
+
+## D-67: Non-interactive mode = explicit flag + conflict reporter; library choices; vendoring policy
+
+**Supersedes D-56.** This decision combines three intertwined concerns: how `--non-interactive` mode behaves, what libraries anvil uses, and which libraries are vendored vs. installed.
+
+### Part A — Non-interactive mode behavior
+
+**Mode is opt-in only.** `--non-interactive` must be passed explicitly. The previous "auto-activate when stdin is not a TTY" behavior (D-56) is **removed** — pipe-without-flag is now a clean error rather than a silent mode switch. This eliminates the "silently did nothing" failure class.
+
+**Setup prompts** resolve via the same precedence chain (flag → detected → lockfile → safe default). Greenfield runs in non-interactive mode work with no prompts.
+
+**Conflict handling — anvil reports, the agent decides.**
+
+When the FsTree classifies one or more files as `UPDATE` (template content differs from disk content) in non-interactive mode:
+
+1. **No files are written** (CREATE files included — the run is all-or-nothing for safety, like a transaction)
+2. **A structured report is printed to stderr**, including a unified diff per conflicting file (rendered via the `diff` library + `chalk` coloring)
+3. **The process exits with a non-zero code**
+
+Example output:
+```
+✗ 3 conflicts — anvil's templates differ from your local files.
+  No files written.
+
+────  Makefile  ────
+- typecheck:
+- tsc --noEmit
++ typecheck:
++ tsc --noEmit --strict
+
+[... full unified diff per file ...]
+
+To resolve: edit, delete, or leave the conflicting files, then re-run.
+```
+
+The agent (or human running headless) inspects the report and decides: edit the file to match anvil's version, `rm` it (anvil will recreate as CREATE next run), or leave it alone (next run will report the same conflict — honest, not silent).
+
+**No `--on-conflict` flag.** Earlier proposals included `--on-conflict skip|overwrite|backup`. Dropped. The conflict reporter is the protocol; no need for a "force" knob, which would re-introduce the silent-skip / silent-overwrite failure modes we just eliminated.
+
+**Lockfile semantics on conflict:** unchanged from current spec. Lockfile checksums update only when anvil successfully writes a file (CREATE or interactive overwrite). When the agent leaves a conflicting file alone, the lockfile checksum stays at the previous template version, and future re-scaffolds will report the same conflict. This is intentional — anvil never silently "accepts" a divergence.
+
+**`--dry-run` is unaffected** — it works in any mode, never writes, prints classification + conflict diffs same as the non-interactive report. Useful for "what would this do?" inspection from any context.
+
+### Part B — Library choices
+
+Anvil prefers proven, widely-used libraries over hand-rolled code. Production dependencies (ship with anvil):
+
+| Library | Purpose | Weekly DL |
+|---|---|---|
+| `commander` | CLI parsing | 375M |
+| `chalk` | Terminal colors | 412M |
+| `@inquirer/prompts` | Interactive prompts | (D-23) |
+| `ejs` | Template rendering | 30M |
+| `diff` (jsdiff) | Unified diff for conflict reporter | 98M |
+| `write-file-atomic` | Crash-safe file writes (used by npm itself) | 85M |
+| `picomatch` | Glob matching | 351M |
+| `pino` | Structured logger (matches D-61 seed-code choice) | 28M |
+| `zod` | Runtime schema validation (ScaffoldContext, fixture YAML) | 160M |
+
+Dev dependencies (testing only, not shipped):
+
+| Library | Purpose | Weekly DL |
+|---|---|---|
+| `yaml` | Fixture scenario format | 142M |
+| `node-pty` | PTY-driven fixture harness for interactive flows | 6M (Microsoft-maintained) |
+
+### Part C — Vendoring policy
+
+Two libraries are **vendored** (copied into `src/internal/`) rather than installed:
+
+| Library | Reason |
+|---|---|
+| `proper-lockfile` | Smaller community (12M/wk). Critical-path code. Pure JS — easy to vendor, simplify, convert to TS. |
+| `dir-compare` | Smallest community on the list (2.5M/wk). Used only in fixture harness. Pure TS — trivial to vendor. |
+
+**Vendoring process:**
+1. Copy upstream source verbatim from a validated version (record version in a `README.md` next to the code)
+2. Preserve original `LICENSE` file in the vendored directory
+3. Convert to TypeScript if not already (with strict mode)
+4. **Trim aggressively** — keep only the API surface anvil uses; delete unused features
+5. Write our own tests covering the trimmed surface
+6. Add the upstream copyright + license to a top-level `NOTICES.md`
+
+**Layout:**
+```
+src/internal/
+├── lockfile/         # vendored from proper-lockfile
+│   ├── LICENSE       # original MIT
+│   ├── README.md     # source repo, version, what was kept/dropped
+│   ├── index.ts
+│   └── *.test.ts
+└── dir-compare/      # vendored from dir-compare
+    ├── LICENSE
+    ├── README.md
+    ├── index.ts
+    └── *.test.ts
+```
+
+**Why vendor these specifically?** Recent supply-chain incidents (event-stream, ua-parser-js, the xz playbook) consistently target small/medium packages with single maintainers — exactly the profile of these two. Vendoring small, stable utility code with simple APIs eliminates that attack surface at minimal cost (the trimmed code is small enough to read end-to-end in a code review).
+
+**Why not vendor everything?** The larger libraries (commander, chalk, zod, etc.) have major-org consumers, multiple maintainers, and significant scrutiny — vendoring them would mean carrying a meaningful maintenance burden with no proportional security gain. `node-pty` is small but Microsoft-maintained and contains native bindings — vendoring would multiply complexity. The line is drawn at: **pure-source utility libs with low DL counts and simple APIs.**
+
+### Rationale (overall)
+
+- **Mode behavior**: explicit flag + conflict reporter satisfies the "anvil never decides for you" principle without being PTY-only (which would be unprecedented friction; no major scaffolder requires PTY)
+- **Library choices**: every choice is industry-standard with major-project consumers; pulled live npm download data verified during D-67 drafting
+- **Vendoring**: reduces real-world supply-chain risk on the weakest links without taking on disproportionate maintenance for the strong ones
+
+### Confidence
+
+High on Parts A and B. Medium-high on Part C — vendoring trim/maintenance burden is real but bounded and worth the risk reduction.
 
 ---

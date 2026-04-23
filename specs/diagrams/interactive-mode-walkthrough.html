@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>anvil — Interactive Mode Walkthrough</title>
+<style>
+  :root {
+    --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: ui-monospace, 'Cascadia Code', 'SF Mono', Consolas, 'DejaVu Sans Mono', monospace;
+
+    /* Terminal/IDE aesthetic — dark first */
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface-2: #1c2333;
+    --surface-3: #232b38;
+    --border: rgba(255, 255, 255, 0.08);
+    --border-bright: rgba(255, 255, 255, 0.18);
+    --text: #e6edf3;
+    --text-dim: #8b949e;
+    --text-faint: #6e7681;
+
+    /* ANSI-inspired accents */
+    --ansi-cyan: #56d4dd;
+    --ansi-green: #7ee787;
+    --ansi-yellow: #f0c674;
+    --ansi-red: #ff7b72;
+    --ansi-blue: #79c0ff;
+    --ansi-magenta: #d2a8ff;
+
+    --accent: var(--ansi-cyan);
+    --good: var(--ansi-green);
+    --warn: var(--ansi-yellow);
+    --bad: var(--ansi-red);
+
+    --radius: 6px;
+    --radius-lg: 10px;
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f6f8fa;
+      --surface: #ffffff;
+      --surface-2: #f0f3f6;
+      --surface-3: #e6ebf1;
+      --border: rgba(0, 0, 0, 0.08);
+      --border-bright: rgba(0, 0, 0, 0.18);
+      --text: #1f2328;
+      --text-dim: #57606a;
+      --text-faint: #8b949e;
+      --ansi-cyan: #0969a3;
+      --ansi-green: #1a7f37;
+      --ansi-yellow: #9a6700;
+      --ansi-red: #cf222e;
+      --ansi-blue: #0550ae;
+      --ansi-magenta: #8250df;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    line-height: 1.55;
+    font-size: 15px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 48px 24px 96px; }
+
+  /* Header */
+  header { margin-bottom: 56px; padding-bottom: 32px; border-bottom: 1px solid var(--border); }
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: 12px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .eyebrow::before {
+    content: '';
+    width: 8px; height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+    box-shadow: 0 0 12px var(--accent);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+  @media (prefers-reduced-motion: reduce) { .eyebrow::before { animation: none; } }
+
+  h1 { font-size: 38px; line-height: 1.1; margin: 0 0 16px; font-weight: 700; letter-spacing: -0.02em; }
+  .subtitle { color: var(--text-dim); font-size: 17px; max-width: 760px; }
+
+  /* Sections */
+  section { margin-bottom: 56px; }
+  .section-num {
+    font-family: var(--font-mono);
+    color: var(--text-faint);
+    font-size: 13px;
+    margin-right: 12px;
+  }
+  h2 {
+    font-size: 24px; margin: 0 0 20px;
+    font-weight: 600; letter-spacing: -0.01em;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 12px;
+  }
+  h3 { font-size: 17px; margin: 28px 0 12px; font-weight: 600; }
+  p { color: var(--text-dim); margin: 0 0 14px; }
+  p strong { color: var(--text); font-weight: 600; }
+  code, kbd { font-family: var(--font-mono); font-size: 0.92em; }
+  p code, li code, td code {
+    background: var(--surface-2);
+    padding: 1px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    color: var(--ansi-magenta);
+  }
+
+  /* Cards */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 20px 22px;
+  }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media (max-width: 760px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+  /* Terminal mockup */
+  .terminal {
+    background: #0a0e14;
+    border: 1px solid var(--border-bright);
+    border-radius: var(--radius);
+    overflow: hidden;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.55;
+    color: #e6edf3;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    margin: 12px 0;
+  }
+  @media (prefers-color-scheme: light) {
+    .terminal { background: #1f2328; }
+  }
+  .terminal-header {
+    background: #161b22;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .dot { width: 11px; height: 11px; border-radius: 50%; }
+  .dot.r { background: #ff5f56; } .dot.y { background: #ffbd2e; } .dot.g { background: #27c93f; }
+  .terminal-title { margin-left: 12px; font-family: var(--font-mono); }
+  .terminal-body { padding: 14px 18px; white-space: pre-wrap; min-width: 0; overflow-x: auto; }
+
+  .t-prompt { color: #56d4dd; }
+  .t-cmd { color: #e6edf3; }
+  .t-q { color: #f0c674; }
+  .t-hint { color: #8b949e; font-style: italic; }
+  .t-pick { color: #7ee787; }
+  .t-sel { color: #79c0ff; background: rgba(121,192,255,0.12); padding: 0 4px; border-radius: 3px; }
+  .t-cur { color: #56d4dd; }
+  .t-err { color: #ff7b72; }
+  .t-ok { color: #7ee787; }
+  .t-dim { color: #6e7681; }
+  .t-warn { color: #f0c674; }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--text-dim); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
+  tbody tr:hover { background: var(--surface-2); }
+  td.mono, th.mono { font-family: var(--font-mono); font-size: 13px; }
+  .badge {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border-bright);
+    color: var(--text-dim);
+  }
+  .badge.cyan { color: var(--ansi-cyan); border-color: var(--ansi-cyan); }
+  .badge.green { color: var(--ansi-green); border-color: var(--ansi-green); }
+  .badge.yellow { color: var(--ansi-yellow); border-color: var(--ansi-yellow); }
+  .badge.red { color: var(--ansi-red); border-color: var(--ansi-red); }
+
+  /* Callout */
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: var(--surface);
+    padding: 14px 18px;
+    border-radius: 0 var(--radius) var(--radius) 0;
+    margin: 16px 0;
+  }
+  .callout.warn { border-color: var(--warn); }
+  .callout.bad { border-color: var(--bad); }
+  .callout-title {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    margin-bottom: 6px;
+    font-weight: 600;
+    font-family: var(--font-mono);
+  }
+  .callout.warn .callout-title { color: var(--warn); }
+  .callout.bad .callout-title { color: var(--bad); }
+  .callout p:last-child { margin-bottom: 0; }
+
+  /* SVG containers */
+  .svg-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    overflow-x: auto;
+  }
+  .svg-wrap svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+
+  /* Step list */
+  ol.steps { padding-left: 0; list-style: none; counter-reset: step; }
+  ol.steps li {
+    counter-increment: step;
+    padding: 10px 0 10px 44px;
+    position: relative;
+    border-bottom: 1px dashed var(--border);
+  }
+  ol.steps li:last-child { border-bottom: none; }
+  ol.steps li::before {
+    content: counter(step);
+    position: absolute; left: 0; top: 10px;
+    width: 28px; height: 28px;
+    background: var(--surface-2);
+    border: 1px solid var(--border-bright);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--accent);
+  }
+
+  ul.tight { padding-left: 20px; margin: 6px 0; color: var(--text-dim); }
+  ul.tight li { margin: 4px 0; }
+  ul.tight code { color: var(--ansi-magenta); }
+
+  /* Footer */
+  .footer {
+    margin-top: 64px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    color: var(--text-faint);
+    font-size: 13px;
+    font-family: var(--font-mono);
+  }
+  .footer a { color: var(--accent); text-decoration: none; }
+  .footer a:hover { text-decoration: underline; }
+
+  /* Fade-in */
+  section { opacity: 0; transform: translateY(8px); animation: fade 0.5s ease forwards; }
+  section:nth-of-type(1) { animation-delay: 0.05s; }
+  section:nth-of-type(2) { animation-delay: 0.1s; }
+  section:nth-of-type(3) { animation-delay: 0.15s; }
+  section:nth-of-type(4) { animation-delay: 0.2s; }
+  section:nth-of-type(5) { animation-delay: 0.25s; }
+  section:nth-of-type(6) { animation-delay: 0.3s; }
+  section:nth-of-type(7) { animation-delay: 0.35s; }
+  section:nth-of-type(8) { animation-delay: 0.4s; }
+  @keyframes fade { to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    section { opacity: 1; transform: none; animation: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">anvil · CLI UX walkthrough</div>
+  <h1>Interactive Mode</h1>
+  <p class="subtitle">How <code>anvil init</code> talks to humans, and what changes when no human is on the other end. Walks through TTY detection, the two prompt phases (setup &amp; conflict), the per-file conflict loop, and the non-interactive defaults that make agents and CI work safely.</p>
+</header>
+
+<!-- 1. The two-question premise -->
+<section>
+  <h2><span class="section-num">01</span>The premise</h2>
+  <p>Every <code>anvil init</code> run needs answers to two kinds of questions:</p>
+  <div class="grid-2">
+    <div class="card">
+      <div class="badge cyan">Phase A</div>
+      <h3 style="margin-top:8px">Setup questions (asked once, upfront)</h3>
+      <ul class="tight">
+        <li>What language? <code>--lang</code></li>
+        <li>What project name?</li>
+        <li>Which package manager? (TS only)</li>
+        <li>Generate seed code, or skip it because the repo already has app code?</li>
+      </ul>
+      <p style="margin-top:10px"><em>One round of questions, then anvil starts working.</em></p>
+    </div>
+    <div class="card">
+      <div class="badge yellow">Phase B</div>
+      <h3 style="margin-top:8px">Conflict questions (asked per file, during flush)</h3>
+      <ul class="tight">
+        <li>This file already exists on disk and anvil wants to write a different version. <strong>What now?</strong></li>
+        <li>Choices: <code>overwrite</code>, <code>skip</code>, <code>diff</code> (preview), <code>abort</code></li>
+        <li>Asked only for files classified <code>UPDATE</code>. <code>CREATE</code> files just get written.</li>
+      </ul>
+      <p style="margin-top:10px"><em>Zero on a fresh greenfield. Many on a re-scaffold.</em></p>
+    </div>
+  </div>
+  <div class="callout">
+    <div class="callout-title">Why split it this way?</div>
+    <p>Setup answers are about <em>what to build</em>. Conflict answers are about <em>how to handle disk reality</em>. Mixing them would mean re-prompting forever as anvil discovers files mid-render. The FsTree lets us batch all conflict decisions after rendering is complete — so you see the full picture before approving any change.</p>
+  </div>
+</section>
+
+<!-- 2. Mode detection -->
+<section>
+  <h2><span class="section-num">02</span>Mode selection — explicit, never inferred</h2>
+  <p>Anvil decides interactive vs non-interactive based on <strong>one signal only</strong>: the <code>--non-interactive</code> flag. This is opt-in. Piping into anvil without the flag is treated as a user error, not a silent mode switch (D-67 supersedes D-56).</p>
+
+  <div class="svg-wrap">
+    <svg viewBox="0 0 880 320" xmlns="http://www.w3.org/2000/svg" aria-label="Mode selection flowchart">
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+      <style>
+        .node { fill: var(--surface-2); stroke: var(--border-bright); stroke-width: 1; }
+        .node-decision { fill: var(--surface-2); stroke: var(--ansi-yellow); stroke-width: 1.5; }
+        .node-end-i { fill: rgba(86,212,221,0.1); stroke: var(--ansi-cyan); stroke-width: 1.5; }
+        .node-end-n { fill: rgba(240,198,116,0.1); stroke: var(--ansi-yellow); stroke-width: 1.5; }
+        .node-end-e { fill: rgba(255,123,114,0.1); stroke: var(--ansi-red); stroke-width: 1.5; }
+        .lbl-bold { fill: var(--text); font-family: var(--font-mono); font-size: 13px; font-weight: 600; }
+        .lbl-dim { fill: var(--text-dim); font-family: var(--font-mono); font-size: 11px; }
+        .edge-lbl { fill: var(--text-dim); font-family: var(--font-mono); font-size: 11px; }
+        .arrow { fill: none; stroke: var(--text-faint); stroke-width: 1.5; color: var(--text-faint); }
+        .arrow-y { stroke: var(--ansi-green); color: var(--ansi-green); }
+        .arrow-n { stroke: var(--ansi-red); color: var(--ansi-red); }
+      </style>
+
+      <!-- Start -->
+      <rect class="node" x="350" y="20" width="180" height="44" rx="22"/>
+      <text class="lbl-bold" x="440" y="47" text-anchor="middle">anvil init</text>
+
+      <!-- Decision -->
+      <polygon class="node-decision" points="440,100 620,170 440,240 260,170"/>
+      <text class="lbl-bold" x="440" y="165" text-anchor="middle">--non-interactive</text>
+      <text class="lbl-dim" x="440" y="182" text-anchor="middle">flag set?</text>
+
+      <!-- End: Interactive -->
+      <rect class="node-end-i" x="60" y="260" width="280" height="44" rx="6"/>
+      <text class="lbl-bold" x="200" y="280" text-anchor="middle" fill="#56d4dd">Interactive mode</text>
+      <text class="lbl-dim" x="200" y="296" text-anchor="middle">prompts via @inquirer/prompts</text>
+
+      <!-- End: Non-interactive -->
+      <rect class="node-end-n" x="540" y="260" width="280" height="44" rx="6"/>
+      <text class="lbl-bold" x="680" y="280" text-anchor="middle" fill="#f0c674">Non-interactive mode</text>
+      <text class="lbl-dim" x="680" y="296" text-anchor="middle">defaults + conflict report</text>
+
+      <!-- Arrows -->
+      <path class="arrow" d="M 440 64 L 440 100" marker-end="url(#arr)"/>
+      <path class="arrow arrow-n" d="M 260 170 L 200 260" marker-end="url(#arr)"/>
+      <text class="edge-lbl" x="200" y="225" fill="#ff7b72">no</text>
+      <path class="arrow arrow-y" d="M 620 170 L 680 260" marker-end="url(#arr)"/>
+      <text class="edge-lbl" x="660" y="225" fill="#7ee787">yes</text>
+    </svg>
+  </div>
+
+  <div class="callout warn">
+    <div class="callout-title">What about piping?</div>
+    <p>If you run <code>echo y | anvil init</code> without <code>--non-interactive</code>, anvil errors immediately rather than silently switching modes. The previous auto-detect behavior (D-56) caused a real failure mode: piped runs would silently skip every conflict and print "success" while applying nothing. Forcing the flag makes intent explicit.</p>
+  </div>
+</section>
+
+<!-- 3. Setup phase walkthrough -->
+<section>
+  <h2><span class="section-num">03</span>Phase A — Setup prompts</h2>
+  <p>Powered by <code>@inquirer/prompts</code> (D-23). Each question has a <strong>resolver chain</strong> — anvil tries to answer it without asking, and only prompts if every source comes up empty.</p>
+
+  <h3>Resolver order (D-67 detection-first)</h3>
+  <table>
+    <thead><tr><th>Order</th><th>Source</th><th>Example</th></tr></thead>
+    <tbody>
+      <tr><td><span class="badge cyan">1</span></td><td>Explicit CLI flag</td><td><code>--name myapp</code> wins, never prompted</td></tr>
+      <tr><td><span class="badge cyan">2</span></td><td>Detected from disk</td><td><code>bun.lock</code> exists → packageManager = bun</td></tr>
+      <tr><td><span class="badge cyan">3</span></td><td>Existing <code>.anvil.lock</code></td><td>Re-scaffold reads previous answers</td></tr>
+      <tr><td><span class="badge yellow">4</span></td><td>Interactive prompt</td><td>Only if 1–3 all empty <em>and</em> TTY</td></tr>
+      <tr><td><span class="badge red">5</span></td><td>Safe default</td><td>Non-interactive fallback (e.g. <code>main</code> for branch, dir basename for name)</td></tr>
+    </tbody>
+  </table>
+
+  <h3>What it looks like — greenfield TS project</h3>
+  <div class="terminal">
+    <div class="terminal-header">
+      <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+      <span class="terminal-title">~/code/myapp — bash</span>
+    </div>
+    <div class="terminal-body"><span class="t-prompt">$</span> <span class="t-cmd">anvil init --lang typescript</span>
+
+<span class="t-cur">⚒</span>  <span class="t-ok">anvil v0.1.0</span>  <span class="t-dim">·  scaffolding typescript project</span>
+
+<span class="t-q">?</span> <span class="t-cmd">Project name</span> <span class="t-hint">(myapp)</span> <span class="t-sel">myapp</span>
+<span class="t-q">?</span> <span class="t-cmd">Package manager</span> <span class="t-hint">(no lockfile detected)</span>
+   <span class="t-pick">❯</span> <span class="t-sel">bun</span>     <span class="t-dim">— recommended for new TS projects</span>
+     npm
+     pnpm
+     yarn
+<span class="t-q">?</span> <span class="t-cmd">Default branch</span> <span class="t-hint">(main)</span> <span class="t-sel">main</span>
+<span class="t-q">?</span> <span class="t-cmd">Generate seed code?</span> <span class="t-hint">(Y/n)</span> <span class="t-sel">Y</span>
+
+<span class="t-cur">⚒</span>  <span class="t-dim">rendering FsTree…</span>
+<span class="t-cur">⚒</span>  <span class="t-dim">21 files queued · 0 conflicts · 0 skipped</span>
+<span class="t-cur">⚒</span>  <span class="t-dim">writing to disk…</span>
+
+<span class="t-ok">✔</span> <span class="t-cmd">Done.</span> 21 files created. Run <span class="t-sel">make check</span> to verify.</div>
+  </div>
+
+  <h3>Same project, but it's a re-scaffold</h3>
+  <p>Anvil reads <code>.anvil.lock</code> first → <strong>doesn't ask anything in Phase A</strong>. Goes straight to FsTree classification and Phase B.</p>
+  <div class="terminal">
+    <div class="terminal-header">
+      <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+      <span class="terminal-title">~/code/myapp — re-scaffold</span>
+    </div>
+    <div class="terminal-body"><span class="t-prompt">$</span> <span class="t-cmd">anvil init</span>
+
+<span class="t-cur">⚒</span>  <span class="t-ok">anvil v0.1.2</span>  <span class="t-dim">·  detected .anvil.lock (generated by v0.1.0)</span>
+<span class="t-cur">⚒</span>  <span class="t-dim">restored context: typescript · bun · main</span>
+<span class="t-cur">⚒</span>  <span class="t-dim">rendering FsTree…</span>
+<span class="t-cur">⚒</span>  <span class="t-dim">21 files queued · 3 unchanged · 16 up-to-date · </span><span class="t-warn">2 conflicts</span></div>
+  </div>
+</section>
+
+<!-- 4. Conflict phase -->
+<section>
+  <h2><span class="section-num">04</span>Phase B — Per-file conflict prompts</h2>
+  <p>Triggered only for files the FsTree classifies as <code>UPDATE</code>. Each conflict is a small loop — the user can preview a diff as many times as they want before committing to a terminal action.</p>
+
+  <h3>The state machine</h3>
+  <div class="svg-wrap">
+    <svg viewBox="0 0 920 320" xmlns="http://www.w3.org/2000/svg" aria-label="Conflict prompt state machine">
+      <defs>
+        <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+      <style>
+        .s { fill: var(--surface-2); stroke: var(--border-bright); stroke-width: 1; }
+        .s-prompt { fill: rgba(240,198,116,0.08); stroke: var(--ansi-yellow); stroke-width: 1.5; }
+        .s-ok { fill: rgba(126,231,135,0.08); stroke: var(--ansi-green); stroke-width: 1.5; }
+        .s-skip { fill: rgba(139,148,158,0.08); stroke: var(--text-dim); stroke-width: 1.5; }
+        .s-bad { fill: rgba(255,123,114,0.08); stroke: var(--ansi-red); stroke-width: 1.5; }
+        .lbl { fill: var(--text); font-family: var(--font-mono); font-size: 13px; }
+        .lbl-bold { fill: var(--text); font-family: var(--font-mono); font-size: 13px; font-weight: 600; }
+        .lbl-dim { fill: var(--text-dim); font-family: var(--font-mono); font-size: 11px; }
+        .edge-lbl { fill: var(--text-dim); font-family: var(--font-mono); font-size: 11px; }
+        .arrow { fill: none; stroke: var(--text-faint); stroke-width: 1.5; color: var(--text-faint); }
+        .arrow-good { stroke: var(--ansi-green); color: var(--ansi-green); }
+        .arrow-bad { stroke: var(--ansi-red); color: var(--ansi-red); }
+        .arrow-loop { stroke: var(--ansi-cyan); color: var(--ansi-cyan); stroke-dasharray: 4 3; }
+      </style>
+
+      <!-- enter -->
+      <rect class="s" x="20" y="135" width="120" height="44" rx="6"/>
+      <text class="lbl-bold" x="80" y="162" text-anchor="middle">UPDATE file</text>
+
+      <!-- prompt -->
+      <rect class="s-prompt" x="200" y="120" width="220" height="80" rx="6"/>
+      <text class="lbl-bold" x="310" y="147" text-anchor="middle">Prompt</text>
+      <text class="lbl-dim" x="310" y="167" text-anchor="middle">overwrite · skip · diff · abort</text>
+      <text class="lbl-dim" x="310" y="184" text-anchor="middle">(default: skip)</text>
+
+      <!-- diff (loop) -->
+      <rect class="s" x="240" y="20" width="160" height="60" rx="6"/>
+      <text class="lbl-bold" x="320" y="47" text-anchor="middle">Show diff</text>
+      <text class="lbl-dim" x="320" y="65" text-anchor="middle">(re-prompts)</text>
+
+      <!-- terminal results -->
+      <rect class="s-ok" x="500" y="40" width="180" height="50" rx="6"/>
+      <text class="lbl-bold" x="590" y="70" text-anchor="middle" fill="#7ee787">Overwrite</text>
+
+      <rect class="s-skip" x="500" y="135" width="180" height="50" rx="6"/>
+      <text class="lbl-bold" x="590" y="165" text-anchor="middle">Skip</text>
+
+      <rect class="s-bad" x="500" y="230" width="180" height="50" rx="6"/>
+      <text class="lbl-bold" x="590" y="260" text-anchor="middle" fill="#ff7b72">Abort</text>
+
+      <!-- destinations -->
+      <rect class="s-ok" x="740" y="40" width="160" height="50" rx="6"/>
+      <text class="lbl-bold" x="820" y="62" text-anchor="middle" fill="#7ee787">Queued for flush</text>
+      <text class="lbl-dim" x="820" y="78" text-anchor="middle">staged in FsTree</text>
+
+      <rect class="s-skip" x="740" y="135" width="160" height="50" rx="6"/>
+      <text class="lbl-bold" x="820" y="157" text-anchor="middle">Removed from</text>
+      <text class="lbl-bold" x="820" y="173" text-anchor="middle">flush set</text>
+
+      <rect class="s-bad" x="740" y="230" width="160" height="50" rx="6"/>
+      <text class="lbl-bold" x="820" y="252" text-anchor="middle" fill="#ff7b72">Exit 1 — no writes</text>
+      <text class="lbl-dim" x="820" y="268" text-anchor="middle">all-or-nothing</text>
+
+      <!-- arrows -->
+      <path class="arrow" d="M 140 157 L 200 157" marker-end="url(#arr2)"/>
+      <path class="arrow-loop" d="M 310 120 L 310 80" marker-end="url(#arr2)"/>
+      <text class="edge-lbl" x="320" y="105" fill="#56d4dd">diff</text>
+      <path class="arrow-loop" d="M 240 50 Q 180 50 180 130 L 200 130" marker-end="url(#arr2)"/>
+      <text class="edge-lbl" x="160" y="100" fill="#56d4dd">re-prompt</text>
+
+      <path class="arrow arrow-good" d="M 420 145 L 500 70" marker-end="url(#arr2)"/>
+      <path class="arrow" d="M 420 160 L 500 160" marker-end="url(#arr2)"/>
+      <path class="arrow arrow-bad" d="M 420 175 L 500 250" marker-end="url(#arr2)"/>
+
+      <path class="arrow arrow-good" d="M 680 65 L 740 65" marker-end="url(#arr2)"/>
+      <path class="arrow" d="M 680 160 L 740 160" marker-end="url(#arr2)"/>
+      <path class="arrow arrow-bad" d="M 680 255 L 740 255" marker-end="url(#arr2)"/>
+    </svg>
+  </div>
+
+  <h3>What it looks like — re-scaffold with two conflicts</h3>
+  <div class="terminal">
+    <div class="terminal-header">
+      <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+      <span class="terminal-title">~/code/myapp — conflict resolution</span>
+    </div>
+    <div class="terminal-body"><span class="t-warn">⚠</span>  <span class="t-cmd">2 files have local changes that differ from anvil's templates.</span>
+
+<span class="t-warn">[1/2]</span> <span class="t-cmd">Makefile</span> <span class="t-dim">(modified by you, anvil has updates)</span>
+<span class="t-q">?</span> <span class="t-cmd">What should I do?</span>
+   <span class="t-pick">❯</span> <span class="t-sel">skip       — keep your version (default)</span>
+     overwrite  — take anvil's version
+     diff       — show me the changes first
+     abort      — stop scaffold, write nothing
+<span class="t-q">  ›</span> <span class="t-cmd">diff</span>
+
+<span class="t-dim">────────────────  Makefile  ────────────────</span>
+<span class="t-err">- typecheck:</span>
+<span class="t-err">- 	tsc --noEmit</span>
+<span class="t-ok">+ typecheck:</span>
+<span class="t-ok">+ 	tsc --noEmit --strict</span>
+<span class="t-ok">+ 	@echo "✓ typecheck passed"</span>
+<span class="t-dim">────────────────────────────────────────────</span>
+
+<span class="t-q">?</span> <span class="t-cmd">What should I do?</span> <span class="t-hint">(prompt repeats)</span>
+   <span class="t-pick">❯</span> skip
+     <span class="t-sel">overwrite</span>
+     diff
+     abort
+<span class="t-q">  ›</span> <span class="t-cmd">overwrite</span>  <span class="t-ok">✔</span>
+
+<span class="t-warn">[2/2]</span> <span class="t-cmd">.eslintrc.json</span> <span class="t-dim">(modified by you, anvil has updates)</span>
+<span class="t-q">?</span> <span class="t-cmd">What should I do?</span>
+   <span class="t-pick">❯</span> <span class="t-sel">skip</span>  <span class="t-ok">✔</span>
+
+<span class="t-cur">⚒</span>  <span class="t-dim">writing to disk…</span>
+<span class="t-ok">✔</span> <span class="t-cmd">Done.</span> 1 updated · 1 skipped · 19 unchanged.
+<span class="t-dim">  Skipped: .eslintrc.json (kept your version)</span></div>
+  </div>
+
+  <div class="callout">
+    <div class="callout-title">Why re-prompt after diff?</div>
+    <p>Diff is a <em>preview</em>, not a decision. Letting it loop means you can inspect a change carefully, decide it's fine, and accept — or scroll back, look again, and skip. Cruft and Yeoman both make you commit before seeing the diff; we won't.</p>
+  </div>
+
+  <div class="callout bad">
+    <div class="callout-title">Abort is atomic</div>
+    <p>If you pick <code>abort</code> on file 47 of 50, the 46 already-approved changes are <strong>not</strong> written. No <code>.anvil.lock</code> update, no partial state, no <code>git status</code> surprise. The flush phase only runs after every conflict has a non-abort answer.</p>
+  </div>
+</section>
+
+<!-- 5. Non-interactive parity -->
+<section>
+  <h2><span class="section-num">05</span>Non-interactive equivalence</h2>
+  <p>When you pass <code>--non-interactive</code>, every prompt above must answer itself. Setup prompts use safe defaults; conflicts are <strong>not</strong> auto-resolved — they're reported and the run aborts with no writes. Mapping per D-67:</p>
+
+  <table>
+    <thead>
+      <tr><th>Prompt</th><th>Interactive answer</th><th>Non-interactive resolution</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>projectName</code></td>
+        <td>user types or accepts default</td>
+        <td>directory basename of target path</td>
+      </tr>
+      <tr>
+        <td><code>packageManager</code></td>
+        <td>detect → pick from list if no lockfile</td>
+        <td>detect → fall back to <code>bun</code></td>
+      </tr>
+      <tr>
+        <td><code>defaultBranch</code></td>
+        <td>user types or accepts <code>main</code></td>
+        <td><code>main</code></td>
+      </tr>
+      <tr>
+        <td><code>generateSeed</code></td>
+        <td>Y/n</td>
+        <td>auto: <code>false</code> if <code>hasCode</code> heuristic fires, else <code>true</code></td>
+      </tr>
+      <tr>
+        <td><strong>UPDATE conflicts</strong></td>
+        <td>per-file overwrite/skip/diff/abort</td>
+        <td><strong>diff report on stderr → exit non-zero, no writes</strong></td>
+      </tr>
+      <tr>
+        <td>Exit code</td>
+        <td>0 (success) or 1 (abort)</td>
+        <td>0 (no conflicts) or non-zero (conflicts present)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>The conflict reporter — anvil reports, the agent decides</h3>
+  <p>When <code>--non-interactive</code> finds files that would be UPDATEs (template differs from disk), anvil refuses to choose for you. Instead it prints a unified-diff report, exits non-zero, and writes nothing. The agent (or human running headless) reads the report, decides what to do, and re-runs. This is the same mental model as a compiler error: surface the problem, let the caller fix it.</p>
+
+  <div class="terminal">
+    <div class="terminal-header">
+      <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+      <span class="terminal-title">~/code/myapp — agent inner loop</span>
+    </div>
+    <div class="terminal-body"><span class="t-prompt">$</span> <span class="t-cmd">anvil init --non-interactive</span>
+
+<span class="t-cur">⚒</span>  <span class="t-ok">anvil v0.1.2</span>  <span class="t-dim">·  re-scaffolding · non-interactive</span>
+<span class="t-cur">⚒</span>  <span class="t-dim">21 files queued · 18 unchanged · </span><span class="t-warn">3 conflicts</span>
+
+<span class="t-err">✗</span> <span class="t-cmd">3 conflicts — anvil's templates differ from your local files.</span>
+<span class="t-dim">  No files written.</span>
+
+<span class="t-dim">────</span>  <span class="t-cmd">Makefile</span>  <span class="t-dim">────</span>
+<span class="t-err">- typecheck:</span>
+<span class="t-err">- 	tsc --noEmit</span>
+<span class="t-ok">+ typecheck:</span>
+<span class="t-ok">+ 	tsc --noEmit --strict</span>
+<span class="t-ok">+ 	@echo "✓ typecheck passed"</span>
+
+<span class="t-dim">────</span>  <span class="t-cmd">.eslintrc.json</span>  <span class="t-dim">────</span>
+<span class="t-err">-   "no-console": "warn"</span>
+<span class="t-ok">+   "no-console": "error"</span>
+
+<span class="t-dim">────</span>  <span class="t-cmd">src/seed/index.ts</span>  <span class="t-dim">────</span>
+<span class="t-dim">  [... unified diff ...]</span>
+
+<span class="t-cmd">To resolve, for each conflict:</span>
+<span class="t-dim">  • edit the file to match anvil's version (then re-run)</span>
+<span class="t-dim">  • </span><span class="t-cmd">rm</span><span class="t-dim"> the file (anvil will recreate it next run)</span>
+<span class="t-dim">  • leave it (next run will report the same conflict)</span>
+
+<span class="t-prompt">$</span> <span class="t-cmd">echo $?</span>
+<span class="t-warn">1</span></div>
+  </div>
+
+  <div class="grid-3" style="margin-top:18px">
+    <div class="card">
+      <div class="badge">edit to match</div>
+      <p style="margin-top:10px"><strong>Take anvil's version.</strong> Agent reads the diff, applies it (or fully replaces the file). Next run sees no conflict.</p>
+    </div>
+    <div class="card">
+      <div class="badge yellow">delete</div>
+      <p style="margin-top:10px"><strong>Start over.</strong> <code>rm</code> the file, anvil treats it as <code>CREATE</code> on the next run. Useful when the local version is junk.</p>
+    </div>
+    <div class="card">
+      <div class="badge red">leave it</div>
+      <p style="margin-top:10px"><strong>Live with the noise.</strong> Conflict re-appears every run — honest signal that anvil and disk disagree. No silent acceptance.</p>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="callout-title">Why no <code>--on-conflict</code> flag?</div>
+    <p>Earlier sketches included <code>--on-conflict skip|overwrite|backup</code>. Dropped. A "force" knob re-introduces the silent-skip and silent-overwrite failure modes the conflict reporter exists to eliminate. The agent has <code>cat</code>, <code>diff</code>, <code>git</code>, and a brain — that's a richer toolkit than any flag could be.</p>
+  </div>
+</section>
+
+<!-- 6. End-to-end -->
+<section>
+  <h2><span class="section-num">06</span>End-to-end — the whole flow on one page</h2>
+  <ol class="steps">
+    <li><strong>Parse args.</strong> Read <code>--lang</code>, <code>--non-interactive</code>, <code>--dry-run</code>, etc.</li>
+    <li><strong>Set mode.</strong> If <code>--non-interactive</code> flag present → non-interactive. Otherwise interactive (a TTY is assumed and prompts will fail visibly without one).</li>
+    <li><strong>Detect disk state.</strong> Look for <code>.anvil.lock</code>, lockfiles, existing source code (<code>hasCode</code> heuristic).</li>
+    <li><strong>Resolve setup answers</strong> using the chain: flag → detected → lockfile → prompt (interactive only) → safe default (non-interactive).</li>
+    <li><strong>Acquire <code>.anvil.lock.pid</code></strong> to prevent concurrent scaffold (D-57b).</li>
+    <li><strong>Render FsTree.</strong> Templates rendered into in-memory virtual filesystem. No disk writes yet.</li>
+    <li><strong>Classify each path</strong> as <code>CREATE</code>, <code>UPDATE</code>, or no-op (checksum match).</li>
+    <li><strong>Resolve conflicts.</strong> Interactive: per-file prompt loop. Non-interactive: if any UPDATE conflict → print diff report, exit non-zero, write nothing.</li>
+    <li><strong>Print summary.</strong> Show what will happen. <code>--dry-run</code> stops here.</li>
+    <li><strong>Flush.</strong> Atomic write of all approved changes.</li>
+    <li><strong>Update <code>.anvil.lock</code></strong> with new generation context + checksums.</li>
+    <li><strong>Release the PID lock</strong> and exit.</li>
+  </ol>
+</section>
+
+<!-- 7. Decision touchpoints -->
+<section>
+  <h2><span class="section-num">07</span>Where this is specified</h2>
+  <table>
+    <thead><tr><th>Concern</th><th>Decision</th><th>Spec file</th></tr></thead>
+    <tbody>
+      <tr><td>Prompt library</td><td class="mono">D-23</td><td class="mono">specs/decisions/anvil-decisions.md</td></tr>
+      <tr><td>Non-interactive defaults + conflict reporter</td><td class="mono">D-67</td><td class="mono">specs/decisions/anvil-decisions.md</td></tr>
+      <tr><td><em>(superseded)</em> Auto-non-interactive on non-TTY</td><td class="mono">D-56 → D-67</td><td class="mono">specs/decisions/anvil-decisions.md</td></tr>
+      <tr><td>Idempotent re-scaffold</td><td class="mono">D-39</td><td class="mono">specs/decisions/anvil-decisions.md</td></tr>
+      <tr><td>Concurrent scaffold lock</td><td class="mono">D-57b</td><td class="mono">specs/decisions/anvil-decisions.md</td></tr>
+      <tr><td>Package manager detection</td><td class="mono">D-29</td><td class="mono">specs/decisions/anvil-decisions.md</td></tr>
+      <tr><td>FsTree + flush semantics</td><td>—</td><td class="mono">specs/cli/scaffold-engine.md</td></tr>
+      <tr><td>CLI surface (CLI-01, 03–07)</td><td>—</td><td class="mono">specs/REQUIREMENTS.md</td></tr>
+      <tr><td>Library choices &amp; vendoring policy</td><td class="mono">D-67</td><td class="mono">specs/decisions/anvil-decisions.md</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<div class="footer">
+  <code>specs/diagrams/interactive-mode-walkthrough.html</code> · generated for the anvil sandbox design discussion · <a href="./architecture-walkthrough.html">← architecture overview</a>
+</div>
+
+</div>
+</body>
+</html>

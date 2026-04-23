@@ -5,7 +5,7 @@
 - **Shared Key**: `scaffold-engine`
 - **Spec Path**: `specs/cli/scaffold-engine.md`
 - **Requirement Refs**: `CLI-01`, `CLI-03`, `CLI-04`, `CLI-05`, `CLI-06`, `CLI-07`
-- **Decision Refs**: `specs/decisions/anvil-decisions.md` (D-01, D-03, D-04, D-08, D-22, D-23, D-29, D-31, D-35, D-39, D-40, D-41, D-42, D-43, D-45, D-56, D-58, D-59, D-60, D-61; superseded: D-02, D-11, D-32, D-33)
+- **Decision Refs**: `specs/decisions/anvil-decisions.md` (D-01, D-03, D-04, D-08, D-22, D-23, D-29, D-31, D-35, D-39, D-40, D-41, D-42, D-43, D-45, D-58, D-59, D-60, D-61, D-67; superseded: D-02, D-11, D-32, D-33, D-56)
 
 ## Problem Statement
 
@@ -20,7 +20,7 @@ Coding agents produce structurally bloated, convention-ignoring code when workin
 - FsTree virtual file system for staged file operations
 - Idempotent re-scaffold (re-running `anvil init` safely updates files)
 - `--dry-run` flag on `anvil init` (preview changes without writing)
-- `--non-interactive` flag on `anvil init` (CI/headless: all conflict prompts default to "skip"). Also activates when stdin is not a TTY (D-56).
+- `--non-interactive` flag on `anvil init` (explicit opt-in only — D-67 supersedes D-56). Setup prompts resolve from detected/lockfile/defaults. Conflicts → structured diff report on stderr + exit non-zero, no files written.
 - Scaffold engine: static file copying + EJS template rendering
 - `.anvil.lock` manifest: file tracking, checksums, generation context
 - Conflict resolution for existing files during init
@@ -132,7 +132,7 @@ Key behaviors (verified against Nx source):
 
 **Lockfile checksums during re-scaffold:** Existing checksums in `.anvil.lock` are used for **integrity checking** (`anvil doctor` verifies file checksums match) and **provenance** (tracking what anvil generated), NOT for conflict detection. FsTree's 2-way comparison (new template vs disk) handles change classification. The lockfile's primary re-scaffold role is providing stored context (project name, package manager, etc.) to pre-fill prompts.
 
-**`--non-interactive` exit code:** When `--non-interactive` mode (flag or non-TTY stdin, D-56) skips conflicting files (defaulting UPDATE conflicts to "skip"), the CLI exits 0 but prints a summary of skipped files. This is not an error — skipping is the expected behavior. If all files were skipped (nothing to do), exit 0 with a "no changes" message.
+**`--non-interactive` exit code (D-67 supersedes D-56):** When `--non-interactive` mode (explicit flag only) encounters one or more `UPDATE` conflicts, the CLI prints a structured unified-diff report to stderr and exits **non-zero with no files written** (all-or-nothing transaction — including any `CREATE` files). When there are no conflicts, the CLI writes all classified changes and exits 0. If everything is no-op (nothing to do), exit 0 with a "no changes" message.
 
 **Error handling:**
 - **Template render failure:** Aborts before `flushChanges()`. No files written, no lockfile, no post-steps. Exits non-zero with error message identifying the failing template path.
@@ -224,9 +224,10 @@ User runs: anvil init --lang typescript
     │  (Re-scaffold: pre-fill     │
     │   from previous context)    │
     │                              │
-    │  (--non-interactive OR      │
-    │   non-TTY stdin (D-56):     │
-    │   skip all prompts.         │
+    │  (--non-interactive only,    │
+    │   D-67; pipe without flag    │
+    │   = error, not auto-mode):   │
+    │   skip all prompts.          │
     │   Precedence:               │
     │   detected state > defaults │
     │   projectName = dir name,   │
@@ -282,7 +283,9 @@ User runs: anvil init --lang typescript
     │  prompts, stop here.         │
     │                              │
     │  --non-interactive: UPDATE   │
-    │  conflicts default to "skip" │
+    │  conflicts → diff report on  │
+    │  stderr + exit non-zero,     │
+    │  NO files written (D-67)     │
     └──────────┬──────────────────┘
                │
                ▼
@@ -459,7 +462,7 @@ interface ScaffoldContext {
   sourceDir?: string;          // detected source directory (src/, lib/, etc.)
   packageManager?: string;     // TS/JS only: npm, bun, pnpm, yarn (detected or prompted)
   defaultBranch?: string;      // for git hooks (default: main)
-  nonInteractive: boolean;     // --non-interactive flag OR non-TTY stdin (D-56)
+  nonInteractive: boolean;     // --non-interactive flag only (explicit opt-in; D-67 supersedes D-56)
 }
 ```
 
