@@ -825,3 +825,65 @@ No configuration for test directory mapping in v1. If the user uses a non-standa
 **Confidence:** Medium-high. Threshold values may need tuning post-dogfood, but the architecture is sound.
 
 ---
+
+## D-64: Toolchain version policy — "latest stable at init time, captured in lockfile"
+
+**Choice:** Anvil does not pin hardcoded minimum versions for runtimes/SDKs. At `anvil init`, the engine resolves the **latest stable** version of each language toolchain via well-known sources and records the resolved version in the project's `anvil.lock` manifest. The lockfile is the source of truth from that point forward.
+
+**Sources (in priority order, first match wins):**
+- **Bun:** `bun --version` if installed, else fetch latest from `https://github.com/oven-sh/bun/releases/latest` (cached 24h)
+- **Node:** latest LTS from `https://nodejs.org/dist/index.json` (filter `lts !== false`)
+- **Go:** latest stable from `https://go.dev/dl/?mode=json` (first non-rc entry)
+- **Python:** latest stable from `https://endoflife.date/api/python.json` (first entry where `eol > today`)
+
+**Recorded in `anvil.lock`:**
+```json
+{
+  "toolchain": {
+    "bun": "1.2.x",         // present only if scaffold uses Bun
+    "node": "22.x",
+    "go": "1.24.x",
+    "python": "3.13.x"
+  }
+}
+```
+
+**Engines fields / version files:**
+- TS/Node: `package.json#engines.node`, `.nvmrc`
+- Go: `go.mod` `go` directive
+- Python: `pyproject.toml#requires-python`, `.python-version`
+
+**Offline mode:** If network is unavailable and no local toolchain installed, init fails fast with a clear message. No silent fallback to a stale floor.
+
+**Rationale:** Hardcoded floors rot. Pinning at init time + recording in lockfile gives reproducibility without forcing anvil maintainers to ship version bumps just to keep the floor current. Aligns with how `create-next-app`, `npm create vite`, and `cargo new` resolve toolchains.
+
+**Confidence:** High.
+
+---
+
+## D-65: Anvil self-governance — license, dogfood, release process
+
+**Choice:**
+- **LICENSE:** MIT for anvil itself.
+- **Dogfood:** Anvil ships its own `AGENTS.md` at the repo root, generated using the same template the TS scaffold emits. Anvil's repo passes its own `make check`.
+- **Release process:** Conventional Commits → `release-please` (or equivalent) auto-maintains `CHANGELOG.md` and version bumps. Pushing a release tag triggers the release pipeline. No manual changelog entries.
+
+**Rationale:** MIT is the lowest-friction choice for a developer tool; matches the OSS we're emulating (slop-scan, eslint-plugins). Dogfooding catches drift between scaffold output and what we'd actually want in a real repo. Conventional Commits + auto-changelog scales to multi-contributor without ceremony per PR.
+
+**Confidence:** High.
+
+---
+
+## D-66: Scaffolded-project LICENSE and dependency automation — deferred to user/v2
+
+**Choice:**
+- **LICENSE in scaffolded projects:** Anvil does **not** create a LICENSE file or prompt for one. Users add their own per their org policy.
+- **Dependabot/renovate config in scaffolded projects:** Deferred. Not generated in v1.
+
+**Rationale:** License selection is a legal/org decision anvil shouldn't make. For dependency automation, the agent-era story is unsettled — coding agents may handle dep bumps directly via PR workflow rather than scheduled bots. Punting until we have real-world signal on what teams actually want here.
+
+**Open question (revisit post-v1):** What does dependency hygiene look like when agents own most PRs? Is there still a role for scheduled bots, or does this collapse into the agent's normal work queue?
+
+**Confidence:** High on v1 scope. Open question explicitly logged for v2.
+
+---

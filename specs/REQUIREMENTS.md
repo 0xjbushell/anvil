@@ -49,6 +49,8 @@ All commands operate on the current working directory. There is no `--target-dir
 - **STRUCT-06**: File organization — **exported** enums in `enums.{ext}`. TS/JS, Python. Go: scaffold-only (D-47).
 - **STRUCT-07**: Filename matches export name for single-export files. Files with multiple exports are exempt. (D-48) TS/JS, Python only (dropped for Go — multiple exports at package scope make "primary export" undefined; see D-30).
 - **STRUCT-08**: No exported function expressions (use declarations). TS: `export const fn = () => {}` → `export function fn() {}`. Go: `var Fn = func(){}` → `func Fn(){}`. Python: `fn = lambda:` → `def fn():`. TS/JS, Go, Python.
+- **STRUCT-09**: `no-barrel-density` — `index.{ts,js,mjs,tsx}` files dominated by re-exports (≥3 `export … from` statements AND >80% of top-level statements are re-exports). Pure file-local AST. TS/JS only. (D-62)
+- **STRUCT-10**: `no-over-fragmentation` — directories dominated by tiny single-purpose files (≥4 source files, ≥60% are <30 LOC with ≤1 export). ESLint sentinel pattern with `fs` reads; allowlist: `icons`, `assets`, `__generated__`, `migrations` (configurable). TS/JS only. (D-63)
 
 ### Custom Lint Rules — Test Quality (TEST-xx)
 
