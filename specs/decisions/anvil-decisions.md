@@ -855,7 +855,9 @@ No configuration for test directory mapping in v1. If the user uses a non-standa
 - Go: `go.mod` `go` directive
 - Python: `pyproject.toml#requires-python`, `.python-version`
 
-**Offline mode:** If network is unavailable and no local toolchain installed, init fails fast with a clear message. No silent fallback to a stale floor.
+**Offline / network-failure mode:** Toolchain resolution makes outbound HTTP requests (Node, Go, Python sources). On any of these failure modes — DNS failure, timeout, non-200 response, certificate error — the engine falls back to a **bundled defaults snapshot** (`src/internal/toolchain-defaults.json`, refreshed in lockstep with each anvil release). The fallback is silent for the CLI's correctness but loud for the user: stderr emits `warning: could not reach <source> for latest <lang> version; using bundled default <version> from anvil <anvil-version>. Run online to refresh.` The resolved version is recorded in `.anvil.lock` exactly as if it had come from the network — re-scaffolds use the locked value, so an air-gapped re-scaffold of an existing project is fully deterministic and never touches the network at all. There is no `--offline-toolchain` flag and no separate "offline mode" — fallback is automatic.
+
+For the **Bun source**, `bun --version` is checked first per the priority order above; if Bun is locally installed, the network is never consulted for Bun. The bundled defaults only apply to the languages whose primary source is remote (Node/Go/Python).
 
 **Rationale:** Hardcoded floors rot. Pinning at init time + recording in lockfile gives reproducibility without forcing anvil maintainers to ship version bumps just to keep the floor current. Aligns with how `create-next-app`, `npm create vite`, and `cargo new` resolve toolchains.
 
@@ -1135,7 +1137,10 @@ expect:
   stderr_contains:
     - "conflicts"
     - "Makefile"
-  files_unchanged_from_input: true   # all-or-nothing — every file matches the input catalog byte-for-byte
+  idempotent: true   # re-running on this same input must produce ZERO writes (no-op detection works)
+```
+
+Note: `idempotent: true` is **not** a directory snapshot of the templates (D-68 explicitly rejects those — see "Why we don't use snapshots" above). It asserts the engine's no-op detection: re-running anvil against an already-scaffolded project that the user has not edited produces zero filesystem writes. The "input" is a *prior scaffolded state*, not the template source. Implementation uses the vendored `dir-compare` (D-67) to compare on-disk state before and after the run; failure means either the engine wrote when it shouldn't have, or the templates produced non-deterministic content (see deterministic-templates rule below).
 ```
 
 **Assertion vocabulary** (initial — extend as scenarios demand):
@@ -1146,7 +1151,18 @@ expect:
 - `files_match_regex: [{file, pattern}]` — regex match
 - `stdout_contains: [strings]`, `stderr_contains: [strings]`
 - `stdout_empty: bool`, `stderr_empty: bool`
-- `files_unchanged_from_input: bool` — disk state matches `inputs/<scenario>/` byte-for-byte (uses vendored `dir-compare` from D-67)
+- `idempotent: bool` — running the scenario twice (or, equivalently, running it once on a directory whose state already matches expected post-scaffold) produces zero filesystem writes on the second run. Compares on-disk state before/after the second run via vendored `dir-compare` (D-67). Asserts the engine's no-op detection works correctly. **NOT** a template snapshot — see "Deterministic templates rule" below for what makes this assertion meaningful.
+
+### Deterministic templates rule (v1)
+
+The `idempotent` assertion only holds if templates are deterministic by construction — given the same `ScaffoldContext`, an EJS template MUST produce byte-identical output on every render. This means:
+
+- **No timestamps.** Don't render `<%= new Date().toISOString() %>` into LICENSE year, README footer, generated-on comments, etc. If a year is required (LICENSE), source it from `ctx.year` set at init time and persisted in `.anvil.lock` (so re-scaffolds reuse the original year).
+- **No UUIDs / random values.** No `crypto.randomUUID()`, no `Math.random()`. If a unique value is needed (e.g., a default API key placeholder), use a literal sentinel like `CHANGE_ME` or derive deterministically from `ctx.projectName`.
+- **No environment-dependent output.** No `process.env`, no `os.userInfo()`, no `os.platform()`-conditional template branches. Anything environment-dependent must be resolved into `ScaffoldContext` at init time and locked.
+- **No reading files outside `src/templates/<lang>/`.** A template MUST be a pure function of `ScaffoldContext`.
+
+Templates that violate this rule cause `idempotent` fixtures to flap and break the engine's smart-dedup (`if writtenContent === diskContent → no-op`) — which is the actual bug `idempotent` exists to catch. If a v1 template genuinely needs non-determinism, add a **scrubber** (regex-replace before compare) to the affected fixture and document why; do not relax the templates rule globally.
 
 ### Interactive scenarios via `node-pty`
 
@@ -1177,7 +1193,7 @@ expect:
 |---|---|
 | `bun dev <scenario> [--keep]` | Set up sandbox: copy `inputs/<scenario>/` → `.sandbox/scratch/`, print absolute path. `--keep` preserves prior contents. |
 | `bun fixtures [--filter <substring>]` | Run all scenarios (or filtered subset); evaluate assertions; non-zero exit on any failure. |
-| `bun agent:check` | Run only fixtures whose scenario `input:` or template files appear in `git diff --name-only HEAD`. Silent on green. The agent's primary post-edit signal. |
+| `bun agent:check` | Run a curated subset of fixtures: (a) every fixture whose scenario `input:` directory or referenced template files appear in `git diff --name-only HEAD`, AND (b) the FULL battery if any file under `src/scaffold/`, `src/internal/`, or `src/commands/init.ts` appears in the diff (engine code touches every fixture's behavior). The engine-changed branch is the safety net that prevents false-green when only core runtime changes. Silent on green. The agent's primary post-edit signal. |
 
 ### Pre-push and CI
 
@@ -1262,5 +1278,52 @@ Three failure modes this prevents:
 ### Confidence
 
 High. This codifies what experienced developers already do (study prior art); making it explicit policy ensures agents do it too.
+
+---
+
+## D-70: Crash recovery via lockfile-as-checkpoint + LF-only line endings
+
+**Choice:**
+
+**Part A — Lockfile-as-checkpoint (write order):** During `anvil init` (greenfield or re-scaffold), after conflict resolution and BEFORE any file write, the engine writes `.anvil.lock` to disk with `flushStatus: "in-progress"` and every intended entry's `status: "pending"` (intended checksums computed from in-memory rendered content). The engine then flushes files one by one via the vendored `write-file-atomic`; after each successful per-file write, the entry's `status` is updated to `"written"` and `.anvil.lock` is rewritten atomically. After every file flushes successfully, `.anvil.lock` is rewritten one final time with `flushStatus: "complete"`.
+
+**Crash recovery contract:**
+- `flushStatus: "complete"` → previous run finished cleanly. Normal re-scaffold path applies.
+- `flushStatus: "in-progress"` → previous run was interrupted (process killed, ENOSPC, permission denied, etc.). On the next `anvil init`:
+  - **Interactive:** prompt `Previous init was interrupted. Resume (re-flush pending entries)? [Y/n] / Abort?`. Resume re-renders templates, hashes, and writes only the entries still marked `"pending"`; checksum-mismatches on `"written"` entries are routed through the normal conflict path.
+  - **`--non-interactive`:** fail with exit 1 and message `Previous init was interrupted. Re-run interactively to resume, or run 'anvil doctor' for details.` Silent resume in non-interactive mode would mask real bugs.
+- `anvil doctor` reports any `flushStatus: "in-progress"` lockfile and lists pending entries.
+
+**Part B — LF-only line endings:** All scaffolded text files use **LF (`\n`) line endings on every platform**, including Windows. Enforcement is two-pronged:
+
+1. **Templated `.gitattributes`** at the project root, identical for every language scaffold:
+   ```
+   * text=auto eol=lf
+   *.bat text eol=crlf
+   *.cmd text eol=crlf
+   *.png binary
+   *.jpg binary
+   *.gif binary
+   *.ico binary
+   *.woff binary
+   *.woff2 binary
+   ```
+   This forces git to check files out with LF on Windows even when `core.autocrlf=true` is the user's global default. The `.bat`/`.cmd` exception preserves Windows shell scripts that genuinely require CRLF.
+
+2. **Pre-hash text normalization** in the lockfile checksum pipeline: for any file classified as text (heuristic: `dir-compare`'s text/binary detection, or extension allow-list), the engine normalizes CRLF→LF and strips a single trailing `\r` before computing SHA-256. Binary files are hashed raw. This means a Windows user whose checkout briefly has CRLF (e.g., they edited in Notepad before the `.gitattributes` took effect) gets `doctor` reporting a clean checksum — provenance is line-ending-agnostic.
+
+**Rationale:**
+
+The previous spec (TIX-000017) said "no normalization" and the previous flush model wrote files first, lockfile last. Combined, those two choices guaranteed that:
+- A crash mid-flush left the project with files but no `.anvil.lock` → re-running `init` saw every file as a conflict (CREATE-classified-as-new vs. existing-file-on-disk) with no provenance to resolve them.
+- A Windows user with `core.autocrlf=true` saw permanent false UPDATE conflicts because every checkout converted LF→CRLF and the SHA-256 mismatched.
+
+Both failure modes are silent and platform-asymmetric — the kind of bug that ships green and breaks in user repos. The combined fix: lockfile is the durable contract written first, and text checksums are line-ending-agnostic. This restores the "all-or-nothing" promise REQUIREMENTS.md makes (now via recoverability rather than transactional atomicity) and makes Windows a first-class supported platform.
+
+**Why not staging-then-rename for atomicity?** Doubles disk usage during scaffold (every file lives twice momentarily) and breaks on cross-device renames (`/tmp` and `targetDir` can be different filesystems on Linux containers). The lockfile-as-checkpoint approach gives recoverability at lower cost.
+
+**Why not eliminate `.bat`/`.cmd` exception?** Windows `cmd.exe` requires CRLF in batch files. We don't ship `.bat`/`.cmd` in v1 templates, but the `.gitattributes` is a safe default for user-added scripts.
+
+**Confidence:** High. Both fixes are standard practice in mature scaffolders (e.g., create-react-app templates ship `.gitattributes` with `* text=auto eol=lf`).
 
 ---

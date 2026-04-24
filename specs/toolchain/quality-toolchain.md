@@ -210,8 +210,9 @@ lint:      uv pip install -e tools/flake8-plugin/ --quiet && \
 format:    uv run ruff format --check .
 typecheck: uv run mypy src
 # Tier 2
+COVERAGE_THRESHOLD ?= 80   # line coverage % (override per project: COVERAGE_THRESHOLD=90 make coverage)
 test:      uv run pytest
-coverage:  uv run pytest --cov=src --cov-fail-under=<threshold>
+coverage:  uv run pytest --cov=src --cov-fail-under=$(COVERAGE_THRESHOLD)
 deadcode:  uv run vulture src
 crap:      uv run python scripts/crap_report.py
 audit:     uv run pip-audit  # hard-fail on any finding

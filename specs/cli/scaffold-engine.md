@@ -127,7 +127,7 @@ Key behaviors (verified against Nx source):
 - **Smart dedup** (Nx lines 184-191): if written content === disk content, the change is removed from `recordedChanges` (no-op)
 - **`listChanges()`** (Nx lines 297-323): classifies changes as CREATE (not on disk), UPDATE (on disk, different content), or DELETE
 - **v1 conflict model:** FsTree uses 2-way comparison (new template output vs current disk). This cannot distinguish "user edited this file" from "anvil generated a different version" (D-32 noted this limitation). The tradeoff is acceptable: per-file prompts on UPDATE let the user decide, and `skip` is always safe. 3-way merge (using lockfile checksums as base) is deferred to v2.
-- **`flushChanges()`** (Nx lines 436-450): standalone function that writes changes to disk sequentially. Unlike Nx (which flushes all recorded changes), anvil's `flushChanges()` accepts a filtered `FileChange[]` — only changes approved during conflict resolution are flushed. Skipped files are simply omitted from the list. **Not transactional** — Nx writes files one by one. For anvil, this is acceptable because scaffold operations are idempotent (re-run fixes partial writes).
+- **`flushChanges()`** (Nx lines 436-450, anvil-modified): standalone function that writes changes to disk sequentially via the vendored `write-file-atomic`. Unlike Nx (which flushes all recorded changes), anvil's `flushChanges()` accepts a filtered `FileChange[]` — only changes approved during conflict resolution are flushed. Skipped files are simply omitted from the list. **Per-file write atomicity** is provided by `write-file-atomic` (write-tmp + fsync + rename); **batch atomicity** is provided by D-70's lockfile-as-checkpoint contract — `.anvil.lock` is written FIRST with `flushStatus: "in-progress"` and per-entry `status: "pending"`, then each successful per-file flush updates that entry to `"written"`, and the final lockfile rewrite sets `flushStatus: "complete"`. A crash mid-flush leaves a recoverable checkpoint, not a black hole.
 - ~200 lines of TypeScript for our simplified version
 
 **FsTree and .anvil.lock:** FsTree does NOT manage `.anvil.lock`. The lockfile is read separately by `lockfile.ts` for re-scaffold context (pre-filling prompts with previous values), and written separately after flush as a metadata step. FsTree's `listChanges()` and `flushChanges()` never include `.anvil.lock` in their scope.
@@ -138,8 +138,8 @@ Key behaviors (verified against Nx source):
 
 **Error handling:**
 - **Template render failure:** Aborts before `flushChanges()`. No files written, no lockfile, no post-steps. Exits non-zero with error message identifying the failing template path.
-- **Partial flush failure** (e.g., permission denied): Stops immediately. Does NOT write `.anvil.lock` or run `post.ts`. Exits non-zero. Recovery: fix the permission issue and re-run `anvil init` (idempotent).
-- **Post-install failure** (e.g., npm install fails): Scaffold files and lockfile are already written (success). Prints manual install command. Exits 0 (scaffold succeeded; install is best-effort).
+- **Partial flush failure** (e.g., permission denied, ENOSPC): The lockfile already exists with `flushStatus: "in-progress"`; the in-progress write of the failing file is rolled back by `write-file-atomic`'s tmp+rename (no partial bytes on disk). Exits non-zero. Recovery: re-run `anvil init` — the engine detects `flushStatus: "in-progress"`, resumes pending entries (interactive) or fails with a clear "previous init incomplete" message (`--non-interactive`). Per D-70.
+- **Post-install failure** (e.g., npm install fails): Scaffold files and lockfile are already written (`flushStatus: "complete"`). Prints manual install command. Exits 0 (scaffold succeeded; install is best-effort).
 
 ### Data / Control Flow
 
@@ -493,18 +493,21 @@ This prevents a cloned-into-different-dir re-scaffold from rewriting project ide
 ```typescript
 interface LockfileEntry {
   path: string;              // relative path from project root
-  checksum: string;          // SHA-256 of file contents
+  checksum: string;          // SHA-256 of file contents (post-LF-normalization for text files; D-70)
+  status: "written" | "pending";  // "pending" only during in-progress flush; "written" on success (D-70)
 }
 
 interface AnvilLockfile {
   version: string;           // anvil version that generated these files
   lang: "typescript" | "golang" | "python";
+  flushStatus: "complete" | "in-progress";  // checkpoint marker for crash recovery (D-70)
   context: {                 // full generation context for deterministic re-render
     projectName: string;
     packageManager?: string; // TS/JS only
     defaultBranch: string;
     sourceDir?: string;
     skipSeed: boolean;       // authoritative persisted value. On re-scaffold, restored into ScaffoldContext.skipSeed (NOT recomputed from disk state)
+    year: number;            // captured at first init; reused on re-scaffold (deterministic-templates rule, D-68)
   };
   toolchain: {               // resolved at init time per D-64; mirrored from ScaffoldContext.toolchain
     bun?: string;
@@ -520,7 +523,16 @@ interface AnvilLockfile {
 
 Note: `source: "static" | "template" | "generated"` was removed from LockfileEntry — this was needed for 3-way merge provenance in update flows but is unnecessary with the idempotent re-scaffold model. `.anvil.lock` itself is NOT included in the `files[]` array (a file cannot checksum itself).
 
-**Two-phase write model:** The FsTree stages all scaffold files in memory. After conflict resolution, `flushChanges(approvedChanges, targetDir)` writes only approved changes to disk sequentially (not transactionally — matching Nx's approach, which is safe because scaffold operations are idempotent). `.anvil.lock` is written separately after flush as a metadata step.
+**Two-phase write model with checkpoint (D-70):** The FsTree stages all scaffold files in memory. After conflict resolution, the engine writes the lockfile FIRST with `flushStatus: "in-progress"` and every entry's `status: "pending"` (intended checksums computed from in-memory rendered content). `flushChanges(approvedChanges, targetDir)` then writes each approved file sequentially via the vendored `write-file-atomic`; on each successful per-file write the entry's `status` is updated to `"written"` and the lockfile is rewritten atomically. After every file flushes successfully, the lockfile is rewritten one final time with `flushStatus: "complete"`.
+
+**Crash recovery:** If `anvil init` crashes mid-flush (process killed, ENOSPC, permission denied), the on-disk lockfile is left with `flushStatus: "in-progress"` and a mix of `"written"` and `"pending"` entries. On the next `anvil init` invocation, the engine detects this state and offers two paths:
+
+1. **Resume:** re-render templates, hash, and write only the entries still marked `"pending"` (skip already-`"written"` entries whose on-disk checksum matches the lockfile entry; treat checksum-mismatches as conflicts via the normal conflict path). On success, mark `flushStatus: "complete"`.
+2. **Abort + reconcile:** `anvil doctor` reports the in-progress state and lists pending entries. User can manually delete the partial lockfile to start clean.
+
+The default in interactive mode is to prompt for resume vs. abort. The default in `--non-interactive` mode is to **fail with a clear "previous init incomplete; run `anvil doctor` or re-run interactively" message** — silent resume in non-interactive mode would mask real bugs.
+
+**Why lockfile-first instead of staging-then-rename:** Staging-then-rename gives stronger atomicity but doubles disk usage during scaffold (every file lives twice momentarily) and complicates cross-device renames (`/tmp` and `targetDir` can be different filesystems). The lockfile-as-checkpoint approach gives recoverability without the disk doubling, at the cost of allowing partial state to exist transiently. Recovery is the path that makes partial state tolerable.
 
 **Lockfile merge algorithm on re-scaffold:** The new lockfile is built path-by-path over the union of (prior lockfile paths) ∪ (current manifest paths):
 
