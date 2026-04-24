@@ -20,7 +20,7 @@ When `anvil init` runs, it must produce a project that looks identical to one a 
 - Makefile with unified targets (SCAF-03) — TS/JS Makefile uses `PKG_EXEC` variable auto-detected from packageManager (npx/bunx/pnpm exec/yarn exec)
 - Pre-commit configuration (SCAF-04)
 - Pre-commit and pre-push hook configuration (SCAF-04)
-- Project hygiene files: .gitignore, .editorconfig, .gitleaks.toml, README.md (SCAF-06)
+- Project hygiene files: .gitignore, .gitattributes, .editorconfig, .gitleaks.toml, README.md (SCAF-06)
 - .anvil.lock manifest — tracks anvil version, generated files, and checksums for idempotent re-scaffold (SCAF-07)
 - File placement conventions per language
 
@@ -77,6 +77,7 @@ project-root/
 ├── Makefile                    ⚙️ Unified make targets
 ├── .pre-commit-config.yaml     ⚙️ Pre-commit + pre-push hooks
 ├── .gitignore                  ⚙️ Language-specific gitignore
+├── .gitattributes              📋 Enforces LF line endings cross-platform (D-70)
 ├── .editorconfig               📋 Editor config
 ├── .gitleaks.toml              📋 Secret scanning config
 ├── AGENTS.md                   ⚙️ Agent instructions
@@ -114,6 +115,7 @@ project-root/
 ├── Makefile                    ⚙️ Unified make targets
 ├── .pre-commit-config.yaml     ⚙️ Pre-commit + pre-push hooks
 ├── .gitignore                  ⚙️ Go gitignore
+├── .gitattributes              📋 Enforces LF line endings cross-platform (D-70)
 ├── .editorconfig               📋 Editor config
 ├── .gitleaks.toml              📋 Secret scanning config
 ├── AGENTS.md                   ⚙️ Agent instructions
@@ -150,6 +152,7 @@ project-root/
 ├── Makefile                    ⚙️ Unified make targets (uses `uv` for Python env, D-28)
 ├── .pre-commit-config.yaml     ⚙️ Pre-commit + pre-push hooks
 ├── .gitignore                  ⚙️ Python gitignore
+├── .gitattributes              📋 Enforces LF line endings cross-platform (D-70)
 ├── .editorconfig               📋 Editor config
 ├── .gitleaks.toml              📋 Secret scanning config
 ├── AGENTS.md                   ⚙️ Agent instructions
@@ -234,22 +237,37 @@ Where `<seed_path>` is language-specific: `src/seed/` (TS/Python), `internal/see
     "projectName": "my-service",
     "packageManager": "bun",
     "defaultBranch": "main",
-    "skipSeed": false
+    "skipSeed": false,
+    "year": 2025
+  },
+  "toolchain": {
+    "node": "22.11.0",
+    "go": "1.23.4",
+    "python": "3.13.1"
   },
   "createdAt": "2025-01-15T10:30:00Z",
   "updatedAt": "2025-01-15T10:30:00Z",
+  "flushStatus": "complete",
   "files": [
     {
       "path": "eslint.config.mjs",
-      "checksum": "sha256:a1b2c3..."
+      "checksum": "sha256:a1b2c3...",
+      "status": "written"
     },
     {
       "path": "tools/lint-rules/plugin.js",
-      "checksum": "sha256:d4e5f6..."
+      "checksum": "sha256:d4e5f6...",
+      "status": "written"
     }
   ]
 }
 ```
+
+**D-70 fields:**
+- `flushStatus: "complete" | "in-progress"` — checkpoint marker. The lockfile is written FIRST with `"in-progress"` before any data file; flipped to `"complete"` after every entry has flushed successfully. A crash leaves `"in-progress"` on disk, enabling deterministic resume.
+- Per-entry `status: "written" | "pending"` — tracks per-file checkpoint progress within a flush. A crashed run leaves a mix of `"written"` and `"pending"` entries the engine resumes from.
+- `context.year` — captured at generation time so re-renders of templates that emit copyright headers stay deterministic.
+- `toolchain` — versions of the language toolchains pinned at scaffold time (D-64); enables drift detection by `anvil doctor`.
 
 ## What Changes
 

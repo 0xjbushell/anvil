@@ -90,8 +90,8 @@ All commands operate on the current working directory. There is no `--target-dir
 - **SCAF-03**: Makefile — unified targets: lint, format, test, typecheck, security, coverage, deadcode, crap, mutate, quality, audit, check, fix.
 - **SCAF-04**: Pre-commit and pre-push config — per-language hooks via pre-commit framework. Pre-commit: lint, format, typecheck, secrets (Tier 1). Pre-push: `make check` which runs Tier 1 + Tier 2 (tests, coverage, deadcode, CRAP, audit) — intentionally re-runs Tier 1 as a safety net.
 - ~~**SCAF-05**: CI workflows~~ — **Dropped (D-38).** anvil owns the dev environment, not deployment infrastructure. Users add their own CI if needed (`make check` is CI-ready by design).
-- **SCAF-06**: Project hygiene — .gitignore, .editorconfig, .gitleaks.toml, README.md template.
-- **SCAF-07**: `.anvil.lock` manifest — tracks anvil version, generated files, and checksums for idempotent re-scaffold detection.
+- **SCAF-06**: Project hygiene — .gitignore, .gitattributes (LF line endings, D-70), .editorconfig, .gitleaks.toml, README.md template.
+- **SCAF-07**: `.anvil.lock` manifest — tracks anvil version, toolchain versions (D-64), generated files, per-file checksums, and a checkpoint marker (`flushStatus` + per-entry `status`, D-70) for crash-recoverable re-scaffold and idempotent regeneration.
 
 ## v2 — Deferred
 
