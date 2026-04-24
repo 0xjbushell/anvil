@@ -1002,3 +1002,265 @@ src/internal/
 High on Parts A and B. Medium-high on Part C — vendoring trim/maintenance burden is real but bounded and worth the risk reduction.
 
 ---
+
+## D-68: Agent Inner Loop & Sandbox Test Harness
+
+**Status**: Accepted
+**Date**: 2026-04-23
+**Related**: D-65 (anvil dogfoods AGENTS.md), D-67 (non-interactive conflict reporter), D-69 (OSS reference implementations)
+
+### Decision
+
+The anvil repository ships a sandbox + test harness explicitly engineered as the **coding agent's backpressure / feedback loop**. It is the substrate that makes agent-authored changes falsifiable. It has two modes that share the same input catalog:
+
+**Mode 1 — Agent-driven exploration (primary).** The agent is mid-development, wants to try a change, and uses the sandbox as a real working environment:
+
+```sh
+bun dev re-scaffold-drift     # copies tests/fixtures/inputs/re-scaffold-drift → .sandbox/scratch, prints path
+cd .sandbox/scratch
+../../bin/anvil init --non-interactive
+echo $?                       # agent inspects exit code
+ls -la                        # agent inspects disk state
+cat stderr.log                # agent inspects output
+```
+
+The agent is the judge. No harness, no goldens, no structured result file — the agent reads stdout/stderr and disk state directly, exactly as a human would. This is the fast, exploratory inner loop.
+
+**Mode 2 — Automated regression net (supporting).** Pre-push and CI need a mechanical "did anything regress?" gate. Same input catalog, but assertions defined per scenario in YAML, evaluated by a small harness:
+
+```sh
+bun fixtures                  # run all scenarios, evaluate assertions, fail loudly on regression
+bun fixtures --filter drift   # subset by scenario name
+bun agent:check               # run only fixtures touching files changed in current diff
+```
+
+### Why assertion DSL, not directory snapshots
+
+This was deliberated thoroughly. Surveyed the major scaffolders:
+
+| Scaffolder | Test pattern |
+|---|---|
+| Yeoman | `yeoman-test` runs gen in temp dir; `yeoman-assert.file([...])`, `assert.fileContent(file, /regex/)` |
+| Cookiecutter (`pytest-cookies`) | `cookies.bake()` → asserts on `result.project_path` |
+| create-next-app | Jest runs CLI in temp dir; `fs.existsSync` + `JSON.parse(readFileSync)` content checks |
+| cargo-generate | `assert_cmd` + manual `Path::exists` checks |
+| Hygen | Jest snapshots, but only on individual rendered outputs (not directory trees) |
+
+**No mature scaffolder snapshots the directory tree.** Three reasons consistently surfaced:
+
+1. **Templates contain dynamic content** (timestamps, UUIDs, user names, ports) — full-tree snapshots churn constantly without scrubbing infrastructure.
+2. **Reviewer pain** — a regenerated 200-file diff is noise; nobody can tell intentional from accidental.
+3. **Asserting intent beats asserting bytes** — "package.json contains `typescript`" survives an irrelevant whitespace change; a snapshot doesn't.
+
+Anvil follows the industry pattern. **Yeoman is the canonical reference implementation** (see D-69).
+
+### What we give up
+
+Snapshots catch unintentional changes in files we forgot to assert on. Two reframings dissolve this concern:
+
+1. If a file isn't worth asserting on, it probably isn't worth byte-pinning either. Drift in unasserted files is caught by **unit tests on the rendering layer**, not by integration fixtures.
+2. For the agent's inner loop specifically: an assertion failure is an actionable contract ("you broke the typescript dep contract"). A snapshot diff is a homework assignment ("47 bytes changed, which matter?"). The agent's signal is much cleaner with assertions.
+
+We also **save the hermeticity tax** (clock injection, RNG seeding, deterministic FsTree ordering) — those are only required for byte-pinning.
+
+### Layout
+
+```
+.sandbox/                          # gitignored scratch — agent's working area
+   scratch/                        # default `bun dev` target; wiped on each run unless --keep
+   <named>/                        # ad-hoc agent experiments
+
+tests/fixtures/
+   inputs/                         # starting-state catalog (committed)
+      greenfield/                  # empty dir
+      with-existing-code/          # has src/foo.ts, no .anvil.lock — exercises hasCode heuristic
+      re-scaffold-clean/           # prior anvil run, no drift — should be no-op
+      re-scaffold-drift/           # prior anvil run, user edited managed file — exercises conflict reporter
+      re-scaffold-template-bumped/ # prior run, template changed (not user file) — exercises UPDATE classification
+      partial-toolchain/           # has package.json, no tsconfig — exercises detection + safe defaults
+      monorepo/                    # workspace already configured
+      dirty-git-repo/              # uncommitted changes present
+      hostile/                     # symlinks, read-only files, orphan .anvil.lock.pid
+
+   scenarios/                      # one YAML per scenario (committed)
+      greenfield-ts.yaml
+      re-scaffold-drift.yaml
+      ...
+
+src/dev/                           # harness implementation
+   cli.ts                          # `bun dev`
+   fixtures.ts                     # `bun fixtures`, `bun agent:check`
+   harness.ts                      # input copy → run anvil → evaluate assertions
+   schema.ts                       # zod schema for scenario YAML
+```
+
+### Scenario YAML schema
+
+Validated by zod. Yeoman-style assertion DSL.
+
+```yaml
+# tests/fixtures/scenarios/greenfield-ts.yaml
+name: greenfield-ts
+description: Fresh dir, init TS project non-interactively
+input: greenfield                  # → tests/fixtures/inputs/greenfield/
+args: [init, --lang, typescript, --non-interactive]
+env:                               # optional env vars passed to anvil
+  ANVIL_LOG_LEVEL: error
+expect:
+  exit_code: 0
+  files_exist:
+    - package.json
+    - tsconfig.json
+    - src/index.ts
+    - .anvil.lock
+  files_absent: []
+  files_contain:
+    - { file: package.json, matches: '"typescript"' }
+    - { file: .anvil.lock, matches: 'version:' }
+  files_match_regex:
+    - { file: package.json, pattern: '"name":\s*"\w+"' }
+  stderr_contains: []
+  stderr_empty: true
+  stdout_contains: []
+```
+
+```yaml
+# tests/fixtures/scenarios/re-scaffold-drift.yaml
+name: re-scaffold-drift
+description: Re-run with locally edited managed file → conflict reporter fires, no writes
+input: re-scaffold-drift
+args: [init, --non-interactive]
+expect:
+  exit_code: 1
+  stderr_contains:
+    - "conflicts"
+    - "Makefile"
+  files_unchanged_from_input: true   # all-or-nothing — every file matches the input catalog byte-for-byte
+```
+
+**Assertion vocabulary** (initial — extend as scenarios demand):
+- `exit_code: <number>`
+- `files_exist: [paths]` — fail if missing
+- `files_absent: [paths]` — fail if present
+- `files_contain: [{file, matches}]` — substring match
+- `files_match_regex: [{file, pattern}]` — regex match
+- `stdout_contains: [strings]`, `stderr_contains: [strings]`
+- `stdout_empty: bool`, `stderr_empty: bool`
+- `files_unchanged_from_input: bool` — disk state matches `inputs/<scenario>/` byte-for-byte (uses vendored `dir-compare` from D-67)
+
+### Interactive scenarios via `node-pty`
+
+Some scenarios must drive interactive prompts (e.g., greenfield with prompts, re-scaffold conflict prompt loop). These use a `pty:` block instead of `args:` alone:
+
+```yaml
+name: greenfield-ts-interactive
+input: greenfield
+pty:
+  command: [init, --lang, typescript]
+  script:
+    - expect: "Project name?"
+      send: "myapp\r"
+    - expect: "Default branch?"
+      send: "\r"                    # accept default
+    - expect: "Generate seed code?"
+      send: "y\r"
+    - expect_exit: 0
+expect:
+  files_exist: [package.json, src/index.ts]
+```
+
+`node-pty` is a dev-only dep (per D-67). The harness scrapes the pseudo-terminal output and matches against `expect:` patterns sequentially.
+
+### CLI surface
+
+| Command | Purpose |
+|---|---|
+| `bun dev <scenario> [--keep]` | Set up sandbox: copy `inputs/<scenario>/` → `.sandbox/scratch/`, print absolute path. `--keep` preserves prior contents. |
+| `bun fixtures [--filter <substring>]` | Run all scenarios (or filtered subset); evaluate assertions; non-zero exit on any failure. |
+| `bun agent:check` | Run only fixtures whose scenario `input:` or template files appear in `git diff --name-only HEAD`. Silent on green. The agent's primary post-edit signal. |
+
+### Pre-push and CI
+
+- Pre-push hook runs `bun fixtures` (full battery — all scenarios). Yes, this can be slow. The principle (D-67 + this decision) is: agents and humans get a complete signal locally, never wait on a remote pipeline to schedule. If/when this becomes painful, optimize via parallelism, not by deferring to CI.
+- CI re-runs `bun fixtures` from a clean checkout. Pre-push is skippable with `--no-verify`; CI is the untrickable gate.
+
+### Agent guidance (AGENTS.md)
+
+Per D-65, anvil dogfoods AGENTS.md. The sandbox harness is documented in the top-level `AGENTS.md` so coding agents discover the inner loop on their first read:
+- "After every change, run `bun agent:check`."
+- "To explore a change manually: `bun dev <scenario>` then `cd .sandbox/scratch && ../../bin/anvil ...`"
+- "On regression: read the failed scenario YAML, read its `inputs/` starting state, reproduce in `.sandbox/scratch`, fix, re-run."
+
+### Rationale (overall)
+
+- **Agent backpressure as a first-class concern.** The sandbox is not a test framework that happens to be useful for agents; it is engineered as the agent's primary feedback surface, with the regression net as a side-effect of the same infrastructure.
+- **Industry pattern.** Following Yeoman / Cookiecutter / create-next-app means the codebase will look familiar to anyone who has built or tested a scaffolder before — including agents trained on those codebases.
+- **Cheap to extend.** Adding a new scenario is one YAML file plus an `inputs/<name>/` directory. No code, no rebuild, no goldens to bless.
+
+### Confidence
+
+High. Pattern is well-established across multiple scaffolders; the only unconventional choice (no snapshots) was reasoned through against the alternatives and matches what the major scaffolders actually do.
+
+---
+
+## D-69: OSS Reference Implementations as Agent Context
+
+**Status**: Accepted
+**Date**: 2026-04-23
+**Related**: D-65 (AGENTS.md self-dogfood), D-67 (vendoring policy), D-68 (sandbox harness)
+
+### Decision
+
+When implementing components of anvil, **coding agents should study the corresponding OSS reference implementation first**, then write idiomatic code that follows the established patterns. This is policy, codified in `AGENTS.md` and per-ticket guidance.
+
+The motivation: agent-authored code degrades when the agent invents conventions ad hoc. Pointing the agent at a battle-tested reference dramatically improves code quality, naming, and ergonomics — the agent has working examples to ground its choices in.
+
+### Reference registry
+
+Mapping anvil subsystems to canonical OSS implementations. Each entry includes the repo and what to study (read the linked code, not just the docs).
+
+| Subsystem | Reference | What to study |
+|---|---|---|
+| **Test harness (assertions, temp dirs)** | [yeomanjs/yeoman-test](https://github.com/yeomanjs/yeoman-test), [yeomanjs/yeoman-assert](https://github.com/yeomanjs/yeoman-assert) | Assertion DSL shape (`assert.file`, `assert.fileContent`); test runner that creates an isolated temp dir per test |
+| **Conflict prompts UX** | [yeomanjs/mem-fs-editor](https://github.com/yeomanjs/mem-fs-editor) + Yeoman's `Identical/Force/Skip` UX | The classic per-file conflict prompt and how mem-fs stages writes before commit |
+| **Template rendering (EJS)** | [mde/ejs](https://github.com/mde/ejs) docs + Yeoman's `copyTpl` | Helpers, escape rules, error messages |
+| **CLI structure** | [tj/commander.js](https://github.com/tj/commander.js), [vercel/next.js (`packages/create-next-app`)](https://github.com/vercel/next.js/tree/canary/packages/create-next-app) | Command/option/subcommand layout; how to keep `index.ts` thin |
+| **Greenfield + integration tests** | [vercel/next.js `test/integration/create-next-app`](https://github.com/vercel/next.js/tree/canary/test/integration/create-next-app) | Patterns for running CLI in temp dir; asserting on generated `package.json`; smoke-running `npm run build` |
+| **Headless scaffolder shape** | [cargo-generate/cargo-generate](https://github.com/cargo-generate/cargo-generate), [cookiecutter/cookiecutter](https://github.com/cookiecutter/cookiecutter) | Headless flag conventions (`--no-input`, `CI=1`); replay/config-file patterns |
+| **File locking** | [npm/proper-lockfile](https://github.com/moxystudio/node-proper-lockfile) (vendored — D-67) | Stale lock detection, retry policy, atomicity guarantees |
+| **Directory comparison** | [tschaub/dir-compare](https://github.com/gliviu/dir-compare) (vendored — D-67) | Recursive walk, content vs metadata modes, filter callbacks |
+| **Diff rendering** | [kpdecker/jsdiff](https://github.com/kpdecker/jsdiff) | `createTwoFilesPatch` for unified diffs (used by conflict reporter — D-67) |
+| **Atomic writes** | [npm/write-file-atomic](https://github.com/npm/write-file-atomic) | Temp-write + rename; permission preservation |
+| **Logging** | [pinojs/pino](https://github.com/pinojs/pino) | Structured logging, child loggers, pretty-print transport |
+| **PTY harness** | [microsoft/node-pty](https://github.com/microsoft/node-pty) + [microsoft/vscode (terminal subsystem)](https://github.com/microsoft/vscode) | Spawn/scrape; expect/send patterns for interactive scenario tests |
+| **Schema validation** | [colinhacks/zod](https://github.com/colinhacks/zod) | Schema definition, custom error messages |
+| **Glob matching** | [micromatch/picomatch](https://github.com/micromatch/picomatch) | Pattern syntax used in `.anvil.lock` ignore lists |
+| **Conventional commits + release** | [googleapis/release-please](https://github.com/googleapis/release-please) (D-65) | Tag-triggered release pipeline pattern |
+
+### Process
+
+1. **Per ticket.** Each Deliverable ticket that has a clear OSS analog includes a `## Reference Implementation` section pointing at the repo + specific files to read.
+2. **In `AGENTS.md`.** A top-level "Reference implementations" section gives agents the map and a directive: *"Before implementing X, read the corresponding reference. Where anvil's design diverges from the reference, the reasons are documented in the relevant decision (D-XX). Match the reference's idioms unless explicitly overridden."*
+3. **In code comments.** Where an algorithm or interface is lifted directly from a reference, cite it inline:
+   ```ts
+   // Mirrors yeoman-assert.fileContent — single string or RegExp matching
+   ```
+
+### What this is not
+
+- Not a license to copy code. Vendored code (D-67) is the only path for code lifting; reference implementations are for **patterns and idioms**, not source.
+- Not a substitute for thinking. References inform; they don't dictate. When anvil diverges intentionally (e.g., D-67's "no `--on-conflict` flag" diverges from Yeoman's force/skip prompts), the divergence must be reasoned and documented.
+
+### Rationale
+
+Three failure modes this prevents:
+
+1. **Agent ad-hoc invention.** Without a reference, agents tend to invent novel APIs that look reasonable in isolation but feel foreign next to ecosystem norms. References anchor the work.
+2. **Documentation rot.** OSS reference repos are maintained; docs we write inline are not. Pointing at the source means the agent always sees current patterns.
+3. **Onboarding cost.** A human reading anvil's source and seeing "modeled on yeoman-assert" instantly understands the shape. They can transfer Yeoman knowledge directly.
+
+### Confidence
+
+High. This codifies what experienced developers already do (study prior art); making it explicit policy ensures agents do it too.
+
+---
