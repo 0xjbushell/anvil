@@ -187,7 +187,7 @@ lint:      golangci-lint run ./... && \
            make -C tools/go-analyzers build && \
            go vet -vettool=tools/go-analyzers/bin/anvil-lint ./...
 format:    gofmt -l . | (! grep .)
-typecheck: go build ./...
+typecheck: go vet ./... && staticcheck ./...
 # Tier 2
 test:      go test ./...
 coverage:  go test -coverprofile=coverage.out ./... && \
@@ -360,7 +360,7 @@ repos:
 | `mypy.ini` or `pyproject.toml [tool.mypy]` | Strict mypy config (Python projects) |
 | `Makefile` | Unified make targets for all tiers |
 | `.pre-commit-config.yaml` | Pre-commit hooks config |
-| `tools/crap-score.ts` or `cmd/crap-score/main.go` | CRAP score computation script |
+| `tools/crap-score.ts` (TS/JS) or `tools/go-analyzers/cmd/crap-report/main.go` (Go) or `tools/crap-score.py` (Python) | CRAP score computation script |
 | `knip.json` | Knip dead code config (TS projects) |
 | `stryker.config.mjs` | StrykerJS config (TS projects) |
 | `.gitleaks.toml` | Gitleaks config |

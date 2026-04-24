@@ -327,16 +327,20 @@ User runs: anvil init --lang typescript
     │    install -e tools/         │
     │    flake8-plugin/ (D-35)     │
     │                              │
-    │  Git setup:                  │
-    │  - If no .git: run git init  │
-    │  - If no git binary: warn    │
-    │    and skip hook install     │
-    │  - If pre-commit not found:  │
+    │  Git setup (ORDER MATTERS):  │
+    │  1. If no git binary: warn   │
+    │     and skip steps 2-4       │
+    │  2. If no .git: run git init │
+    │     (MUST precede step 4 —   │
+    │     pre-commit install needs │
+    │     a git repo to write to   │
+    │     .git/hooks/)             │
+    │  3. If pre-commit not found: │
     │    warn "pre-commit not      │
     │    installed — hooks skipped. │
     │    Install: pip install       │
     │    pre-commit" and continue  │
-    │  - Run pre-commit install    │
+    │  4. Run pre-commit install   │
     │    (installs both pre-commit │
     │     and pre-push hooks via   │
     │     default_install_hook_types)│

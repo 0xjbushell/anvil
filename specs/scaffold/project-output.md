@@ -99,8 +99,7 @@ project-root/
 ├── cmd/
 │   ├── app/
 │   │   └── main.go             📋 Entry point
-│   └── crap-score/
-│       └── main.go             📋 CRAP score computation (`go run ./cmd/crap-score`)
+│   # CRAP score binary lives under tools/go-analyzers/cmd/crap-report/ — see below.
 ├── tools/
 │   ├── tools.go                📋 Blank import for tool dependencies (go install pattern, `//go:build tools` tag)
 │   ├── go-analyzers/           📋 Custom go vet analyzers (multichecker)

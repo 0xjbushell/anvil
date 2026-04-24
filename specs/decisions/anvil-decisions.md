@@ -763,9 +763,9 @@ No configuration for test directory mapping in v1. If the user uses a non-standa
 
 ## D-58: Bun audit fallback
 
-**Choice:** Bun does not provide a `bun audit` command. For Bun-managed TS/JS projects, the `make audit` target (Tier 2 / `make check`) uses `$(PKG_EXEC) better-npm-audit audit` as the audit command. `better-npm-audit` is added to `devDependencies` for Bun projects only (D-35). If the tool is not installed, the audit step fails (consistent with other missing tools).
+**Choice:** Bun does not provide a `bun audit` command. For Bun-managed TS/JS projects, the `make audit` target (Tier 2 / `make check`) uses `$(PKG_EXEC) better-npm-audit audit` as the audit command. `better-npm-audit` is added to `devDependencies` for Bun projects only (D-35). If the tool is not installed, the audit step fails — same hard-fail policy as every other missing required tool. `anvil doctor` is the supported recovery path (it detects the missing devDep and tells the user to `bun install`).
 
-**Rationale:** Bun's CLI has no audit subcommand. Rather than silently skipping security auditing, we use a well-maintained npm-compatible alternative. Making it a soft warning rather than hard failure prevents blocking development in environments where the fallback isn't installed.
+**Rationale:** Bun's CLI has no audit subcommand. Rather than silently skipping security auditing, we use a well-maintained npm-compatible alternative. Hard-failing on missing tooling is consistent with the rest of the toolchain (govulncheck, pip-audit, gitleaks all hard-fail when missing) — soft-warning here would create a special case that lets supply-chain regressions slip through unnoticed.
 
 **Confidence:** Medium — may switch to `socket` CLI or Bun-native audit if/when available.
 
