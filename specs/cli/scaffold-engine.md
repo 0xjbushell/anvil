@@ -5,7 +5,7 @@
 - **Shared Key**: `scaffold-engine`
 - **Spec Path**: `specs/cli/scaffold-engine.md`
 - **Requirement Refs**: `CLI-01`, `CLI-03`, `CLI-04`, `CLI-05`, `CLI-06`, `CLI-07`
-- **Decision Refs**: `specs/decisions/anvil-decisions.md` (D-01, D-03, D-04, D-08, D-22, D-23, D-29, D-31, D-35, D-39, D-40, D-41, D-42, D-43, D-45, D-58, D-59, D-60, D-61, D-67; superseded: D-02, D-11, D-32, D-33, D-56)
+- **Decision Refs**: `specs/decisions/anvil-decisions.md` (D-01, D-03, D-04, D-08, D-22, D-23, D-29, D-31, D-35, D-39, D-40, D-41, D-42, D-43, D-45, D-58, D-59, D-60, D-61, D-64, D-65, D-67, D-68, D-69; superseded: D-02, D-11, D-32, D-33, D-56)
 
 ## Problem Statement
 
@@ -55,6 +55,8 @@ Coding agents produce structurally bloated, convention-ignoring code when workin
 | Distribution | Bun-only + compiled standalone binary | `[user]` D-45 |
 
 ## Architecture
+
+> **Reference implementations (D-69):** Several engine modules have canonical OSS implementations agents should study before coding — FsTree → Nx; conflict UX → Yeoman / mem-fs-editor (see D-67 for where anvil deliberately diverges); rendering → mde/ejs; CLI shape → tj/commander.js + vercel/create-next-app; locking → npm/proper-lockfile (vendored); directory comparison → gliviu/dir-compare (vendored). See D-69 for the full registry.
 
 ### Component Overview
 
@@ -463,6 +465,13 @@ interface ScaffoldContext {
   packageManager?: string;     // TS/JS only: npm, bun, pnpm, yarn (detected or prompted)
   defaultBranch?: string;      // for git hooks (default: main)
   nonInteractive: boolean;     // --non-interactive flag only (explicit opt-in; D-67 supersedes D-56)
+  toolchain: {                 // resolved at init time per D-64; populated only for languages present
+    bun?: string;              // e.g., "1.1.30" — present whenever anvil itself runs (always)
+    node?: string;             // e.g., "20.18.0" — present for typescript projects
+    go?: string;               // e.g., "1.23.4" — present for golang projects
+    python?: string;           // e.g., "3.13.0" — present for python projects
+  };
+  anvilVersion: string;        // from package.json
 }
 ```
 
@@ -492,6 +501,12 @@ interface AnvilLockfile {
     defaultBranch: string;
     sourceDir?: string;
     skipSeed: boolean;       // authoritative persisted value. On re-scaffold, restored into ScaffoldContext.skipSeed (NOT recomputed from disk state)
+  };
+  toolchain: {               // resolved at init time per D-64; mirrored from ScaffoldContext.toolchain
+    bun?: string;
+    node?: string;
+    go?: string;
+    python?: string;
   };
   files: LockfileEntry[];
   createdAt: string;         // ISO timestamp
@@ -583,7 +598,7 @@ interface DoctorCheck {
 | Existing project detection false positive (skips seed when it shouldn't) | Low | Low | Seed skip is prompted, user can override |
 | .anvil.lock corruption | Low | Medium | Delete lockfile and re-run `anvil init` (fresh init heuristics re-detect context). Doctor reports missing lockfile as a warning. |
 | Re-scaffold prompts too many files | Medium | Low | FsTree auto-dedup eliminates unchanged files; only genuinely modified files trigger prompts |
-| EJS template syntax error in dynamic config | Low | High | All templates tested with snapshot tests |
+| EJS template syntax error in dynamic config | Low | High | Per-template render tests assert each template renders cleanly with default context (see "Per-Template Render Tests" below). Per D-68, anvil rejects directory-tree snapshots in favour of an assertion DSL — but per-template render assertions remain valid as unit-level rendering tests. |
 | Bun standalone binary too large | Medium | Low | Strip unused modules. Binary size acceptable for dev tooling. |
 
 ## Testing Strategy
@@ -603,10 +618,15 @@ interface DoctorCheck {
 - `anvil init` re-run → verify only changed files prompted, unchanged files skipped
 - `anvil doctor` with missing tool → verify correct diagnosis
 
-### Snapshot Tests
-- Each EJS template rendered with default context → snapshot of output
-- Prevents accidental template regressions
+### Per-Template Render Tests
+- Each EJS template rendered with default context → assert the rendered string contains expected key tokens (e.g., the project name, the resolved toolchain version, required config keys).
+- Per D-68, anvil rejects directory-tree snapshots in favour of an assertion DSL (`bun fixtures`). Per-template render assertions remain valid as unit-level rendering tests — see D-68 §"Hygen" row in the scaffolder survey for prior art.
+- Prevents accidental template regressions without coupling tests to whitespace-level output.
+
+### Sandbox Harness (D-68)
+
+The agent inner loop and CI regression net both run through `bun fixtures` / `bun agent:check` / `bun dev` against `tests/fixtures/scenarios/*.yaml` (scenario YAML + assertion DSL — no directory snapshots; per D-68). The engine itself must be invokable in scenarios — i.e., `bin/anvil init --non-interactive` (and re-scaffold variants) from a temp directory with stdout/stderr/exit-code captured. See D-68 for the assertion vocabulary and CLI surface, and `tests/fixtures/inputs/` for the catalogue of starting-state example projects. Scenario assertions cover file existence/content, lockfile shape, conflict-reporter output, and re-scaffold idempotence.
 
 ### E2E Tests
-- Full `init → lint → test → re-init` cycle per language
-- Verify generated project passes its own lint rules
+- Full `init → lint → test → re-init` cycle per language, exercised via the D-68 harness scenarios.
+- Verify generated project passes its own lint rules.

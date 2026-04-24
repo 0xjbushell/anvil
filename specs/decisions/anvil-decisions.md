@@ -1228,7 +1228,7 @@ Mapping anvil subsystems to canonical OSS implementations. Each entry includes t
 | **Greenfield + integration tests** | [vercel/next.js `test/integration/create-next-app`](https://github.com/vercel/next.js/tree/canary/test/integration/create-next-app) | Patterns for running CLI in temp dir; asserting on generated `package.json`; smoke-running `npm run build` |
 | **Headless scaffolder shape** | [cargo-generate/cargo-generate](https://github.com/cargo-generate/cargo-generate), [cookiecutter/cookiecutter](https://github.com/cookiecutter/cookiecutter) | Headless flag conventions (`--no-input`, `CI=1`); replay/config-file patterns |
 | **File locking** | [npm/proper-lockfile](https://github.com/moxystudio/node-proper-lockfile) (vendored — D-67) | Stale lock detection, retry policy, atomicity guarantees |
-| **Directory comparison** | [tschaub/dir-compare](https://github.com/gliviu/dir-compare) (vendored — D-67) | Recursive walk, content vs metadata modes, filter callbacks |
+| **Directory comparison** | [gliviu/dir-compare](https://github.com/gliviu/dir-compare) (vendored — D-67) | Recursive walk, content vs metadata modes, filter callbacks |
 | **Diff rendering** | [kpdecker/jsdiff](https://github.com/kpdecker/jsdiff) | `createTwoFilesPatch` for unified diffs (used by conflict reporter — D-67) |
 | **Atomic writes** | [npm/write-file-atomic](https://github.com/npm/write-file-atomic) | Temp-write + rename; permission preservation |
 | **Logging** | [pinojs/pino](https://github.com/pinojs/pino) | Structured logging, child loggers, pretty-print transport |
