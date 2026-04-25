@@ -2,6 +2,12 @@
 
 A scaffolding CLI.
 
+## Third-party code
+
+Anvil vendors a small number of third-party libraries directly into
+`src/internal/` per [D-67 §Part C](specs/decisions/anvil-decisions.md). See
+[NOTICES.md](NOTICES.md) for attribution and license information.
+
 ## Contributing
 
 ### Commit format
