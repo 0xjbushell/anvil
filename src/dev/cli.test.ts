@@ -5,7 +5,7 @@ import path from "node:path";
 
 import { afterEach, describe, expect, test } from "bun:test";
 
-import { compare } from "../internal/dir-compare/index.ts";
+import { compare } from "../internal/dir-compare/compare.ts";
 import { main, runAgentCheck } from "./cli.ts";
 
 const repoRoot = path.resolve(import.meta.dir, "..", "..");

@@ -136,10 +136,6 @@ async function resolveToolchainVersions(): Promise<ResolvedToolchainVersions> {
   return { node, go, python, bun };
 }
 
-function snapshotDate(now: Date): string {
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString();
-}
-
 export function createSnapshot(
   versions: ResolvedToolchainVersions,
   existing: ToolchainDefaults,
@@ -154,7 +150,9 @@ export function createSnapshot(
   const preserveTimestamp = unchanged && isToolchainDefaultsFresh(existing, now);
 
   return {
-    snapshotTakenAt: preserveTimestamp ? existing.snapshotTakenAt : snapshotDate(now),
+    snapshotTakenAt: preserveTimestamp
+      ? existing.snapshotTakenAt
+      : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString(),
     snapshotAnvilVersion: pkg.version,
     node: versions.node,
     go: versions.go,

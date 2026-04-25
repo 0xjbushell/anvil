@@ -81,7 +81,3 @@ export const ScenarioSchema = z
   });
 
 export type Scenario = z.infer<typeof ScenarioSchema>;
-
-export function parseScenario(input: unknown): Scenario {
-  return ScenarioSchema.parse(input);
-}

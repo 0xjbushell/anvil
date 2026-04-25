@@ -8,7 +8,7 @@ import { ZodError } from "zod";
 
 import { runScenario } from "./harness.ts";
 import { selectRelevantScenarios } from "./changed.ts";
-import { parseScenario, type Scenario } from "./schema.ts";
+import { ScenarioSchema, type Scenario } from "./schema.ts";
 
 interface ParsedArgs {
   scenarioName: string;
@@ -94,10 +94,6 @@ function isNodeError(error: unknown): error is NodeJS.ErrnoException {
   return typeof error === "object" && error !== null && "code" in error;
 }
 
-function oneLine(message: string): string {
-  return message.replace(/\s+/g, " ").trim();
-}
-
 function isInside(root: string, target: string): boolean {
   const relative = path.relative(root, target);
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
@@ -154,6 +150,31 @@ function formatScenarioParseError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function toSingleLine(message: string): string {
+  const collapsedWhitespace = message.replace(/\s+/g, " ");
+  return collapsedWhitespace.trim();
+}
+
+function formatCliError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return toSingleLine(message);
+}
+
+function parseYamlContent(contents: string): { ok: true; value: unknown } | { ok: false; error: unknown } {
+  try {
+    return { ok: true, value: parseYaml(contents) };
+  } catch (error) {
+    return { ok: false, error };
+  }
+}
+
+function invalidYamlError(messagePrefix: string, error: unknown): Error {
+  return new Error(
+    `${messagePrefix}: ${toSingleLine(formatScenarioParseError(error))}`,
+    { cause: error },
+  );
+}
+
 async function loadScenario(scenarioName: string, scenarioRoot: string): Promise<Scenario> {
   const scenarioPath = resolveScenarioPath(scenarioName, scenarioRoot);
   let contents: string;
@@ -167,13 +188,17 @@ async function loadScenario(scenarioName: string, scenarioRoot: string): Promise
     throw error;
   }
 
-  try {
-    return parseScenario(parseYaml(contents));
-  } catch (error) {
-    throw new Error(
-      `invalid scenario ${JSON.stringify(scenarioName)} at ${scenarioPath}: ${oneLine(formatScenarioParseError(error))}`,
-    );
+  const yaml = parseYamlContent(contents);
+  if (!yaml.ok) {
+    throw invalidYamlError(`invalid scenario ${JSON.stringify(scenarioName)} at ${scenarioPath}`, yaml.error);
   }
+
+  const scenario = ScenarioSchema.safeParse(yaml.value);
+  if (!scenario.success) {
+    throw invalidYamlError(`invalid scenario ${JSON.stringify(scenarioName)} at ${scenarioPath}`, scenario.error);
+  }
+
+  return scenario.data;
 }
 
 async function loadFixtureScenario(yamlPath: string): Promise<Scenario> {
@@ -188,11 +213,17 @@ async function loadFixtureScenario(yamlPath: string): Promise<Scenario> {
     throw error;
   }
 
-  try {
-    return parseScenario(parseYaml(contents));
-  } catch (error) {
-    throw new Error(`invalid fixture scenario at ${yamlPath}: ${oneLine(formatScenarioParseError(error))}`);
+  const yaml = parseYamlContent(contents);
+  if (!yaml.ok) {
+    throw invalidYamlError(`invalid fixture scenario at ${yamlPath}`, yaml.error);
   }
+
+  const scenario = ScenarioSchema.safeParse(yaml.value);
+  if (!scenario.success) {
+    throw invalidYamlError(`invalid fixture scenario at ${yamlPath}`, scenario.error);
+  }
+
+  return scenario.data;
 }
 
 async function loadFixtureInputLanguage(input: string, inputRoot: string): Promise<string | undefined> {
@@ -213,12 +244,13 @@ async function loadFixtureInputLanguage(input: string, inputRoot: string): Promi
     throw error;
   }
 
-  try {
-    const parsed = parseYaml(contents) as { lang?: unknown } | null;
-    return typeof parsed?.lang === "string" ? parsed.lang : undefined;
-  } catch (error) {
-    throw new Error(`invalid fixture input lockfile at ${lockfilePath}: ${oneLine(formatScenarioParseError(error))}`);
+  const yaml = parseYamlContent(contents);
+  if (!yaml.ok) {
+    throw invalidYamlError(`invalid fixture input lockfile at ${lockfilePath}`, yaml.error);
   }
+
+  const parsed = yaml.value as { lang?: unknown } | null;
+  return typeof parsed?.lang === "string" ? parsed.lang : undefined;
 }
 
 async function resolveInputDir(input: string, inputRoot: string): Promise<string> {
@@ -464,11 +496,10 @@ async function runFixtureScenario(scenario: FixtureScenario): Promise<FixtureRun
       workdir: result.workdir,
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
     return {
       name: scenario.name,
       passed: false,
-      failures: [oneLine(message)],
+      failures: [formatCliError(error)],
       duration_ms: Math.round(performance.now() - started),
     };
   }
@@ -533,7 +564,7 @@ function gitDiffNameOnly(repoRoot: string): Promise<string[]> {
       stderr += chunk;
     });
     child.on("error", (error) => {
-      reject(new Error(`failed to run git diff --name-only HEAD: ${error.message}`));
+      reject(new Error(`failed to run git diff --name-only HEAD: ${error.message}`, { cause: error }));
     });
     child.on("close", (code) => {
       if (code === 0) {
@@ -541,7 +572,7 @@ function gitDiffNameOnly(repoRoot: string): Promise<string[]> {
         return;
       }
 
-      const detail = oneLine(stderr || stdout || `exit code ${code ?? 1}`);
+      const detail = toSingleLine(stderr || stdout || `exit code ${code ?? 1}`);
       reject(new Error(`git diff --name-only HEAD failed: ${detail}`));
     });
   });
@@ -587,8 +618,7 @@ export async function runFixtures(
     writeFixtureSummary(io, passed, failed, Math.round(performance.now() - started));
     return failed === 0 ? 0 : 1;
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    io.stderr.write(`error: ${oneLine(message)}\n`);
+    io.stderr.write(`error: ${formatCliError(error)}\n`);
     return 1;
   }
 }
@@ -636,8 +666,7 @@ export async function runAgentCheck(
 
     return 1;
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    io.stderr.write(`error: ${oneLine(message)}\n`);
+    io.stderr.write(`error: ${formatCliError(error)}\n`);
     return 1;
   }
 }
@@ -661,8 +690,7 @@ export async function main(
     io.stderr.write(`${result.hint}\n`);
     return 0;
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    io.stderr.write(`error: ${oneLine(message)}\n`);
+    io.stderr.write(`error: ${formatCliError(error)}\n`);
     return 1;
   }
 }

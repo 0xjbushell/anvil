@@ -3,8 +3,8 @@ import { readFile, rm, utimes, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 
-import { lock } from "../internal/lockfile/index.ts";
-import type { LockOptions, Release } from "../internal/lockfile/index.ts";
+import { lock } from "../internal/lockfile/lockfile.ts";
+import type { LockOptions, Release } from "../internal/lockfile/lockfile.ts";
 
 export interface DirLockHandle {
   release(): Promise<void>;
@@ -19,6 +19,8 @@ interface InternalLockHandle {
   release: Release;
   compromisedError(): Error | null;
 }
+
+type VoidPromiseResult = { status: "fulfilled" } | { status: "rejected"; reason: unknown };
 
 type ExistingLockStatus =
   | { status: "live"; pid: number }
@@ -354,19 +356,33 @@ async function releaseInternal(internal: InternalLockHandle): Promise<void> {
   }
 }
 
+function settleVoid(promise: Promise<void>): Promise<VoidPromiseResult> {
+  return promise.then(
+    () => ({ status: "fulfilled" }),
+    (reason: unknown) => ({ status: "rejected", reason }),
+  );
+}
+
+async function releaseAfterFailedPayloadWrite(internal: InternalLockHandle, writeError: unknown): Promise<never> {
+  const releaseResult = await settleVoid(releaseInternal(internal));
+  if (releaseResult.status === "rejected") {
+    throw new AggregateError(
+      [writeError, releaseResult.reason],
+      "Failed to write scaffold lock payload and release lock",
+      { cause: writeError },
+    );
+  }
+
+  throw writeError;
+}
+
 export async function acquire(targetDir: string): Promise<DirLockHandle> {
   const pidFile = payloadPath(targetDir);
   const internal = await acquireInternalLock(pidFile);
 
-  try {
-    await writeCurrentPayload(pidFile);
-  } catch (writeError) {
-    try {
-      await releaseInternal(internal);
-    } catch (releaseError) {
-      throw new AggregateError([writeError, releaseError], "Failed to write scaffold lock payload and release lock");
-    }
-    throw writeError;
+  const writeResult = await settleVoid(writeCurrentPayload(pidFile));
+  if (writeResult.status === "rejected") {
+    await releaseAfterFailedPayloadWrite(internal, writeResult.reason);
   }
 
   let released = false;

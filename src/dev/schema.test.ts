@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { parseScenario, ScenarioSchema, type Scenario } from "./schema.ts";
+import { ScenarioSchema, type Scenario } from "./schema.ts";
 
 const inputDirs = [
   "greenfield",
@@ -51,7 +51,7 @@ function expectInvalid(scenario: unknown): string {
 describe("ScenarioSchema", () => {
   test("parses one args scenario for every fixture input directory", () => {
     for (const input of inputDirs) {
-      const scenario: Scenario = parseScenario(validArgsScenario(input));
+      const scenario: Scenario = ScenarioSchema.parse(validArgsScenario(input));
 
       expect(scenario.name).toBe(`${input}-scenario`);
       expect(scenario.input).toBe(input);
@@ -61,7 +61,7 @@ describe("ScenarioSchema", () => {
   });
 
   test("parses env strings, content assertions, regex assertions, and output assertions", () => {
-    const scenario = parseScenario({
+    const scenario = ScenarioSchema.parse({
       name: "greenfield-ts",
       input: "greenfield",
       args: ["init", "--lang", "typescript", "--non-interactive"],
@@ -87,7 +87,7 @@ describe("ScenarioSchema", () => {
   });
 
   test("parses a pty command and script", () => {
-    const scenario = parseScenario({
+    const scenario = ScenarioSchema.parse({
       name: "greenfield-ts-interactive",
       input: "greenfield",
       pty: {

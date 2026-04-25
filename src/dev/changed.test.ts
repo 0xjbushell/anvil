@@ -5,7 +5,7 @@ import { describe, expect, test } from "bun:test";
 import { parse as parseYaml } from "yaml";
 
 import { selectRelevantScenarios, normalizeChangedFilePath } from "./changed.ts";
-import { parseScenario } from "./schema.ts";
+import { ScenarioSchema } from "./schema.ts";
 
 const scenarios = [
   { name: "typescript-greenfield", input: "ts-app", yamlPath: "typescript.yaml" },
@@ -44,7 +44,7 @@ async function loadCommittedScenarioCatalog(): Promise<CatalogScenario[]> {
   const catalog: CatalogScenario[] = [];
 
   for (const scenarioFile of scenarioFiles) {
-    const scenario = parseScenario(parseYaml(await readFile(path.join(fixtureScenarioRoot, scenarioFile), "utf8")));
+    const scenario = ScenarioSchema.parse(parseYaml(await readFile(path.join(fixtureScenarioRoot, scenarioFile), "utf8")));
     catalog.push({
       name: scenario.name,
       input: scenario.input,

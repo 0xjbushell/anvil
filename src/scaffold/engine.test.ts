@@ -54,13 +54,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  for (const restorePath of chmodRestorePaths) {
-    try {
-      await chmod(restorePath, 0o700);
-    } catch {
-      // Best-effort cleanup for paths that may not have been created.
-    }
-  }
+  await Promise.allSettled(chmodRestorePaths.map((restorePath) => chmod(restorePath, 0o700)));
 
   await Promise.all([
     rm(scratch, { recursive: true, force: true }),
@@ -147,10 +141,6 @@ async function readWrittenLockfile(): Promise<AnvilLockfile> {
   return JSON.parse(await readFile(path.join(scratch, LOCKFILE_NAME), "utf8")) as AnvilLockfile;
 }
 
-function sorted(values: string[]): string[] {
-  return [...values].sort();
-}
-
 function statuses(lockfile: AnvilLockfile): Record<string, string> {
   return Object.fromEntries(lockfile.files.map((entry) => [entry.path, entry.status]));
 }
@@ -214,11 +204,11 @@ describe("scaffold engine", () => {
     expect(reports).toEqual([]);
     expect(await readTarget("deep/nested/static.txt")).toBe("static content\n");
     expect(await readTarget("README.md")).toBe("# example\nbranch=main\n");
-    expect(sorted(result.filesCreated)).toEqual(["README.md", "deep/nested/static.txt"]);
+    expect([...result.filesCreated].sort()).toEqual(["README.md", "deep/nested/static.txt"]);
     expect(result.filesSkipped).toEqual([]);
     expect(result.lockfile.flushStatus).toBe("complete");
     expect(result.lockfile.toolchain).toEqual({ bun: "1.1.31", node: "22.11.0" });
-    expect(sorted(result.lockfile.files.map((entry) => entry.path))).toEqual([
+    expect(result.lockfile.files.map((entry) => entry.path).sort()).toEqual([
       "README.md",
       "deep/nested/static.txt",
     ]);
@@ -282,7 +272,7 @@ describe("scaffold engine", () => {
     expect(await readTarget("overwrite.txt")).toBe("new overwrite\n");
     expect(await readTarget("skip.txt")).toBe("old skip\n");
     expect(await readTarget("create.txt")).toBe("created\n");
-    expect(sorted(result.filesCreated)).toEqual(["create.txt", "overwrite.txt"]);
+    expect([...result.filesCreated].sort()).toEqual(["create.txt", "overwrite.txt"]);
     expect(result.filesSkipped).toEqual(["skip.txt"]);
   });
 

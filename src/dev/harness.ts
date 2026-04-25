@@ -5,7 +5,7 @@ import path from "node:path";
 import { parse as parseYaml } from "yaml";
 
 import { evaluateAssertions } from "./assertions.ts";
-import { parseScenario, type Scenario } from "./schema.ts";
+import { ScenarioSchema, type Scenario } from "./schema.ts";
 
 export interface RunResult {
   scenario: string;
@@ -43,7 +43,7 @@ function bunExecutable(): string {
 
 async function loadScenario(yamlPath: string): Promise<Scenario> {
   const contents = await readFile(yamlPath, "utf8");
-  return parseScenario(parseYaml(contents));
+  return ScenarioSchema.parse(parseYaml(contents));
 }
 
 async function resolveInputDir(input: string): Promise<string> {

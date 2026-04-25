@@ -1,7 +1,7 @@
 import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 
-import { compare } from "../internal/dir-compare/index.ts";
+import { compare } from "../internal/dir-compare/compare.ts";
 import type { Scenario } from "./schema.ts";
 
 export interface AssertionContext {
@@ -19,10 +19,6 @@ function isNodeError(error: unknown): error is NodeJS.ErrnoException {
   return typeof error === "object" && error !== null && "code" in error;
 }
 
-function quoted(value: string): string {
-  return JSON.stringify(value);
-}
-
 function resolveWorkdirPath(
   context: AssertionContext,
   key: keyof Expect,
@@ -30,7 +26,7 @@ function resolveWorkdirPath(
 ): ResolvedWorkdirPath {
   if (path.isAbsolute(relativePath)) {
     return {
-      failure: `${key}: ${quoted(relativePath)} must be relative to the scenario workdir`,
+      failure: `${key}: ${JSON.stringify(relativePath)} must be relative to the scenario workdir`,
     };
   }
 
@@ -38,7 +34,7 @@ function resolveWorkdirPath(
   const relativeToWorkdir = path.relative(context.workdir, resolvedPath);
   if (relativeToWorkdir.startsWith("..") || path.isAbsolute(relativeToWorkdir)) {
     return {
-      failure: `${key}: ${quoted(relativePath)} resolves outside the scenario workdir`,
+      failure: `${key}: ${JSON.stringify(relativePath)} resolves outside the scenario workdir`,
     };
   }
 
@@ -67,7 +63,7 @@ async function readWorkdirFile(
     return { contents: await readFile(resolved.path, "utf8") };
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    return { failure: `${key}: ${quoted(relativePath)} could not be read: ${reason}` };
+    return { failure: `${key}: ${JSON.stringify(relativePath)} could not be read: ${reason}` };
   }
 }
 
@@ -86,7 +82,7 @@ export async function assertFilesExist(paths: string[], context: AssertionContex
     }
 
     if (!(await exists(resolved.path))) {
-      failures.push(`files_exist: expected ${quoted(relativePath)} to exist`);
+      failures.push(`files_exist: expected ${JSON.stringify(relativePath)} to exist`);
     }
   }
 
@@ -103,7 +99,7 @@ export async function assertFilesAbsent(paths: string[], context: AssertionConte
     }
 
     if (await exists(resolved.path)) {
-      failures.push(`files_absent: expected ${quoted(relativePath)} to be absent`);
+      failures.push(`files_absent: expected ${JSON.stringify(relativePath)} to be absent`);
     }
   }
 
@@ -123,7 +119,7 @@ export async function assertFilesContain(
     }
 
     if (!readResult.contents.includes(entry.matches)) {
-      failures.push(`files_contain: ${quoted(entry.file)} does not contain ${quoted(entry.matches)}`);
+      failures.push(`files_contain: ${JSON.stringify(entry.file)} does not contain ${JSON.stringify(entry.matches)}`);
     }
   }
 
@@ -141,7 +137,9 @@ export async function assertFilesMatchRegex(
       regex = new RegExp(entry.pattern);
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
-      failures.push(`files_match_regex: ${quoted(entry.file)} has invalid pattern ${quoted(entry.pattern)}: ${reason}`);
+      failures.push(
+        `files_match_regex: ${JSON.stringify(entry.file)} has invalid pattern ${JSON.stringify(entry.pattern)}: ${reason}`,
+      );
       continue;
     }
 
@@ -152,7 +150,9 @@ export async function assertFilesMatchRegex(
     }
 
     if (!regex.test(readResult.contents)) {
-      failures.push(`files_match_regex: ${quoted(entry.file)} does not match pattern ${quoted(entry.pattern)}`);
+      failures.push(
+        `files_match_regex: ${JSON.stringify(entry.file)} does not match pattern ${JSON.stringify(entry.pattern)}`,
+      );
     }
   }
 
@@ -162,13 +162,13 @@ export async function assertFilesMatchRegex(
 export function assertStdoutContains(expected: string[], context: AssertionContext): string[] {
   return expected
     .filter((substring) => !context.stdout.includes(substring))
-    .map((substring) => `stdout_contains: stdout does not contain ${quoted(substring)}`);
+    .map((substring) => `stdout_contains: stdout does not contain ${JSON.stringify(substring)}`);
 }
 
 export function assertStderrContains(expected: string[], context: AssertionContext): string[] {
   return expected
     .filter((substring) => !context.stderr.includes(substring))
-    .map((substring) => `stderr_contains: stderr does not contain ${quoted(substring)}`);
+    .map((substring) => `stderr_contains: stderr does not contain ${JSON.stringify(substring)}`);
 }
 
 export function assertStdoutEmpty(expected: boolean, context: AssertionContext): string[] {

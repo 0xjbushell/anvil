@@ -75,6 +75,14 @@ function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function withScaffoldErrorContext<T>(message: string, operation: () => T | Promise<T>): Promise<T> {
+  return Promise.resolve()
+    .then(operation)
+    .catch((error) => {
+      throw new Error(`${message}: ${describeError(error)}`, { cause: error });
+    });
+}
+
 function assertInsideAnvilRoot(sourcePath: string, absolutePath: string): void {
   const rootPrefix = `${anvilRoot}${path.sep}`;
 
@@ -152,40 +160,30 @@ function validateLockfileStatus(ctx: ScaffoldContext, result: LockfileReadResult
 async function readSourceText(sourcePath: string): Promise<string> {
   const absolutePath = resolveSourcePath(sourcePath);
 
-  try {
-    return await Bun.file(absolutePath).text();
-  } catch (error) {
-    throw new Error(`Failed to read scaffold source "${sourcePath}": ${describeError(error)}`);
-  }
+  return withScaffoldErrorContext(`Failed to read scaffold source "${sourcePath}"`, () =>
+    Bun.file(absolutePath).text(),
+  );
 }
 
 async function renderTemplate(entry: ManifestEntry, ctx: ScaffoldContext): Promise<string> {
   const absolutePath = resolveSourcePath(entry.src);
-  let template: string;
+  const template = await withScaffoldErrorContext(`Failed to read scaffold template "${entry.src}"`, () =>
+    Bun.file(absolutePath).text(),
+  );
 
-  try {
-    template = await Bun.file(absolutePath).text();
-  } catch (error) {
-    throw new Error(`Failed to read scaffold template "${entry.src}": ${describeError(error)}`);
-  }
-
-  try {
-    return ejs.render(template, ctx, { filename: absolutePath });
-  } catch (error) {
-    throw new Error(`Failed to render scaffold template "${entry.src}": ${describeError(error)}`);
-  }
+  return withScaffoldErrorContext(`Failed to render scaffold template "${entry.src}"`, () =>
+    ejs.render(template, ctx, { filename: absolutePath }),
+  );
 }
 
 async function listFilesRecursive(directoryPath: string): Promise<Array<{ absolutePath: string; relativePath: string }>> {
   const files: Array<{ absolutePath: string; relativePath: string }> = [];
 
   async function visit(currentPath: string): Promise<void> {
-    let entries: Dirent[];
-    try {
-      entries = await readdir(currentPath, { withFileTypes: true });
-    } catch (error) {
-      throw new Error(`Failed to read scaffold source directory "${currentPath}": ${describeError(error)}`);
-    }
+    const entries: Dirent[] = await withScaffoldErrorContext(
+      `Failed to read scaffold source directory "${currentPath}"`,
+      () => readdir(currentPath, { withFileTypes: true }),
+    );
 
     for (const entry of entries) {
       const entryPath = path.join(currentPath, entry.name);

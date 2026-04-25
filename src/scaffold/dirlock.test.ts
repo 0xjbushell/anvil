@@ -193,7 +193,7 @@ describe("scaffold directory lock", () => {
     const source = await readFile(path.join(import.meta.dir, "dirlock.ts"), "utf8");
 
     expect(source).not.toMatch(/from\s+["']proper-lockfile["']/);
-    expect(source).toMatch(/from\s+["']\.\.\/internal\/lockfile(?:\/index\.ts)?["']/);
+    expect(source).toMatch(/from\s+["']\.\.\/internal\/lockfile\/lockfile\.ts["']/);
     expect(source).toMatch(/liveStartTime === null[\s\S]*status: "stale"/);
   });
 });
