@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { access, mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterAll, afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { stringify as stringifyYaml } from "yaml";
 
 import { runScenario } from "./harness.ts";
@@ -70,6 +70,10 @@ afterEach(async () => {
   }
 
   await rm(scratch, { recursive: true, force: true });
+});
+
+afterAll(async () => {
+  await rm(sandboxRoot, { recursive: true, force: true });
 });
 
 describe("runScenario", () => {
