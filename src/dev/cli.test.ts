@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { access, chmod, mkdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, readFile, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { afterEach, describe, expect, test } from "bun:test";
@@ -38,10 +38,14 @@ class StringWriter {
 }
 
 function runDev(args: string[]): Promise<DevRun> {
+  return runPackageScript("dev", args);
+}
+
+function runPackageScript(script: string, args: string[] = [], env: Record<string, string> = {}): Promise<DevRun> {
   return new Promise((resolve, reject) => {
-    const child = spawn(bunExecutable, ["dev", ...args], {
+    const child = spawn(bunExecutable, [script, ...args], {
       cwd: repoRoot,
-      env: { ...process.env, NO_COLOR: "1" },
+      env: { ...process.env, NO_COLOR: "1", ...env },
       stdio: ["ignore", "pipe", "pipe"],
     });
 
@@ -78,6 +82,22 @@ async function runMain(args: string[], roots: CliRootOverrides = {}): Promise<De
   };
 }
 
+async function withTmpDir<T>(tmpDir: string, action: () => Promise<T>): Promise<T> {
+  const previousTmpDir = process.env.TMPDIR;
+  process.env.TMPDIR = tmpDir;
+  await mkdir(tmpDir, { recursive: true });
+
+  try {
+    return await action();
+  } finally {
+    if (previousTmpDir === undefined) {
+      delete process.env.TMPDIR;
+    } else {
+      process.env.TMPDIR = previousTmpDir;
+    }
+  }
+}
+
 async function pathExists(targetPath: string): Promise<boolean> {
   try {
     await access(targetPath);
@@ -89,6 +109,11 @@ async function pathExists(targetPath: string): Promise<boolean> {
 
     throw error;
   }
+}
+
+function outputLines(text: string): string[] {
+  const trimmed = text.trim();
+  return trimmed.length === 0 ? [] : trimmed.split(/\r?\n/);
 }
 
 async function expectTargetMatchesInput(target: string, input = "greenfield"): Promise<void> {
@@ -304,5 +329,108 @@ describe("bun dev scenario sandbox CLI", () => {
     expect(lines).toContain(".sandbox/*");
     expect(lines).toContain("!.sandbox/.gitkeep");
     expect(lines).not.toContain(".sandbox/");
+  });
+});
+
+describe("bun fixtures regression CLI", () => {
+  test("package script exposes bun fixtures", async () => {
+    const pkg = JSON.parse(await readFile(path.join(repoRoot, "package.json"), "utf8"));
+
+    expect(pkg.scripts?.fixtures).toBe("bun src/dev/cli.ts fixtures");
+  });
+
+  test("bun fixtures runs all committed scenarios and prints a passing summary", async () => {
+    const tmpRoot = path.join(sandboxRoot, `cli-test-fixtures-all-${randomUUID()}`);
+    createdTargets.add(tmpRoot);
+    await mkdir(tmpRoot, { recursive: true });
+    const scenarioRoot = path.join(repoRoot, "tests", "fixtures", "scenarios");
+    const scenarioFiles = (await readdir(scenarioRoot)).filter((name) => name.endsWith(".yaml")).sort();
+
+    const result = await runPackageScript("fixtures", [], { TMPDIR: tmpRoot });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).not.toContain("error:");
+    expect(result.stderr).not.toContain("failures for");
+    const lines = outputLines(result.stdout);
+    const passLines = lines.filter((line) => line.includes(" passed in "));
+    expect(passLines).toHaveLength(scenarioFiles.length);
+    for (const scenarioFile of scenarioFiles) {
+      const scenarioName = scenarioFile.replace(/\.yaml$/, "");
+      expect(passLines.some((line) => line.includes(` ${scenarioName} passed in `))).toBe(true);
+    }
+    expect(lines.at(-1)).toContain(`(${scenarioFiles.length} passed, 0 failed in `);
+  });
+
+  test("--filter runs only scenarios whose parsed names contain the substring", async () => {
+    const root = path.join(sandboxRoot, `cli-test-fixtures-filter-${randomUUID()}`);
+    createdTargets.add(root);
+    const scenarioRoot = path.join(root, "scenarios");
+    const tmpRoot = path.join(root, "tmp");
+    await mkdir(scenarioRoot, { recursive: true });
+    await writeFile(
+      path.join(scenarioRoot, "selected.yaml"),
+      "name: alpha-drift\ninput: greenfield\nargs:\n  - --version\nexpect:\n  exit_code: 0\n",
+      "utf8",
+    );
+    await writeFile(
+      path.join(scenarioRoot, "control.yaml"),
+      "name: beta-clean\ninput: greenfield\nargs:\n  - --version\nexpect:\n  exit_code: 0\n",
+      "utf8",
+    );
+
+    const result = await withTmpDir(tmpRoot, () => runMain(["fixtures", "--filter", "drift"], { scenarioRoot }));
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    const lines = outputLines(result.stdout);
+    const passLines = lines.filter((line) => line.includes(" passed in "));
+    expect(passLines).toHaveLength(1);
+    expect(passLines[0]).toContain(" alpha-drift passed in ");
+    expect(result.stdout).not.toContain("beta-clean");
+    expect(lines.at(-1)).toContain("(1 passed, 0 failed in ");
+  });
+
+  test("a broken scenario exits non-zero and reports failures with the preserved workdir", async () => {
+    const root = path.join(sandboxRoot, `cli-test-fixtures-broken-${randomUUID()}`);
+    createdTargets.add(root);
+    const scenarioRoot = path.join(root, "scenarios");
+    const tmpRoot = path.join(root, "tmp");
+    await mkdir(scenarioRoot, { recursive: true });
+    await writeFile(
+      path.join(scenarioRoot, "broken.yaml"),
+      "name: broken-fixture\ninput: greenfield\nargs:\n  - --version\nexpect:\n  exit_code: 99\n",
+      "utf8",
+    );
+
+    const result = await withTmpDir(tmpRoot, () => runMain(["fixtures"], { scenarioRoot }));
+
+    expect(result.exitCode).toBe(1);
+    const lines = outputLines(result.stdout);
+    const failLines = lines.filter((line) => line.includes(" broken-fixture failed in "));
+    expect(failLines).toHaveLength(1);
+    expect(lines.at(-1)).toContain("(0 passed, 1 failed in ");
+    expect(result.stderr).toContain("failures for broken-fixture:");
+    expect(result.stderr).toContain("exit_code: expected 99, got 0");
+    const workdir = result.stderr.match(/^workdir: (.+)$/m)?.[1];
+    expect(workdir).toBeDefined();
+    expect(await pathExists(workdir ?? "")).toBe(true);
+  });
+
+  test("a filter with no matching scenario names exits non-zero with a clear message", async () => {
+    const root = path.join(sandboxRoot, `cli-test-fixtures-empty-${randomUUID()}`);
+    createdTargets.add(root);
+    const scenarioRoot = path.join(root, "scenarios");
+    await mkdir(scenarioRoot, { recursive: true });
+    await writeFile(
+      path.join(scenarioRoot, "only.yaml"),
+      "name: only-scenario\ninput: greenfield\nargs:\n  - --version\nexpect:\n  exit_code: 0\n",
+      "utf8",
+    );
+
+    const result = await runMain(["fixtures", "--filter", "missing"], { scenarioRoot });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain('no fixtures matched filter "missing"');
   });
 });

@@ -1,15 +1,34 @@
 import { cp, lstat, mkdir, readFile, readdir, rm, stat } from "node:fs/promises";
 import path from "node:path";
 
+import chalk from "chalk";
 import { parse as parseYaml } from "yaml";
 import { ZodError } from "zod";
 
+import { runScenario } from "./harness.ts";
 import { parseScenario, type Scenario } from "./schema.ts";
 
 interface ParsedArgs {
   scenarioName: string;
   keep: boolean;
   name?: string;
+}
+
+interface FixturesArgs {
+  filter?: string;
+}
+
+interface FixtureScenario {
+  name: string;
+  yamlPath: string;
+}
+
+interface FixtureRunOutcome {
+  name: string;
+  passed: boolean;
+  failures: string[];
+  duration_ms: number;
+  workdir?: string;
 }
 
 interface WritableLike {
@@ -53,6 +72,10 @@ const safeDirectoryNamePattern = /^(?!\.{1,2}$)[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 function usage(): string {
   return "usage: bun dev <scenario-name> [--keep] [--name <dirname>]";
+}
+
+function fixturesUsage(): string {
+  return "usage: bun fixtures [--filter <substring>]";
 }
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {
@@ -138,6 +161,25 @@ async function loadScenario(scenarioName: string, scenarioRoot: string): Promise
     throw new Error(
       `invalid scenario ${JSON.stringify(scenarioName)} at ${scenarioPath}: ${oneLine(formatScenarioParseError(error))}`,
     );
+  }
+}
+
+async function loadFixtureScenario(yamlPath: string): Promise<Scenario> {
+  let contents: string;
+  try {
+    contents = await readFile(yamlPath, "utf8");
+  } catch (error) {
+    if (isNodeError(error) && error.code === "ENOENT") {
+      throw new Error(`fixture scenario not found at ${yamlPath}`);
+    }
+
+    throw error;
+  }
+
+  try {
+    return parseScenario(parseYaml(contents));
+  } catch (error) {
+    throw new Error(`invalid fixture scenario at ${yamlPath}: ${oneLine(formatScenarioParseError(error))}`);
   }
 }
 
@@ -262,6 +304,37 @@ export function parseDevArgs(argv: string[]): ParsedArgs {
   return { scenarioName, keep, name };
 }
 
+export function parseFixturesArgs(argv: string[]): FixturesArgs {
+  let filter: string | undefined;
+
+  for (let index = 0; index < argv.length; index++) {
+    const arg = argv[index];
+
+    if (arg === "--filter") {
+      const value = argv[index + 1];
+      if (value === undefined || value.startsWith("-")) {
+        throw new Error(`missing value for --filter\n${fixturesUsage()}`);
+      }
+      filter = value;
+      index++;
+      continue;
+    }
+
+    if (arg.startsWith("--filter=")) {
+      filter = arg.slice("--filter=".length);
+      continue;
+    }
+
+    if (arg.startsWith("-")) {
+      throw new Error(`unknown option ${arg}\n${fixturesUsage()}`);
+    }
+
+    throw new Error(`unexpected argument ${JSON.stringify(arg)}\n${fixturesUsage()}`);
+  }
+
+  return { filter };
+}
+
 export async function prepareDevSandbox(options: PrepareDevSandboxOptions): Promise<PrepareDevSandboxResult> {
   const roots = resolveRoots(options);
   const targetName = validateTargetName(options.name ?? "scratch");
@@ -290,11 +363,134 @@ export async function prepareDevSandbox(options: PrepareDevSandboxOptions): Prom
   };
 }
 
+function formatDuration(durationMs: number): string {
+  return `${(durationMs / 1000).toFixed(2)}s`;
+}
+
+async function discoverFixtureScenarios(scenarioRoot: string): Promise<FixtureScenario[]> {
+  let entries;
+  try {
+    entries = await readdir(scenarioRoot, { withFileTypes: true });
+  } catch (error) {
+    if (isNodeError(error) && error.code === "ENOENT") {
+      throw new Error(`fixture scenario root not found at ${scenarioRoot}`);
+    }
+
+    throw error;
+  }
+
+  const scenarioFiles = entries
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".yaml"))
+    .map((entry) => entry.name)
+    .sort();
+
+  const scenarios: FixtureScenario[] = [];
+  for (const scenarioFile of scenarioFiles) {
+    const yamlPath = path.resolve(scenarioRoot, scenarioFile);
+    if (!isInside(scenarioRoot, yamlPath)) {
+      throw new Error(`fixture scenario ${JSON.stringify(scenarioFile)} resolves outside ${scenarioRoot}`);
+    }
+
+    const scenario = await loadFixtureScenario(yamlPath);
+    scenarios.push({ name: scenario.name, yamlPath });
+  }
+
+  return scenarios;
+}
+
+async function runFixtureScenario(scenario: FixtureScenario): Promise<FixtureRunOutcome> {
+  const started = performance.now();
+
+  try {
+    const result = await runScenario(scenario.yamlPath);
+    return {
+      name: result.scenario,
+      passed: result.passed,
+      failures: result.failures,
+      duration_ms: result.duration_ms,
+      workdir: result.workdir,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      name: scenario.name,
+      passed: false,
+      failures: [oneLine(message)],
+      duration_ms: Math.round(performance.now() - started),
+    };
+  }
+}
+
+function writeFixtureFailure(io: DevCliIo, outcome: FixtureRunOutcome): void {
+  io.stderr.write(`failures for ${outcome.name}:\n`);
+  if (outcome.failures.length === 0) {
+    io.stderr.write("  - scenario failed without detailed failures\n");
+  } else {
+    for (const failure of outcome.failures) {
+      io.stderr.write(`  - ${failure}\n`);
+    }
+  }
+  if (outcome.workdir !== undefined) {
+    io.stderr.write(`workdir: ${outcome.workdir}\n`);
+  }
+}
+
+export async function runFixtures(
+  argv: string[],
+  io: DevCliIo = { stdout: process.stdout, stderr: process.stderr },
+  roots: DevCliRoots = {},
+): Promise<number> {
+  try {
+    const args = parseFixturesArgs(argv);
+    const resolvedRoots = resolveRoots(roots);
+    const discovered = await discoverFixtureScenarios(resolvedRoots.scenarioRoot);
+    if (discovered.length === 0) {
+      io.stderr.write(`error: no fixture scenarios found in ${resolvedRoots.scenarioRoot}\n`);
+      return 1;
+    }
+
+    const selected =
+      args.filter === undefined ? discovered : discovered.filter((scenario) => scenario.name.includes(args.filter ?? ""));
+    if (selected.length === 0) {
+      io.stderr.write(`error: no fixtures matched filter ${JSON.stringify(args.filter)}\n`);
+      return 1;
+    }
+
+    const started = performance.now();
+    let passed = 0;
+    let failed = 0;
+
+    for (const scenario of selected) {
+      const outcome = await runFixtureScenario(scenario);
+      if (outcome.passed) {
+        passed++;
+        io.stdout.write(chalk.green(`✓ ${outcome.name} passed in ${formatDuration(outcome.duration_ms)}`) + "\n");
+      } else {
+        failed++;
+        io.stdout.write(chalk.red(`✗ ${outcome.name} failed in ${formatDuration(outcome.duration_ms)}`) + "\n");
+        writeFixtureFailure(io, outcome);
+      }
+    }
+
+    const summary = `(${passed} passed, ${failed} failed in ${formatDuration(Math.round(performance.now() - started))})`;
+    io.stdout.write((failed === 0 ? chalk.green(summary) : chalk.red(summary)) + "\n");
+    return failed === 0 ? 0 : 1;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    io.stderr.write(`error: ${oneLine(message)}\n`);
+    return 1;
+  }
+}
+
 export async function main(
   argv = process.argv.slice(2),
   io: DevCliIo = { stdout: process.stdout, stderr: process.stderr },
   roots: DevCliRoots = {},
 ): Promise<number> {
+  if (argv[0] === "fixtures") {
+    return runFixtures(argv.slice(1), io, roots);
+  }
+
   try {
     const args = parseDevArgs(argv);
     const result = await prepareDevSandbox({ ...roots, ...args });
