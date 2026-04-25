@@ -10,6 +10,41 @@ function read(rel: string): string {
   return readFileSync(join(repoRoot, rel), 'utf8');
 }
 
+describe('TIX-000069 AGENTS.md', () => {
+  test('documents agent onboarding guardrails', () => {
+    const txt = read('AGENTS.md');
+    const lines = txt.trimEnd().split(/\r?\n/);
+
+    expect(lines.length).toBeLessThanOrEqual(40);
+    for (const heading of [
+      '## Project shape',
+      '## Inner loop',
+      '## Reference implementations',
+      '## Decision discipline',
+      '## Where things live',
+    ]) {
+      expect(txt).toContain(heading);
+    }
+
+    expect(txt).toContain('Bun + TypeScript scaffolder for agentic engineering projects');
+    expect(txt).toContain('After every change, run `bun agent:check`');
+    expect(txt).toContain('`bun dev <scenario>`');
+    expect(txt).toContain('cd into `.sandbox/scratch`');
+    expect(txt).toContain('read the failed scenario YAML and input');
+    expect(txt).toContain('reproduce in the sandbox');
+    expect(txt).toContain('fix the cause');
+    expect(txt).toContain('rerun');
+    expect(txt).toContain('pre-push hook and CI run the full `bun fixtures` gate');
+    expect(txt).toContain('[D-69]');
+    expect(txt).toContain('match reference idioms unless an anvil decision explicitly overrides them');
+    expect(txt).toContain('specs/decisions/anvil-decisions.md');
+    expect(txt).toContain('cite D-NN');
+    for (const path of ['`src/`', '`src/templates/`', '`tests/fixtures/`', '`specs/`', '`.tix/`']) {
+      expect(txt).toContain(path);
+    }
+  });
+});
+
 describe('TIX-000070 governance', () => {
   test('1. LICENSE exists and is MIT', () => {
     const txt = read('LICENSE');
