@@ -1,0 +1,33 @@
+{
+  "name": "anvil",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "anvil": "./bin/anvil.ts"
+  },
+  "scripts": {
+    "build": "bun build ./bin/anvil.ts --outdir ./dist --target bun",
+    "test": "bun test",
+    "lint": "bunx tsc --noEmit",
+    "format": "echo \"format not yet configured\""
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^7.2.1",
+    "chalk": "^5.4.1",
+    "commander": "^12.1.0",
+    "diff": "^7.0.0",
+    "ejs": "^3.1.10",
+    "picomatch": "^4.0.2",
+    "pino": "^9.5.0",
+    "write-file-atomic": "^6.0.0",
+    "zod": "^3.24.1"
+  },
+  "trustedDependencies": [],
+  "devDependencies": {
+    "@types/bun": "^1.1.14",
+    "@types/ejs": "^3.1.5",
+    "node-pty": "^1.0.0",
+    "typescript": "^5.7.2",
+    "yaml": "^2.6.1"
+  }
+}
