@@ -1,0 +1,11 @@
+name: re-scaffold-drift
+description: Current CLI smoke scenario for the drifted re-scaffold input.
+input: re-scaffold-drift
+args:
+  - --version
+expect:
+  exit_code: 0
+  stdout_contains:
+    - 0.1.0
+  stderr_empty: true
+  files_unchanged_from_input: true
