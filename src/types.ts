@@ -22,6 +22,7 @@ export interface ScaffoldContext {
   nonInteractive: boolean;      // --non-interactive flag only (explicit opt-in; D-67 supersedes D-56)
   toolchain: ToolchainVersions; // resolved at init per D-64; recorded in lockfile
   anvilVersion: string;         // from package.json
+  year?: number;                // persisted from lockfile on re-scaffold; defaults to current year on first init
 }
 
 // ─── Manifest ────────────────────────────────────────────────────────
@@ -77,24 +78,35 @@ export interface ConflictReport {
 }
 
 // ─── Lockfile (.anvil.lock) ──────────────────────────────────────────
+export type LockfileEntryStatus = 'written' | 'pending';
+export type LockfileFlushStatus = 'complete' | 'in-progress';
+
 export interface LockfileEntry {
   path: string;
   checksum: string;             // 'sha256:<64-hex>'
-  source: FileSource;
+  status: LockfileEntryStatus;  // D-70 checkpoint marker
 }
 
 export interface AnvilLockfile {
   version: string;              // anvil version that generated the project
   lang: Lang;
+  flushStatus: LockfileFlushStatus;
   context: {
     projectName: string;
     packageManager?: PackageManager;
     defaultBranch: string;
     sourceDir?: string;
     skipSeed: boolean;          // authoritative on re-scaffold
+    year: number;               // captured at first init for deterministic templates
   };
   toolchain: ToolchainVersions; // resolved at init per D-64
   files: LockfileEntry[];
   createdAt: string;            // ISO 8601
   updatedAt: string;            // ISO 8601
 }
+
+export type LockfileReadResult =
+  | { status: 'absent'; lockfile: null }
+  | { status: 'complete'; lockfile: AnvilLockfile }
+  | { status: 'in-progress'; lockfile: AnvilLockfile }
+  | { status: 'corrupt'; lockfile: null; error: unknown };
