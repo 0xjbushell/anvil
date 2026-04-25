@@ -1,3 +1,13 @@
 specs/*-review.html
 specs/*-research.html
 specs/review-*.html
+
+# Node / Bun
+node_modules/
+
+# Sandbox harness scratch (D-68)
+.sandbox/
+
+# Editor / OS
+.DS_Store
+*.log

@@ -1,0 +1,17 @@
+version: "0.1.0"
+lang: typescript
+context:
+  projectName: example
+  packageManager: bun
+  defaultBranch: main
+  skipSeed: false
+toolchain:
+  bun: "1.1.31"
+  node: "22.11.0"
+files:
+  - path: Makefile
+    checksum: "sha256:0000000000000000000000000000000000000000000000000000000000000001"
+    source: static
+createdAt: "2026-04-24T00:00:00.000Z"
+updatedAt: "2026-04-24T00:00:00.000Z"
+flushStatus: complete
