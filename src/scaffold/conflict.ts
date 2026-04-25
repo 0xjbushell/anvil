@@ -18,8 +18,15 @@ function splitPreservingLineEndings(value: string): string[] {
 }
 
 function formatDiffPart(part: Change): string {
-  const prefix = part.added ? "+" : part.removed ? "-" : " ";
-  const color = part.added ? chalk.green : part.removed ? chalk.red : chalk.dim;
+  let prefix = " ";
+  let color = chalk.dim;
+  if (part.added) {
+    prefix = "+";
+    color = chalk.green;
+  } else if (part.removed) {
+    prefix = "-";
+    color = chalk.red;
+  }
 
   return splitPreservingLineEndings(part.value)
     .map((line) => color(`${prefix}${line}`))

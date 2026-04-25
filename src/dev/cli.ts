@@ -561,8 +561,8 @@ export async function runFixtures(
       return 1;
     }
 
-    const selected =
-      args.filter === undefined ? discovered : discovered.filter((scenario) => scenario.name.includes(args.filter ?? ""));
+    const filter = args.filter;
+    const selected = filter === undefined ? discovered : discovered.filter((scenario) => scenario.name.includes(filter));
     if (selected.length === 0) {
       io.stderr.write(`error: no fixtures matched filter ${JSON.stringify(args.filter)}\n`);
       return 1;
