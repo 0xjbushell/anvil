@@ -6,7 +6,7 @@ import path from "node:path";
 import { afterEach, describe, expect, test } from "bun:test";
 
 import { compare } from "../internal/dir-compare/index.ts";
-import { main } from "./cli.ts";
+import { main, runAgentCheck } from "./cli.ts";
 
 const repoRoot = path.resolve(import.meta.dir, "..", "..");
 const fixtureInputRoot = path.join(repoRoot, "tests", "fixtures", "inputs");
@@ -23,9 +23,11 @@ interface DevRun {
 }
 
 interface CliRootOverrides {
+  repoRoot?: string;
   scenarioRoot?: string;
   inputRoot?: string;
   sandboxRoot?: string;
+  changedFiles?: string[];
 }
 
 class StringWriter {
@@ -70,10 +72,56 @@ function runPackageScript(script: string, args: string[] = [], env: Record<strin
   });
 }
 
+function runCommand(command: string, args: string[], cwd: string): Promise<DevRun> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd,
+      env: { ...process.env, NO_COLOR: "1" },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    let stdout = "";
+    let stderr = "";
+    child.stdout?.setEncoding("utf8");
+    child.stderr?.setEncoding("utf8");
+    child.stdout?.on("data", (chunk: string) => {
+      stdout += chunk;
+    });
+    child.stderr?.on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      resolve({
+        exitCode: code ?? 1,
+        stdout,
+        stderr,
+      });
+    });
+  });
+}
+
+async function runGit(args: string[], cwd: string): Promise<void> {
+  const result = await runCommand("git", args, cwd);
+  expect(result.exitCode, `git ${args.join(" ")}\n${result.stderr}`).toBe(0);
+}
+
 async function runMain(args: string[], roots: CliRootOverrides = {}): Promise<DevRun> {
   const stdout = new StringWriter();
   const stderr = new StringWriter();
   const exitCode = await main(args, { stdout, stderr }, roots);
+
+  return {
+    exitCode,
+    stdout: stdout.text,
+    stderr: stderr.text,
+  };
+}
+
+async function runAgentCheckMain(args: string[], roots: CliRootOverrides = {}): Promise<DevRun> {
+  const stdout = new StringWriter();
+  const stderr = new StringWriter();
+  const exitCode = await runAgentCheck(args, { stdout, stderr }, roots);
 
   return {
     exitCode,
@@ -432,5 +480,106 @@ describe("bun fixtures regression CLI", () => {
     expect(result.exitCode).toBe(1);
     expect(result.stdout).toBe("");
     expect(result.stderr).toContain('no fixtures matched filter "missing"');
+  });
+});
+
+describe("bun agent:check regression CLI", () => {
+  test("package script exposes bun agent:check", async () => {
+    const pkg = JSON.parse(await readFile(path.join(repoRoot, "package.json"), "utf8"));
+
+    expect(pkg.scripts?.["agent:check"]).toBe("bun src/dev/cli.ts agent:check");
+  });
+
+  test("main dispatches the agent:check subcommand", async () => {
+    const result = await runMain(["agent:check"], { changedFiles: ["docs/foo.md"] });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe("✓ 0 scenarios run\n");
+    expect(result.stderr).toBe("");
+  });
+
+  test("docs-only changes skip scenarios and print the zero-run summary", async () => {
+    const result = await runAgentCheckMain([], { changedFiles: ["docs/foo.md"] });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe("✓ 0 scenarios run\n");
+    expect(result.stderr).toBe("");
+  });
+
+  test("agent:check uses fixture lockfile language metadata for TypeScript template changes", async () => {
+    const tmpRoot = path.join(sandboxRoot, `cli-test-agent-check-template-${randomUUID()}`);
+    createdTargets.add(tmpRoot);
+
+    const result = await withTmpDir(tmpRoot, () =>
+      runAgentCheckMain([], { changedFiles: ["templates/typescript/Makefile.ejs"] }),
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe("✓ 3 scenarios passed\n");
+    expect(result.stderr).toBe("");
+  });
+
+  test("agent:check reads git diff HEAD, runs only selected passing scenarios, and stays quiet on green", async () => {
+    const root = path.join(sandboxRoot, `cli-test-agent-check-git-${randomUUID()}`);
+    createdTargets.add(root);
+    const gitRoot = path.join(root, "repo");
+    const scenarioRoot = path.join(root, "scenarios");
+    const tmpRoot = path.join(root, "tmp");
+    await mkdir(path.join(gitRoot, "tests", "fixtures", "inputs", "greenfield"), { recursive: true });
+    await mkdir(scenarioRoot, { recursive: true });
+    await writeFile(path.join(gitRoot, "tests", "fixtures", "inputs", "greenfield", "README.md"), "before\n", "utf8");
+    await writeFile(
+      path.join(scenarioRoot, "selected.yaml"),
+      "name: selected-agent-check\ninput: greenfield\nargs:\n  - --version\nexpect:\n  exit_code: 0\n",
+      "utf8",
+    );
+    await writeFile(
+      path.join(scenarioRoot, "control.yaml"),
+      "name: control-agent-check\ninput: monorepo\nargs:\n  - --version\nexpect:\n  exit_code: 99\n",
+      "utf8",
+    );
+    await runGit(["init", "-q"], gitRoot);
+    await runGit(["add", "tests/fixtures/inputs/greenfield/README.md"], gitRoot);
+    await runGit(["-c", "user.name=Anvil Test", "-c", "user.email=anvil@example.test", "commit", "-qm", "seed"], gitRoot);
+    await writeFile(path.join(gitRoot, "tests", "fixtures", "inputs", "greenfield", "README.md"), "after\n", "utf8");
+    await runGit(["add", "tests/fixtures/inputs/greenfield/README.md"], gitRoot);
+
+    const result = await withTmpDir(tmpRoot, () => runAgentCheckMain([], { repoRoot: gitRoot, scenarioRoot }));
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe("✓ 1 scenarios passed\n");
+    expect(result.stdout).not.toContain("passed in");
+    expect(result.stdout).not.toContain("control-agent-check");
+    expect(result.stderr).toBe("");
+  });
+
+  test("agent:check reports selected scenario failures with preserved workdirs", async () => {
+    const root = path.join(sandboxRoot, `cli-test-agent-check-broken-${randomUUID()}`);
+    createdTargets.add(root);
+    const scenarioRoot = path.join(root, "scenarios");
+    const tmpRoot = path.join(root, "tmp");
+    await mkdir(scenarioRoot, { recursive: true });
+    await writeFile(
+      path.join(scenarioRoot, "broken.yaml"),
+      "name: broken-agent-check\ninput: greenfield\nargs:\n  - --version\nexpect:\n  exit_code: 99\n",
+      "utf8",
+    );
+
+    const result = await withTmpDir(tmpRoot, () =>
+      runAgentCheckMain([], {
+        scenarioRoot,
+        changedFiles: ["tests/fixtures/inputs/greenfield/.gitkeep"],
+      }),
+    );
+
+    expect(result.exitCode).toBe(1);
+    const lines = outputLines(result.stdout);
+    expect(lines.some((line) => line.includes(" broken-agent-check failed in "))).toBe(true);
+    expect(lines.at(-1)).toContain("(0 passed, 1 failed in ");
+    expect(result.stderr).toContain("failures for broken-agent-check:");
+    expect(result.stderr).toContain("exit_code: expected 99, got 0");
+    const workdir = result.stderr.match(/^workdir: (.+)$/m)?.[1];
+    expect(workdir).toBeDefined();
+    expect(await pathExists(workdir ?? "")).toBe(true);
   });
 });

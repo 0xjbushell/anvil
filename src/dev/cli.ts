@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { cp, lstat, mkdir, readFile, readdir, rm, stat } from "node:fs/promises";
 import path from "node:path";
 
@@ -6,6 +7,7 @@ import { parse as parseYaml } from "yaml";
 import { ZodError } from "zod";
 
 import { runScenario } from "./harness.ts";
+import { selectRelevantScenarios } from "./changed.ts";
 import { parseScenario, type Scenario } from "./schema.ts";
 
 interface ParsedArgs {
@@ -20,6 +22,8 @@ interface FixturesArgs {
 
 interface FixtureScenario {
   name: string;
+  input: string;
+  inputLanguage?: string;
   yamlPath: string;
 }
 
@@ -45,6 +49,10 @@ export interface DevCliRoots {
   scenarioRoot?: string;
   inputRoot?: string;
   sandboxRoot?: string;
+}
+
+export interface AgentCheckOptions extends DevCliRoots {
+  changedFiles?: readonly string[];
 }
 
 export interface PrepareDevSandboxOptions extends DevCliRoots {
@@ -76,6 +84,10 @@ function usage(): string {
 
 function fixturesUsage(): string {
   return "usage: bun fixtures [--filter <substring>]";
+}
+
+function agentCheckUsage(): string {
+  return "usage: bun agent:check";
 }
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {
@@ -180,6 +192,32 @@ async function loadFixtureScenario(yamlPath: string): Promise<Scenario> {
     return parseScenario(parseYaml(contents));
   } catch (error) {
     throw new Error(`invalid fixture scenario at ${yamlPath}: ${oneLine(formatScenarioParseError(error))}`);
+  }
+}
+
+async function loadFixtureInputLanguage(input: string, inputRoot: string): Promise<string | undefined> {
+  const inputDir = path.resolve(inputRoot, input);
+  if (!isInside(inputRoot, inputDir)) {
+    throw new Error(`input fixture ${JSON.stringify(input)} resolves outside ${inputRoot}`);
+  }
+
+  const lockfilePath = path.join(inputDir, ".anvil.lock");
+  let contents: string;
+  try {
+    contents = await readFile(lockfilePath, "utf8");
+  } catch (error) {
+    if (isNodeError(error) && error.code === "ENOENT") {
+      return undefined;
+    }
+
+    throw error;
+  }
+
+  try {
+    const parsed = parseYaml(contents) as { lang?: unknown } | null;
+    return typeof parsed?.lang === "string" ? parsed.lang : undefined;
+  } catch (error) {
+    throw new Error(`invalid fixture input lockfile at ${lockfilePath}: ${oneLine(formatScenarioParseError(error))}`);
   }
 }
 
@@ -335,6 +373,16 @@ export function parseFixturesArgs(argv: string[]): FixturesArgs {
   return { filter };
 }
 
+export function parseAgentCheckArgs(argv: string[]): void {
+  for (const arg of argv) {
+    if (arg.startsWith("-")) {
+      throw new Error(`unknown option ${arg}\n${agentCheckUsage()}`);
+    }
+
+    throw new Error(`unexpected argument ${JSON.stringify(arg)}\n${agentCheckUsage()}`);
+  }
+}
+
 export async function prepareDevSandbox(options: PrepareDevSandboxOptions): Promise<PrepareDevSandboxResult> {
   const roots = resolveRoots(options);
   const targetName = validateTargetName(options.name ?? "scratch");
@@ -367,7 +415,7 @@ function formatDuration(durationMs: number): string {
   return `${(durationMs / 1000).toFixed(2)}s`;
 }
 
-async function discoverFixtureScenarios(scenarioRoot: string): Promise<FixtureScenario[]> {
+async function discoverFixtureScenarios(scenarioRoot: string, inputRoot?: string): Promise<FixtureScenario[]> {
   let entries;
   try {
     entries = await readdir(scenarioRoot, { withFileTypes: true });
@@ -392,7 +440,12 @@ async function discoverFixtureScenarios(scenarioRoot: string): Promise<FixtureSc
     }
 
     const scenario = await loadFixtureScenario(yamlPath);
-    scenarios.push({ name: scenario.name, yamlPath });
+    scenarios.push({
+      name: scenario.name,
+      input: scenario.input,
+      inputLanguage: inputRoot === undefined ? undefined : await loadFixtureInputLanguage(scenario.input, inputRoot),
+      yamlPath,
+    });
   }
 
   return scenarios;
@@ -435,6 +488,65 @@ function writeFixtureFailure(io: DevCliIo, outcome: FixtureRunOutcome): void {
   }
 }
 
+function writeFixtureOutcomeLine(io: DevCliIo, outcome: FixtureRunOutcome): void {
+  if (outcome.passed) {
+    io.stdout.write(chalk.green(`✓ ${outcome.name} passed in ${formatDuration(outcome.duration_ms)}`) + "\n");
+  } else {
+    io.stdout.write(chalk.red(`✗ ${outcome.name} failed in ${formatDuration(outcome.duration_ms)}`) + "\n");
+  }
+}
+
+function countOutcomes(outcomes: readonly FixtureRunOutcome[]): { passed: number; failed: number } {
+  let passed = 0;
+  let failed = 0;
+  for (const outcome of outcomes) {
+    if (outcome.passed) {
+      passed++;
+    } else {
+      failed++;
+    }
+  }
+
+  return { passed, failed };
+}
+
+function writeFixtureSummary(io: DevCliIo, passed: number, failed: number, durationMs: number): void {
+  const summary = `(${passed} passed, ${failed} failed in ${formatDuration(durationMs)})`;
+  io.stdout.write((failed === 0 ? chalk.green(summary) : chalk.red(summary)) + "\n");
+}
+
+function gitDiffNameOnly(repoRoot: string): Promise<string[]> {
+  return new Promise((resolve, reject) => {
+    const child = spawn("git", ["diff", "--name-only", "HEAD"], {
+      cwd: repoRoot,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    let stdout = "";
+    let stderr = "";
+    child.stdout?.setEncoding("utf8");
+    child.stderr?.setEncoding("utf8");
+    child.stdout?.on("data", (chunk: string) => {
+      stdout += chunk;
+    });
+    child.stderr?.on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+    child.on("error", (error) => {
+      reject(new Error(`failed to run git diff --name-only HEAD: ${error.message}`));
+    });
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve(stdout.split(/\r?\n/).filter((line) => line.length > 0));
+        return;
+      }
+
+      const detail = oneLine(stderr || stdout || `exit code ${code ?? 1}`);
+      reject(new Error(`git diff --name-only HEAD failed: ${detail}`));
+    });
+  });
+}
+
 export async function runFixtures(
   argv: string[],
   io: DevCliIo = { stdout: process.stdout, stderr: process.stderr },
@@ -464,17 +576,65 @@ export async function runFixtures(
       const outcome = await runFixtureScenario(scenario);
       if (outcome.passed) {
         passed++;
-        io.stdout.write(chalk.green(`✓ ${outcome.name} passed in ${formatDuration(outcome.duration_ms)}`) + "\n");
+        writeFixtureOutcomeLine(io, outcome);
       } else {
         failed++;
-        io.stdout.write(chalk.red(`✗ ${outcome.name} failed in ${formatDuration(outcome.duration_ms)}`) + "\n");
+        writeFixtureOutcomeLine(io, outcome);
         writeFixtureFailure(io, outcome);
       }
     }
 
-    const summary = `(${passed} passed, ${failed} failed in ${formatDuration(Math.round(performance.now() - started))})`;
-    io.stdout.write((failed === 0 ? chalk.green(summary) : chalk.red(summary)) + "\n");
+    writeFixtureSummary(io, passed, failed, Math.round(performance.now() - started));
     return failed === 0 ? 0 : 1;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    io.stderr.write(`error: ${oneLine(message)}\n`);
+    return 1;
+  }
+}
+
+export async function runAgentCheck(
+  argv: string[],
+  io: DevCliIo = { stdout: process.stdout, stderr: process.stderr },
+  options: AgentCheckOptions = {},
+): Promise<number> {
+  try {
+    parseAgentCheckArgs(argv);
+    const resolvedRoots = resolveRoots(options);
+    const discovered = await discoverFixtureScenarios(resolvedRoots.scenarioRoot, resolvedRoots.inputRoot);
+    if (discovered.length === 0) {
+      io.stderr.write(`error: no fixture scenarios found in ${resolvedRoots.scenarioRoot}\n`);
+      return 1;
+    }
+
+    const changedFiles = options.changedFiles ?? (await gitDiffNameOnly(resolvedRoots.repoRoot));
+    const selected = selectRelevantScenarios(discovered, changedFiles);
+    if (selected.length === 0) {
+      io.stdout.write("✓ 0 scenarios run\n");
+      return 0;
+    }
+
+    const started = performance.now();
+    const outcomes: FixtureRunOutcome[] = [];
+    for (const scenario of selected) {
+      outcomes.push(await runFixtureScenario(scenario));
+    }
+
+    const { passed, failed } = countOutcomes(outcomes);
+    if (failed === 0) {
+      io.stdout.write(`✓ ${passed} scenarios passed\n`);
+      return 0;
+    }
+
+    for (const outcome of outcomes) {
+      writeFixtureOutcomeLine(io, outcome);
+      if (!outcome.passed) {
+        writeFixtureFailure(io, outcome);
+      }
+    }
+    writeFixtureSummary(io, passed, failed, Math.round(performance.now() - started));
+
+    return 1;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     io.stderr.write(`error: ${oneLine(message)}\n`);
@@ -489,6 +649,9 @@ export async function main(
 ): Promise<number> {
   if (argv[0] === "fixtures") {
     return runFixtures(argv.slice(1), io, roots);
+  }
+  if (argv[0] === "agent:check") {
+    return runAgentCheck(argv.slice(1), io, roots);
   }
 
   try {
