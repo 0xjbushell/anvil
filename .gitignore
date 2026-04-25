@@ -5,6 +5,10 @@ specs/review-*.html
 # Node / Bun
 node_modules/
 
+# Python
+__pycache__/
+*.py[cod]
+
 # Sandbox harness scratch (D-68)
 .sandbox/*
 !.sandbox/.gitkeep

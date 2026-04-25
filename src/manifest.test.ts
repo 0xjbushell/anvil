@@ -88,7 +88,9 @@ describe("scaffold manifests", () => {
         }
 
         if (entry.source === "template") {
-          expect(entry.src.startsWith("src/templates/")).toBe(true);
+          expect(
+            entry.src.startsWith("src/templates/") || entry.src.startsWith(`static/${lang}/`),
+          ).toBe(true);
           expect(entry.src.endsWith(".ejs")).toBe(true);
         }
       }
@@ -174,15 +176,16 @@ describe("scaffold manifests", () => {
     const expectedGlobDests: Record<Lang, string[]> = {
       typescript: [
         "tools/lint-rules/anti-slop/**/*",
+        "tools/lint-rules/error-handling/**/*",
         "tools/lint-rules/structural/**/*",
         "tools/lint-rules/test-quality/**/*",
       ],
       golang: [
         "tools/go-analyzers/anti_slop/**/*",
         "tools/go-analyzers/cmd/anvil-lint/**/*",
-        "tools/go-analyzers/cmd/crap-report/**/*",
         "tools/go-analyzers/structural/**/*",
         "tools/go-analyzers/test_quality/**/*",
+        "tools/go-analyzers/testdata/**/*",
       ],
       python: ["tools/flake8-plugin/anvil_lint/**/*"],
     };
@@ -194,6 +197,18 @@ describe("scaffold manifests", () => {
         expect(dests.has(dest)).toBe(true);
       }
     }
+  });
+
+  test("TypeScript manifest includes lint-rule CommonJS package boundary", () => {
+    const dests = getManifest("typescript").entries.map((entry) => entry.dest);
+
+    expect(dests).toContain("tools/lint-rules/package.json");
+  });
+
+  test("Go analyzer manifest defers CRAP report until its scaffold exists", () => {
+    const dests = getManifest("golang").entries.map((entry) => entry.dest);
+
+    expect(dests).not.toContain("tools/go-analyzers/cmd/crap-report/**/*");
   });
 
   test("invalid languages throw", () => {
