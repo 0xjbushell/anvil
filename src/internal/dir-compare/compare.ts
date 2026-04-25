@@ -41,6 +41,18 @@ interface Entry {
   size: number;
 }
 
+function compareNames(left: string, right: string): number {
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
+}
+
+function compareOptionalEntries(left: Entry | undefined, right: Entry | undefined): number {
+  if (left !== undefined && right !== undefined) return compareNames(left.name, right.name);
+  if (left !== undefined) return -1;
+  return 1;
+}
+
 async function listEntries(
   dir: string,
   relDir: string,
@@ -70,7 +82,7 @@ async function listEntries(
     if (filter && !filter(relativePath, name, isDirectory)) continue;
     entries.push({ name, absolutePath, isDirectory, isFile, size: st.size });
   }
-  entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  entries.sort((a, b) => compareNames(a.name, b.name));
   return entries;
 }
 
@@ -118,10 +130,7 @@ async function walk(
   while (i < leftEntries.length || j < rightEntries.length) {
     const l = leftEntries[i];
     const r = rightEntries[j];
-    let cmp: number;
-    if (l && r) cmp = l.name < r.name ? -1 : l.name > r.name ? 1 : 0;
-    else if (l) cmp = -1;
-    else cmp = 1;
+    const cmp = compareOptionalEntries(l, r);
 
     if (cmp === 0 && l && r) {
       const relativePath = relDir === "" ? l.name : posix.join(relDir, l.name);

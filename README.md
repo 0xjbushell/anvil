@@ -18,7 +18,14 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/). Every co
 
 Types: `feat`, `fix`, `docs`, `chore`, `refactor`, `perf`, `test`, `build`, `ci`.
 
-The `commit-msg` hook (installed automatically via `bun install` → `husky`) validates this locally.
+Hook installation is opt-in. Run `scripts/install-hooks.sh` after installing dependencies to
+configure Git to use the `.husky/` hooks. The `commit-msg` hook validates this locally.
+
+### Fixture checks
+
+The `pre-push` hook runs `bun fixtures` before code leaves your machine and blocks the push if the
+fixtures fail. `git push --no-verify` skips the local `pre-push` hook when you need an emergency
+bypass, but CI reruns `bun fixtures` for pull requests and pushes to `main`.
 
 ### Release process
 
@@ -28,4 +35,5 @@ Releases are automated via [release-please](https://github.com/googleapis/releas
 2. release-please tags the merge commit and publishes the GitHub release with an auto-generated CHANGELOG.
 3. No manual CHANGELOG edits — let release-please derive it from commit messages.
 
-`git push --no-verify` skips the commit-msg hook locally; CI does not re-validate, so use sparingly and only for release-please's own commits.
+`git commit --no-verify` skips the commit-msg hook locally; use it sparingly and only for
+release-please's own commits.

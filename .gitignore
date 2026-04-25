@@ -6,7 +6,8 @@ specs/review-*.html
 node_modules/
 
 # Sandbox harness scratch (D-68)
-.sandbox/
+.sandbox/*
+!.sandbox/.gitkeep
 
 # Editor / OS
 .DS_Store

@@ -4,7 +4,7 @@ import path from "node:path";
 import os from "node:os";
 import { randomUUID } from "node:crypto";
 
-import { lock, unlock, check } from "./index.ts";
+import { lock, unlock, check } from "./lockfile.ts";
 
 let scratch: string;
 let file: string;

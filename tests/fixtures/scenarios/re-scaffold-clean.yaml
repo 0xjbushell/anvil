@@ -1,0 +1,11 @@
+name: re-scaffold-clean
+description: Current CLI smoke scenario for the clean re-scaffold input.
+input: re-scaffold-clean
+args:
+  - --version
+expect:
+  exit_code: 0
+  stdout_contains:
+    - 0.1.0
+  stderr_empty: true
+  files_unchanged_from_input: true

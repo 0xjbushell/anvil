@@ -9,10 +9,12 @@
   },
   "scripts": {
     "build": "bun build ./bin/anvil.ts --outdir ./dist --target bun",
+    "dev": "bun src/dev/cli.ts",
+    "fixtures": "bun src/dev/cli.ts fixtures",
+    "agent:check": "bun src/dev/cli.ts agent:check",
     "test": "bun test",
     "lint": "bunx tsc --noEmit",
-    "format": "echo \"format not yet configured\"",
-    "prepare": "husky"
+    "format": "echo \"format not yet configured\""
   },
   "dependencies": {
     "@inquirer/prompts": "^7.2.1",

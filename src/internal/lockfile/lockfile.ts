@@ -256,13 +256,9 @@ async function refreshLock(key: string, lock: HeldLock): Promise<void> {
   scheduleUpdate(key, lock);
 }
 
-function canonicalKey(file: string): string {
-  return path.resolve(file);
-}
-
 export async function lock(file: string, options?: LockOptions): Promise<Release> {
   const resolved = resolveOptions(options);
-  const key = canonicalKey(file);
+  const key = path.resolve(file);
 
   const { mtime, lockfilePath } = await acquireWithRetry(key, resolved);
 
@@ -299,7 +295,7 @@ export async function lock(file: string, options?: LockOptions): Promise<Release
 }
 
 export async function unlock(file: string): Promise<void> {
-  const key = canonicalKey(file);
+  const key = path.resolve(file);
   const held = locks.get(key);
   if (!held) {
     throw makeError("Lock is not acquired/owned by you", "ENOTACQUIRED");
@@ -315,7 +311,7 @@ export async function unlock(file: string): Promise<void> {
 
 export async function check(file: string, options?: LockOptions): Promise<boolean> {
   const resolved = resolveOptions(options);
-  const key = canonicalKey(file);
+  const key = path.resolve(file);
   const lockfilePath = getLockFile(key, resolved);
   try {
     const st = await stat(lockfilePath);

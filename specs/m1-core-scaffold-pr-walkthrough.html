@@ -1,0 +1,1643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Anvil PR #2 Visual Walkthrough</title>
+  <style>
+    :root {
+      --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+      --font-mono: ui-monospace, 'Cascadia Code', 'SF Mono', Consolas, 'DejaVu Sans Mono', monospace;
+      --font-serif: Charter, 'Bitstream Charter', 'Sitka Text', Cambria, serif;
+
+      --bg: #f6f8fb;
+      --surface: #ffffff;
+      --surface-elevated: #fdfefe;
+      --surface-recessed: #eef3f8;
+      --border: rgba(15, 23, 42, 0.09);
+      --border-bright: rgba(15, 23, 42, 0.18);
+      --text: #111827;
+      --text-dim: #64748b;
+      --text-muted: #7c8798;
+      --accent: #2563eb;
+      --accent-dim: rgba(37, 99, 235, 0.09);
+      --node-a: #0891b2;
+      --node-a-dim: rgba(8, 145, 178, 0.1);
+      --node-b: #7c3aed;
+      --node-b-dim: rgba(124, 58, 237, 0.09);
+      --node-c: #059669;
+      --node-c-dim: rgba(5, 150, 105, 0.1);
+      --node-d: #d97706;
+      --node-d-dim: rgba(217, 119, 6, 0.1);
+      --warn: #b45309;
+      --warn-dim: rgba(180, 83, 9, 0.1);
+      --danger: #dc2626;
+      --danger-dim: rgba(220, 38, 38, 0.09);
+      --shadow: 0 14px 34px rgba(15, 23, 42, 0.08), 0 2px 8px rgba(15, 23, 42, 0.04);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0b1020;
+        --surface: #121a2b;
+        --surface-elevated: #182235;
+        --surface-recessed: #0f1726;
+        --border: rgba(255, 255, 255, 0.08);
+        --border-bright: rgba(255, 255, 255, 0.16);
+        --text: #e6edf7;
+        --text-dim: #9aa9bd;
+        --text-muted: #7f8ea3;
+        --accent: #60a5fa;
+        --accent-dim: rgba(96, 165, 250, 0.13);
+        --node-a: #22d3ee;
+        --node-a-dim: rgba(34, 211, 238, 0.13);
+        --node-b: #a78bfa;
+        --node-b-dim: rgba(167, 139, 250, 0.13);
+        --node-c: #34d399;
+        --node-c-dim: rgba(52, 211, 153, 0.13);
+        --node-d: #fbbf24;
+        --node-d-dim: rgba(251, 191, 36, 0.12);
+        --warn: #fbbf24;
+        --warn-dim: rgba(251, 191, 36, 0.12);
+        --danger: #f87171;
+        --danger-dim: rgba(248, 113, 113, 0.12);
+        --shadow: 0 16px 42px rgba(0, 0, 0, 0.28), 0 2px 8px rgba(0, 0, 0, 0.18);
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      font-family: var(--font-body);
+      color: var(--text);
+      background:
+        radial-gradient(circle at 12% 8%, var(--node-a-dim), transparent 30rem),
+        radial-gradient(circle at 90% 12%, var(--node-b-dim), transparent 34rem),
+        radial-gradient(circle at 50% 90%, var(--node-c-dim), transparent 30rem),
+        var(--bg);
+      line-height: 1.6;
+      overflow-wrap: break-word;
+    }
+
+    .container {
+      width: min(1180px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 34px 0 64px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.25fr) minmax(260px, 0.75fr);
+      gap: 22px;
+      align-items: stretch;
+      margin-bottom: 22px;
+    }
+
+    .hero-main,
+    .hero-side,
+    .section,
+    .card,
+    .callout,
+    .diagram-wrap,
+    .table-wrap,
+    .code-panel,
+    .mini-card {
+      background: color-mix(in srgb, var(--surface) 96%, transparent);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+    }
+
+    .hero-main {
+      padding: 32px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-main::after {
+      content: '';
+      position: absolute;
+      inset: auto -80px -130px auto;
+      width: 340px;
+      height: 340px;
+      border-radius: 50%;
+      background: radial-gradient(circle, var(--accent-dim), transparent 70%);
+      pointer-events: none;
+    }
+
+    .eyebrow,
+    .label {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      line-height: 1.14;
+      letter-spacing: -0.025em;
+    }
+
+    h1 {
+      max-width: 760px;
+      margin-top: 10px;
+      font-size: clamp(34px, 5.4vw, 64px);
+    }
+
+    h2 {
+      font-size: clamp(25px, 3vw, 36px);
+    }
+
+    h3 {
+      font-size: 18px;
+    }
+
+    p {
+      margin: 0;
+      color: var(--text-dim);
+    }
+
+    code,
+    .mono {
+      font-family: var(--font-mono);
+    }
+
+    code {
+      padding: 2px 6px;
+      border-radius: 6px;
+      color: var(--accent);
+      background: var(--accent-dim);
+      font-size: 0.92em;
+    }
+
+    .hero-main p {
+      max-width: 800px;
+      margin-top: 16px;
+      font-size: 16px;
+    }
+
+    .hero-side {
+      padding: 22px;
+      display: grid;
+      gap: 14px;
+      align-content: start;
+    }
+
+    .quick-fact {
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      background: var(--surface-elevated);
+    }
+
+    .quick-fact strong {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+
+    .quick-fact span {
+      display: block;
+      color: var(--text-dim);
+      font-size: 13px;
+    }
+
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 14px;
+      margin: 22px 0;
+    }
+
+    .kpi {
+      padding: 18px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: 0 7px 20px rgba(15, 23, 42, 0.05);
+      animation: fadeScale 0.35s ease-out both;
+    }
+
+    .kpi-value {
+      font-family: var(--font-mono);
+      font-size: 30px;
+      font-weight: 800;
+      color: var(--text);
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .kpi-label {
+      margin-top: 7px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-dim);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .review-path {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 26px;
+    }
+
+    .review-link {
+      display: block;
+      min-width: 0;
+      padding: 14px 16px;
+      color: var(--text);
+      text-decoration: none;
+      background: color-mix(in srgb, var(--surface) 88%, var(--accent) 4%);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+    }
+
+    .review-link:hover {
+      transform: translateY(-2px);
+      border-color: color-mix(in srgb, var(--border-bright) 45%, var(--accent) 55%);
+      background: var(--accent-dim);
+    }
+
+    .review-link strong {
+      display: block;
+      margin-bottom: 3px;
+      font-size: 13px;
+    }
+
+    .review-link span {
+      display: block;
+      color: var(--text-dim);
+      font-size: 12px;
+    }
+
+    .section {
+      margin-top: 22px;
+      padding: 26px;
+      animation: fadeUp 0.45s ease-out both;
+    }
+
+    .section-header {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+
+    .section-header p {
+      max-width: 900px;
+    }
+
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 14px;
+    }
+
+    .card {
+      --card-accent: var(--accent);
+      min-width: 0;
+      padding: 18px;
+      border-left: 4px solid var(--card-accent);
+      box-shadow: none;
+      animation: fadeUp 0.35s ease-out both;
+    }
+
+    .card--a { --card-accent: var(--node-a); }
+    .card--b { --card-accent: var(--node-b); }
+    .card--c { --card-accent: var(--node-c); }
+    .card--d { --card-accent: var(--node-d); }
+    .card--danger { --card-accent: var(--danger); }
+
+    .card h3 {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .card h3::before {
+      content: '';
+      display: inline-block;
+      flex: 0 0 auto;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--card-accent);
+    }
+
+    .card p {
+      font-size: 13px;
+    }
+
+    .node-list {
+      list-style: none;
+      padding: 0;
+      margin: 12px 0 0;
+      color: var(--text-dim);
+      font-size: 13px;
+    }
+
+    .node-list li {
+      position: relative;
+      padding-left: 16px;
+      margin: 7px 0;
+    }
+
+    .node-list li::before {
+      content: '>';
+      position: absolute;
+      left: 0;
+      top: 0;
+      color: var(--accent);
+      font-family: var(--font-mono);
+      font-weight: 700;
+    }
+
+    .diagram-wrap {
+      margin-top: 16px;
+      padding: 16px;
+      overflow-x: auto;
+      box-shadow: none;
+      background: linear-gradient(180deg, var(--surface-elevated), var(--surface));
+    }
+
+    .diagram-wrap svg {
+      display: block;
+      min-width: 860px;
+      max-width: 100%;
+      height: auto;
+      margin: 0 auto;
+    }
+
+    .svg-title {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 700;
+      fill: var(--text);
+    }
+
+    .svg-text {
+      font-family: var(--font-body);
+      font-size: 12px;
+      fill: var(--text-dim);
+    }
+
+    .svg-mono {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      fill: var(--text-dim);
+    }
+
+    .table-wrap {
+      margin-top: 16px;
+      overflow: hidden;
+      box-shadow: none;
+    }
+
+    .table-scroll {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    thead {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    th {
+      padding: 12px 14px;
+      text-align: left;
+      white-space: nowrap;
+      color: var(--text-dim);
+      background: var(--surface-elevated);
+      border-bottom: 1px solid var(--border-bright);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+    }
+
+    td {
+      min-width: 0;
+      padding: 13px 14px;
+      vertical-align: top;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-dim);
+    }
+
+    tbody tr:nth-child(even) {
+      background: color-mix(in srgb, var(--surface-recessed) 38%, transparent);
+    }
+
+    tbody tr:hover {
+      background: var(--accent-dim);
+    }
+
+    tbody tr:last-child td {
+      border-bottom: 0;
+    }
+
+    td strong {
+      color: var(--text);
+    }
+
+    .status {
+      --status-color: var(--accent);
+      --status-bg: var(--accent-dim);
+      display: inline-flex;
+      align-items: center;
+      white-space: nowrap;
+      padding: 3px 8px;
+      border-radius: 999px;
+      color: var(--status-color);
+      background: var(--status-bg);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .status--done {
+      --status-color: var(--node-c);
+      --status-bg: var(--node-c-dim);
+    }
+
+    .status--warn {
+      --status-color: var(--warn);
+      --status-bg: var(--warn-dim);
+    }
+
+    .status--info {
+      --status-color: var(--accent);
+      --status-bg: var(--accent-dim);
+    }
+
+    .status--danger {
+      --status-color: var(--danger);
+      --status-bg: var(--danger-dim);
+    }
+
+    .callout {
+      margin-top: 16px;
+      padding: 16px 18px;
+      box-shadow: none;
+      border-left: 4px solid var(--node-d);
+      background: color-mix(in srgb, var(--surface) 84%, var(--node-d) 5%);
+    }
+
+    .callout strong {
+      color: var(--text);
+    }
+
+    .callout p {
+      margin-top: 5px;
+      font-size: 13px;
+    }
+
+    .code-panel {
+      margin-top: 14px;
+      padding: 16px;
+      overflow-x: auto;
+      box-shadow: none;
+      background: var(--surface-recessed);
+    }
+
+    pre {
+      margin: 0;
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.65;
+      white-space: pre;
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 14px;
+      align-items: start;
+    }
+
+    .mt-0 { margin-top: 0; }
+    .mt-16 { margin-top: 16px; }
+    .mt-24 { margin-top: 24px; }
+
+    .mini-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .mini-card {
+      padding: 14px;
+      box-shadow: none;
+      background: var(--surface-elevated);
+    }
+
+    .mini-card strong {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 13px;
+    }
+
+    .mini-card span {
+      display: block;
+      color: var(--text-dim);
+      font-size: 12px;
+    }
+
+    .timeline {
+      display: grid;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .timeline-item {
+      display: grid;
+      grid-template-columns: 110px minmax(0, 1fr);
+      gap: 14px;
+      align-items: start;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--surface-elevated);
+    }
+
+    .timeline-item .phase {
+      color: var(--accent);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .timeline-item strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .timeline-item p {
+      font-size: 13px;
+    }
+
+    .footer-note {
+      margin-top: 24px;
+      color: var(--text-muted);
+      font-size: 12px;
+      text-align: center;
+    }
+
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(12px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes fadeScale {
+      from {
+        opacity: 0;
+        transform: scale(0.96);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    @media (max-width: 940px) {
+      .hero,
+      .split {
+        grid-template-columns: 1fr;
+      }
+
+      .kpi-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .review-path {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 640px) {
+      .container {
+        width: min(100vw - 20px, 1180px);
+        padding-top: 16px;
+      }
+
+      .hero-main,
+      .hero-side,
+      .section {
+        padding: 18px;
+        border-radius: 15px;
+      }
+
+      .kpi-row,
+      .review-path,
+      .timeline-item {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <header class="hero">
+      <div class="hero-main">
+        <div class="eyebrow">PR #2 &middot; feat/m1-core-scaffold &rarr; main</div>
+        <h1>M1 core scaffold foundation, explained for reviewers</h1>
+        <p>
+          This walkthrough turns the PR into a set of reviewable systems. Read it as a map:
+          the scaffold engine is the production core, and the sandbox harness is the safety rail
+          that lets contributors and agents prove changes before they leave the branch.
+        </p>
+      </div>
+      <aside class="hero-side" aria-label="PR facts">
+        <div class="quick-fact">
+          <strong>Source of truth</strong>
+          <span>GitHub PR file list: 54 files, 31 M1 commits.</span>
+        </div>
+        <div class="quick-fact">
+          <strong>Important boundary</strong>
+          <span><code>anvil init</code> remains a stub; this PR builds the engine and harness it will call.</span>
+        </div>
+        <div class="quick-fact">
+          <strong>Review posture</strong>
+          <span>Focus on contracts, failure behavior, and how the fixture loop protects future language work.</span>
+        </div>
+      </aside>
+    </header>
+
+    <section class="kpi-row" aria-label="PR metrics">
+      <div class="kpi">
+        <div class="kpi-value">54</div>
+        <div class="kpi-label">PR files</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-value">15</div>
+        <div class="kpi-label">Done tickets</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-value">9</div>
+        <div class="kpi-label">Fixture scenarios</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-value">190</div>
+        <div class="kpi-label">Tests passing</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-value">2</div>
+        <div class="kpi-label">Deferred items</div>
+      </div>
+    </section>
+
+    <nav class="review-path" aria-label="Walkthrough sections">
+      <a class="review-link" href="#mental-model">
+        <strong>1. Mental model</strong>
+        <span>How the pieces fit together</span>
+      </a>
+      <a class="review-link" href="#scaffold-engine">
+        <strong>2. Scaffold engine</strong>
+        <span>Manifest, FsTree, conflicts, lockfile</span>
+      </a>
+      <a class="review-link" href="#sandbox-harness">
+        <strong>3. Sandbox harness</strong>
+        <span>Scenario schema, fixtures, agent checks</span>
+      </a>
+      <a class="review-link" href="#review-guide">
+        <strong>4. Review guide</strong>
+        <span>Reading order, gotchas, deferrals</span>
+      </a>
+    </nav>
+
+    <section class="section" id="mental-model">
+      <div class="section-header">
+        <div class="label">System overview</div>
+        <h2>The PR builds the load-bearing scaffold layer, then wraps it in a local test loop</h2>
+        <p>
+          Think of M1 as two related tracks. The first track defines how anvil will decide what
+          files belong in a scaffolded project and how to write them safely. The second track gives
+          developers a repeatable sandbox so they can exercise those decisions without touching real projects.
+        </p>
+      </div>
+
+      <div class="diagram-wrap" aria-label="PR architecture diagram">
+        <svg viewBox="0 0 1080 560" role="img" aria-labelledby="archTitle archDesc">
+          <title id="archTitle">M1 PR architecture</title>
+          <desc id="archDesc">A layered diagram from CLI and package scripts through scaffold engine modules and sandbox gates.</desc>
+          <defs>
+            <marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto-start-reverse">
+              <path d="M0,0 L10,4 L0,8 Z" fill="var(--text-dim)"/>
+            </marker>
+            <filter id="soft" x="-10%" y="-10%" width="120%" height="130%">
+              <feDropShadow dx="0" dy="6" stdDeviation="7" flood-color="rgba(15,23,42,0.18)"/>
+            </filter>
+          </defs>
+
+          <rect x="18" y="18" width="1044" height="524" rx="22" fill="var(--surface-recessed)" stroke="var(--border)"/>
+          <text x="42" y="52" class="svg-title">Reviewer map: start at public commands, then follow data into the engine and test harness</text>
+
+          <g filter="url(#soft)">
+            <rect x="54" y="90" width="190" height="112" rx="16" fill="var(--surface)" stroke="var(--node-a)" stroke-width="2"/>
+            <text x="149" y="121" text-anchor="middle" class="svg-title">CLI surface</text>
+            <text x="78" y="149" class="svg-mono">package.json scripts</text>
+            <text x="78" y="170" class="svg-mono">src/cli.ts</text>
+            <text x="78" y="191" class="svg-mono">bin/anvil.ts</text>
+
+            <rect x="54" y="310" width="190" height="112" rx="16" fill="var(--surface)" stroke="var(--node-b)" stroke-width="2"/>
+            <text x="149" y="341" text-anchor="middle" class="svg-title">Dev commands</text>
+            <text x="78" y="369" class="svg-mono">bun dev</text>
+            <text x="78" y="390" class="svg-mono">bun fixtures</text>
+            <text x="78" y="411" class="svg-mono">bun agent:check</text>
+
+            <rect x="304" y="90" width="210" height="112" rx="16" fill="var(--surface)" stroke="var(--node-d)" stroke-width="2"/>
+            <text x="409" y="121" text-anchor="middle" class="svg-title">Scaffold contract</text>
+            <text x="328" y="149" class="svg-mono">src/types.ts</text>
+            <text x="328" y="170" class="svg-mono">src/manifest.ts</text>
+            <text x="328" y="191" class="svg-mono">toolchain defaults</text>
+
+            <rect x="574" y="90" width="210" height="112" rx="16" fill="var(--surface)" stroke="var(--node-c)" stroke-width="2"/>
+            <text x="679" y="121" text-anchor="middle" class="svg-title">Scaffold engine</text>
+            <text x="598" y="149" class="svg-mono">engine.ts</text>
+            <text x="598" y="170" class="svg-mono">fstree.ts</text>
+            <text x="598" y="191" class="svg-mono">lockfile.ts</text>
+
+            <rect x="844" y="90" width="170" height="112" rx="16" fill="var(--surface)" stroke="var(--danger)" stroke-width="2"/>
+            <text x="929" y="121" text-anchor="middle" class="svg-title">Safety rails</text>
+            <text x="868" y="149" class="svg-mono">conflict.ts</text>
+            <text x="868" y="170" class="svg-mono">dirlock.ts</text>
+            <text x="868" y="191" class="svg-mono">detect.ts</text>
+
+            <rect x="304" y="310" width="210" height="112" rx="16" fill="var(--surface)" stroke="var(--node-b)" stroke-width="2"/>
+            <text x="409" y="341" text-anchor="middle" class="svg-title">Scenario harness</text>
+            <text x="328" y="369" class="svg-mono">schema.ts</text>
+            <text x="328" y="390" class="svg-mono">harness.ts</text>
+            <text x="328" y="411" class="svg-mono">assertions.ts</text>
+
+            <rect x="574" y="310" width="210" height="112" rx="16" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/>
+            <text x="679" y="341" text-anchor="middle" class="svg-title">Fixture catalog</text>
+            <text x="598" y="369" class="svg-mono">tests/fixtures/inputs</text>
+            <text x="598" y="390" class="svg-mono">tests/fixtures/scenarios</text>
+            <text x="598" y="411" class="svg-mono">.sandbox/.gitkeep</text>
+
+            <rect x="844" y="310" width="170" height="112" rx="16" fill="var(--surface)" stroke="var(--node-c)" stroke-width="2"/>
+            <text x="929" y="341" text-anchor="middle" class="svg-title">Review gates</text>
+            <text x="868" y="369" class="svg-mono">pre-push hook</text>
+            <text x="868" y="390" class="svg-mono">fixtures CI</text>
+            <text x="868" y="411" class="svg-mono">AGENTS.md</text>
+          </g>
+
+          <path d="M244,146 C270,146 276,146 304,146" stroke="var(--text-dim)" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+          <path d="M514,146 C542,146 548,146 574,146" stroke="var(--text-dim)" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+          <path d="M784,146 C812,146 818,146 844,146" stroke="var(--text-dim)" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+          <path d="M244,366 C270,366 276,366 304,366" stroke="var(--text-dim)" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+          <path d="M514,366 C542,366 548,366 574,366" stroke="var(--text-dim)" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+          <path d="M784,366 C812,366 818,366 844,366" stroke="var(--text-dim)" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+          <path d="M679,202 C679,244 679,268 679,310" stroke="var(--text-dim)" stroke-width="2" stroke-dasharray="6 5" fill="none" marker-end="url(#arrow)"/>
+          <path d="M409,310 C409,260 488,242 574,196" stroke="var(--text-dim)" stroke-width="2" stroke-dasharray="6 5" fill="none" marker-end="url(#arrow)"/>
+
+          <text x="276" y="132" class="svg-mono">defines options</text>
+          <text x="532" y="132" class="svg-mono">feeds entries</text>
+          <text x="794" y="132" class="svg-mono">guards writes</text>
+          <text x="271" y="352" class="svg-mono">dispatches</text>
+          <text x="530" y="352" class="svg-mono">copies inputs</text>
+          <text x="790" y="352" class="svg-mono">enforces</text>
+          <text x="704" y="262" class="svg-mono">fixtures exercise CLI</text>
+          <text x="437" y="256" class="svg-mono">future init will call engine</text>
+        </svg>
+      </div>
+
+      <div class="callout">
+        <strong>What changed in one sentence</strong>
+        <p>
+          M1 does not finish the end-user <code>anvil init</code> command; it creates the reusable machinery
+          that <code>init</code> will need: manifest-driven file generation, safe re-scaffold semantics,
+          scenario fixtures, targeted agent checks, and local/CI gates.
+        </p>
+      </div>
+    </section>
+
+    <section class="section" id="scaffold-engine">
+      <div class="section-header">
+        <div class="label">Production path</div>
+        <h2>How the scaffold engine writes files safely</h2>
+        <p>
+          The scaffold engine is centered on <code>scaffold(ctx, options)</code>. It takes a
+          <code>ScaffoldContext</code>, builds an in-memory tree from the manifest, compares that tree to disk,
+          resolves conflicts, writes a checkpoint lockfile, writes files one at a time, and finalizes the lockfile.
+        </p>
+      </div>
+
+      <div class="diagram-wrap" aria-label="Scaffold engine sequence diagram">
+        <svg viewBox="0 0 1060 520" role="img" aria-labelledby="engineTitle engineDesc">
+          <title id="engineTitle">Scaffold engine sequence</title>
+          <desc id="engineDesc">Sequence showing scaffold reading lockfile, building FsTree, resolving conflicts, checkpointing, flushing, and finalizing.</desc>
+          <defs>
+            <marker id="seqArrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto-start-reverse">
+              <path d="M0,0 L10,4 L0,8 Z" fill="var(--text-dim)"/>
+            </marker>
+          </defs>
+
+          <rect x="18" y="18" width="1024" height="484" rx="22" fill="var(--surface-recessed)" stroke="var(--border)"/>
+          <text x="42" y="52" class="svg-title">Engine sequence: all writes happen after conflict decisions</text>
+
+          <g>
+            <rect x="62" y="82" width="130" height="38" rx="9" fill="var(--surface)" stroke="var(--node-a)" stroke-width="2"/>
+            <text x="127" y="106" text-anchor="middle" class="svg-title">caller</text>
+            <line x1="127" y1="120" x2="127" y2="470" stroke="var(--border-bright)" stroke-width="1.5" stroke-dasharray="5 5"/>
+
+            <rect x="248" y="82" width="130" height="38" rx="9" fill="var(--surface)" stroke="var(--node-c)" stroke-width="2"/>
+            <text x="313" y="106" text-anchor="middle" class="svg-title">engine</text>
+            <line x1="313" y1="120" x2="313" y2="470" stroke="var(--border-bright)" stroke-width="1.5" stroke-dasharray="5 5"/>
+
+            <rect x="434" y="82" width="130" height="38" rx="9" fill="var(--surface)" stroke="var(--node-d)" stroke-width="2"/>
+            <text x="499" y="106" text-anchor="middle" class="svg-title">manifest</text>
+            <line x1="499" y1="120" x2="499" y2="470" stroke="var(--border-bright)" stroke-width="1.5" stroke-dasharray="5 5"/>
+
+            <rect x="620" y="82" width="130" height="38" rx="9" fill="var(--surface)" stroke="var(--node-b)" stroke-width="2"/>
+            <text x="685" y="106" text-anchor="middle" class="svg-title">FsTree</text>
+            <line x1="685" y1="120" x2="685" y2="470" stroke="var(--border-bright)" stroke-width="1.5" stroke-dasharray="5 5"/>
+
+            <rect x="806" y="82" width="150" height="38" rx="9" fill="var(--surface)" stroke="var(--danger)" stroke-width="2"/>
+            <text x="881" y="106" text-anchor="middle" class="svg-title">disk + lockfile</text>
+            <line x1="881" y1="120" x2="881" y2="470" stroke="var(--border-bright)" stroke-width="1.5" stroke-dasharray="5 5"/>
+          </g>
+
+          <g class="svg-mono">
+            <line x1="127" y1="154" x2="313" y2="154" stroke="var(--text-dim)" stroke-width="2" marker-end="url(#seqArrow)"/>
+            <text x="220" y="145" text-anchor="middle">scaffold(ctx, onConflict|onReport)</text>
+
+            <line x1="313" y1="196" x2="881" y2="196" stroke="var(--text-dim)" stroke-width="2" marker-end="url(#seqArrow)"/>
+            <text x="598" y="187" text-anchor="middle">readLockfile(): absent | complete | in-progress | corrupt</text>
+
+            <line x1="313" y1="238" x2="499" y2="238" stroke="var(--text-dim)" stroke-width="2" marker-end="url(#seqArrow)"/>
+            <text x="406" y="229" text-anchor="middle">getManifest(ctx.lang)</text>
+
+            <line x1="499" y1="280" x2="685" y2="280" stroke="var(--text-dim)" stroke-width="2" marker-end="url(#seqArrow)"/>
+            <text x="592" y="271" text-anchor="middle">static + EJS entries</text>
+
+            <line x1="685" y1="322" x2="881" y2="322" stroke="var(--text-dim)" stroke-width="2" marker-end="url(#seqArrow)"/>
+            <text x="783" y="313" text-anchor="middle">listChanges(targetDir)</text>
+
+            <path d="M313,360 C420,390 560,390 685,360" fill="none" stroke="var(--text-dim)" stroke-width="2" marker-end="url(#seqArrow)"/>
+            <text x="500" y="402" text-anchor="middle">resolve update conflicts before data writes</text>
+
+            <line x1="313" y1="430" x2="881" y2="430" stroke="var(--text-dim)" stroke-width="2" marker-end="url(#seqArrow)"/>
+            <text x="598" y="421" text-anchor="middle">checkpoint pending -> write file -> mark written -> finalize complete</text>
+          </g>
+        </svg>
+      </div>
+
+      <div class="card-grid">
+        <article class="card card--a">
+          <h3>Shared vocabulary</h3>
+          <p>
+            <code>src/types.ts</code> defines the common nouns: <code>Lang</code>,
+            <code>ScaffoldContext</code>, <code>ManifestEntry</code>, <code>FsTreeEntry</code>,
+            conflict types, and <code>AnvilLockfile</code>. Start here when a type appears unfamiliar.
+          </p>
+          <ul class="node-list">
+            <li><code>ScaffoldContext</code> records project name, language, target dir, non-interactive mode, toolchain, and deterministic year.</li>
+            <li><code>ManifestEntry</code> can be <code>static</code>, <code>template</code>, or <code>generator</code>.</li>
+            <li><code>LockfileEntry.status</code> is <code>written</code> or <code>pending</code> for checkpoint recovery.</li>
+          </ul>
+        </article>
+
+        <article class="card card--d">
+          <h3>Manifest-driven output</h3>
+          <p>
+            <code>src/manifest.ts</code> builds per-language lists for TypeScript, Go, and Python.
+            It has helper constructors for static files, EJS templates, and generator slots. Seed
+            files are conditional so existing projects can avoid unwanted starter code.
+          </p>
+          <ul class="node-list">
+            <li><code>staticEntry()</code> maps from <code>static/&lt;lang&gt;/...</code> to target paths.</li>
+            <li><code>templateEntry()</code> maps from <code>src/templates/&lt;lang&gt;/...ejs</code>.</li>
+            <li><code>generatorEntry()</code> is declared but intentionally unsupported by the engine in M1.</li>
+          </ul>
+        </article>
+
+        <article class="card card--c">
+          <h3>In-memory FsTree</h3>
+          <p>
+            <code>src/scaffold/fstree.ts</code> stages generated content before disk writes.
+            It rejects absolute or escaping paths, compares staged content to disk, and flushes only
+            <code>create</code> or <code>update</code> changes.
+          </p>
+          <ul class="node-list">
+            <li>Path normalization uses POSIX relative paths so manifests behave consistently.</li>
+            <li><code>listChanges()</code> classifies each entry as create, update, or unchanged.</li>
+            <li><code>flushChanges()</code> creates parent directories and writes UTF-8 text.</li>
+          </ul>
+        </article>
+
+        <article class="card card--b">
+          <h3>Lockfile checkpointing</h3>
+          <p>
+            <code>src/scaffold/lockfile.ts</code> owns <code>.anvil.lock</code>. The lockfile is JSON,
+            uses <code>sha256:&lt;hex&gt;</code> checksums, records scaffold context/toolchain, and uses
+            <code>flushStatus</code> to distinguish complete runs from interrupted runs.
+          </p>
+          <ul class="node-list">
+            <li><code>readLockfile()</code> returns absent, complete, in-progress, or corrupt.</li>
+            <li>Text checksums normalize line endings; known binary extensions preserve bytes.</li>
+            <li>Atomic writes reduce the chance of half-written lockfiles.</li>
+          </ul>
+        </article>
+
+        <article class="card card--danger">
+          <h3>Conflict boundaries</h3>
+          <p>
+            <code>src/scaffold/engine.ts</code> requires exactly one conflict boundary: interactive
+            <code>onConflict</code> or non-interactive <code>onReport</code>. This keeps write behavior explicit.
+          </p>
+          <ul class="node-list">
+            <li>Interactive mode asks per update, then writes only approved changes.</li>
+            <li>Non-interactive mode reports all updates and throws before writing anything.</li>
+            <li>Abort produces zero data writes and no checkpoint lockfile.</li>
+          </ul>
+        </article>
+
+        <article class="card card--a">
+          <h3>Directory lock guard</h3>
+          <p>
+            <code>src/scaffold/dirlock.ts</code> prevents concurrent scaffold runs against the same target.
+            It uses a vendored lock module plus a <code>.anvil.lock.pid</code> payload containing PID and process start time.
+          </p>
+          <ul class="node-list">
+            <li>Live locks fail with a clear PID message.</li>
+            <li>Dead or mismatched PID payloads can be reclaimed as stale.</li>
+            <li>Missing or unreadable fresh payloads are treated as possibly live, not overwritten.</li>
+          </ul>
+        </article>
+      </div>
+
+      <div class="split mt-16">
+        <div class="code-panel">
+<pre>scaffold(ctx, options)
+  validate exactly one conflict boundary
+  read .anvil.lock and reject corrupt/cross-language states
+  build FsTree from language manifest
+  compare tree against targetDir
+  resolve update conflicts
+  write in-progress checkpoint lockfile
+  flush each data change
+  mark each lockfile entry written
+  finalize flushStatus = "complete"</pre>
+        </div>
+        <div class="callout mt-0">
+          <strong>Junior-reviewer tip</strong>
+          <p>
+            Pay attention to where writes happen. The engine intentionally separates "decide what should change"
+            from "write to disk." Most safety properties come from that separation.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="sandbox-harness">
+      <div class="section-header">
+        <div class="label">Developer inner loop</div>
+        <h2>The sandbox harness makes scaffold behavior reviewable without mutating real projects</h2>
+        <p>
+          The dev harness adds a small scenario language and three commands: <code>bun dev</code> for manual
+          debugging, <code>bun fixtures</code> for the full regression catalog, and <code>bun agent:check</code>
+          for targeted checks based on changed files.
+        </p>
+      </div>
+
+      <div class="diagram-wrap" aria-label="Sandbox harness flow diagram">
+        <svg viewBox="0 0 1060 430" role="img" aria-labelledby="harnessTitle harnessDesc">
+          <title id="harnessTitle">Sandbox harness flow</title>
+          <desc id="harnessDesc">Flow from scenario YAML through fixture input copy, CLI execution, assertion evaluation, and cleanup or retained failure workdir.</desc>
+          <defs>
+            <marker id="flowArrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto-start-reverse">
+              <path d="M0,0 L10,4 L0,8 Z" fill="var(--text-dim)"/>
+            </marker>
+          </defs>
+          <rect x="18" y="18" width="1024" height="394" rx="22" fill="var(--surface-recessed)" stroke="var(--border)"/>
+          <text x="42" y="52" class="svg-title">Scenario execution: a disposable project copy is the unit under test</text>
+
+          <g>
+            <rect x="62" y="118" width="150" height="82" rx="14" fill="var(--surface)" stroke="var(--node-b)" stroke-width="2"/>
+            <text x="137" y="146" text-anchor="middle" class="svg-title">YAML scenario</text>
+            <text x="84" y="172" class="svg-mono">name, input</text>
+            <text x="84" y="192" class="svg-mono">args or pty</text>
+
+            <rect x="272" y="118" width="150" height="82" rx="14" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/>
+            <text x="347" y="146" text-anchor="middle" class="svg-title">Input fixture</text>
+            <text x="294" y="172" class="svg-mono">tests/fixtures</text>
+            <text x="294" y="192" class="svg-mono">starting tree</text>
+
+            <rect x="482" y="118" width="150" height="82" rx="14" fill="var(--surface)" stroke="var(--node-c)" stroke-width="2"/>
+            <text x="557" y="146" text-anchor="middle" class="svg-title">Workdir copy</text>
+            <text x="504" y="172" class="svg-mono">tmpdir for runs</text>
+            <text x="504" y="192" class="svg-mono">or .sandbox dev</text>
+
+            <rect x="692" y="118" width="150" height="82" rx="14" fill="var(--surface)" stroke="var(--node-a)" stroke-width="2"/>
+            <text x="767" y="146" text-anchor="middle" class="svg-title">Run anvil</text>
+            <text x="714" y="172" class="svg-mono">bun bin/anvil.ts</text>
+            <text x="714" y="192" class="svg-mono">capture output</text>
+
+            <rect x="872" y="84" width="130" height="82" rx="14" fill="var(--surface)" stroke="var(--node-c)" stroke-width="2"/>
+            <text x="937" y="112" text-anchor="middle" class="svg-title">Pass</text>
+            <text x="897" y="138" class="svg-mono">delete workdir</text>
+            <text x="897" y="158" class="svg-mono">quiet success</text>
+
+            <rect x="872" y="222" width="130" height="82" rx="14" fill="var(--surface)" stroke="var(--danger)" stroke-width="2"/>
+            <text x="937" y="250" text-anchor="middle" class="svg-title">Fail</text>
+            <text x="897" y="276" class="svg-mono">keep workdir</text>
+            <text x="897" y="296" class="svg-mono">print failures</text>
+          </g>
+
+          <path d="M212,159 L272,159" stroke="var(--text-dim)" stroke-width="2" marker-end="url(#flowArrow)"/>
+          <path d="M422,159 L482,159" stroke="var(--text-dim)" stroke-width="2" marker-end="url(#flowArrow)"/>
+          <path d="M632,159 L692,159" stroke="var(--text-dim)" stroke-width="2" marker-end="url(#flowArrow)"/>
+          <path d="M842,145 C855,122 858,119 872,119" stroke="var(--text-dim)" stroke-width="2" fill="none" marker-end="url(#flowArrow)"/>
+          <path d="M842,173 C855,218 858,247 872,263" stroke="var(--text-dim)" stroke-width="2" fill="none" marker-end="url(#flowArrow)"/>
+
+          <text x="137" y="245" text-anchor="middle" class="svg-mono">schema.ts validates</text>
+          <text x="347" y="245" text-anchor="middle" class="svg-mono">harness.ts copies</text>
+          <text x="557" y="245" text-anchor="middle" class="svg-mono">assertions.ts checks</text>
+          <text x="767" y="245" text-anchor="middle" class="svg-mono">stdout/stderr/exit/files</text>
+        </svg>
+      </div>
+
+      <div class="card-grid">
+        <article class="card card--b">
+          <h3>Scenario schema</h3>
+          <p>
+            <code>src/dev/schema.ts</code> uses Zod to parse YAML. A scenario must specify exactly one
+            driver: plain <code>args</code> or future <code>pty</code>. The schema is strict, so misspelled
+            assertion keys fail instead of being silently ignored.
+          </p>
+          <ul class="node-list">
+            <li>Input names must be directory names, not paths.</li>
+            <li>Assertions include exit code, file existence, content, regex, stdout/stderr, and unchanged-tree checks.</li>
+            <li>PTY shape is parsed now, but execution is intentionally blocked until the init integration exists.</li>
+          </ul>
+        </article>
+
+        <article class="card card--c">
+          <h3>Scenario runner</h3>
+          <p>
+            <code>src/dev/harness.ts</code> loads a scenario, copies its input fixture into a temporary workdir,
+            runs <code>bun bin/anvil.ts ...</code>, evaluates assertions, deletes successful workdirs, and preserves
+            failing workdirs for debugging.
+          </p>
+          <ul class="node-list">
+            <li>Missing inputs are internal errors, not test failures.</li>
+            <li>Multiple assertion failures are collected together.</li>
+            <li>Passing scenarios clean up after themselves.</li>
+          </ul>
+        </article>
+
+        <article class="card card--a">
+          <h3><code>bun dev</code></h3>
+          <p>
+            <code>src/dev/cli.ts</code> exposes <code>bun dev &lt;scenario&gt;</code> for manual exploration.
+            It copies an input fixture into <code>.sandbox/scratch</code> by default, prints the absolute path,
+            and prints a ready-to-run command hint on stderr.
+          </p>
+          <ul class="node-list">
+            <li>Default runs wipe and recopy the scratch directory.</li>
+            <li><code>--keep</code> overlays inputs but rejects symlinked targets before copying.</li>
+            <li><code>--name &lt;dirname&gt;</code> lets reviewers create named sandboxes under <code>.sandbox/</code>.</li>
+          </ul>
+        </article>
+
+        <article class="card card--d">
+          <h3><code>bun fixtures</code></h3>
+          <p>
+            The fixtures command discovers committed YAML scenarios, runs them sequentially, prints per-scenario
+            pass/fail lines, supports <code>--filter</code>, and returns non-zero when any scenario fails.
+          </p>
+          <ul class="node-list">
+            <li>Failures include assertion messages and the preserved workdir path.</li>
+            <li>A filter with zero matches is an error, not a false green.</li>
+            <li>The package script is <code>bun src/dev/cli.ts fixtures</code>.</li>
+          </ul>
+        </article>
+      </div>
+
+      <div class="section-header mt-24">
+        <div class="label">Targeted checks</div>
+        <h2><code>bun agent:check</code> chooses the smallest useful fixture set</h2>
+        <p>
+          The targeted runner is meant for agents and contributors making small changes. It reads changed files
+          from <code>git diff --name-only HEAD</code>, maps those paths to relevant scenarios, and stays quiet on green.
+        </p>
+      </div>
+
+      <div class="diagram-wrap" aria-label="Agent check selection diagram">
+        <svg viewBox="0 0 1060 430" role="img" aria-labelledby="agentTitle agentDesc">
+          <title id="agentTitle">Agent check selection</title>
+          <desc id="agentDesc">Decision flow for choosing scenarios from changed files.</desc>
+          <defs>
+            <marker id="agentArrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto-start-reverse">
+              <path d="M0,0 L10,4 L0,8 Z" fill="var(--text-dim)"/>
+            </marker>
+          </defs>
+          <rect x="18" y="18" width="1024" height="394" rx="22" fill="var(--surface-recessed)" stroke="var(--border)"/>
+          <text x="42" y="52" class="svg-title">Selection rules: conservative when code changes, focused when fixtures/templates change</text>
+
+          <rect x="64" y="174" width="150" height="70" rx="14" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/>
+          <text x="139" y="202" text-anchor="middle" class="svg-title">git diff</text>
+          <text x="92" y="226" class="svg-mono">--name-only HEAD</text>
+
+          <polygon points="330,138 438,209 330,280 222,209" fill="var(--surface)" stroke="var(--node-a)" stroke-width="2"/>
+          <text x="330" y="204" text-anchor="middle" class="svg-title">path kind?</text>
+          <text x="330" y="224" text-anchor="middle" class="svg-mono">normalize first</text>
+
+          <rect x="514" y="76" width="170" height="64" rx="14" fill="var(--surface)" stroke="var(--node-c)" stroke-width="2"/>
+          <text x="599" y="103" text-anchor="middle" class="svg-title">src/**</text>
+          <text x="545" y="126" class="svg-mono">run all scenarios</text>
+
+          <rect x="514" y="174" width="170" height="64" rx="14" fill="var(--surface)" stroke="var(--node-b)" stroke-width="2"/>
+          <text x="599" y="201" text-anchor="middle" class="svg-title">fixture input</text>
+          <text x="537" y="224" class="svg-mono">match input name</text>
+
+          <rect x="514" y="272" width="170" height="64" rx="14" fill="var(--surface)" stroke="var(--node-d)" stroke-width="2"/>
+          <text x="599" y="299" text-anchor="middle" class="svg-title">templates</text>
+          <text x="533" y="322" class="svg-mono">match lang aliases</text>
+
+          <rect x="760" y="174" width="190" height="86" rx="14" fill="var(--surface)" stroke="var(--danger)" stroke-width="2"/>
+          <text x="855" y="202" text-anchor="middle" class="svg-title">selected scenarios</text>
+          <text x="788" y="226" class="svg-mono">pass: quiet summary</text>
+          <text x="788" y="247" class="svg-mono">fail: detailed output</text>
+
+          <path d="M214,209 L226,209" stroke="var(--text-dim)" stroke-width="2" marker-end="url(#agentArrow)"/>
+          <path d="M420,184 C454,132 472,108 514,108" stroke="var(--text-dim)" stroke-width="2" fill="none" marker-end="url(#agentArrow)"/>
+          <path d="M438,209 L514,209" stroke="var(--text-dim)" stroke-width="2" marker-end="url(#agentArrow)"/>
+          <path d="M420,234 C454,286 472,304 514,304" stroke="var(--text-dim)" stroke-width="2" fill="none" marker-end="url(#agentArrow)"/>
+          <path d="M684,108 C728,126 748,166 760,196" stroke="var(--text-dim)" stroke-width="2" fill="none" marker-end="url(#agentArrow)"/>
+          <path d="M684,209 L760,209" stroke="var(--text-dim)" stroke-width="2" marker-end="url(#agentArrow)"/>
+          <path d="M684,304 C728,288 748,260 760,238" stroke="var(--text-dim)" stroke-width="2" fill="none" marker-end="url(#agentArrow)"/>
+
+          <text x="492" y="114" class="svg-mono" text-anchor="end">code changed</text>
+          <text x="493" y="197" class="svg-mono" text-anchor="end">input changed</text>
+          <text x="493" y="294" class="svg-mono" text-anchor="end">template changed</text>
+          <text x="330" y="336" text-anchor="middle" class="svg-mono">docs-only or unrelated paths -> "0 scenarios run"</text>
+        </svg>
+      </div>
+
+      <div class="callout">
+        <strong>Subtle but important regression guard</strong>
+        <p>
+          Current TypeScript re-scaffold fixture names do not contain "typescript" or "ts". The selection logic enriches
+          discovered scenarios with <code>.anvil.lock</code> language metadata from their input fixture, so a TypeScript
+          template change selects <code>re-scaffold-clean</code>, <code>re-scaffold-drift</code>, and
+          <code>re-scaffold-template-bumped</code> instead of falsely running nothing.
+        </p>
+      </div>
+    </section>
+
+    <section class="section" id="file-map">
+      <div class="section-header">
+        <div class="label">Code map</div>
+        <h2>Where to look in the PR</h2>
+        <p>
+          Use this table to orient yourself before reading the diff. The "review for" column calls out the
+          behavior most likely to matter in future work.
+        </p>
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Area</th>
+                <th>Key files</th>
+                <th>What was built</th>
+                <th>Review for</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Shared contract</strong></td>
+                <td><code>src/types.ts</code></td>
+                <td>Language, context, manifest, FsTree, conflict, and lockfile types.</td>
+                <td>Whether the types match the decision docs and avoid ambiguous states.</td>
+              </tr>
+              <tr>
+                <td><strong>Manifest</strong></td>
+                <td><code>src/manifest.ts</code>, <code>static/*</code>, <code>src/templates/.gitkeep</code></td>
+                <td>Per-language lists of static/template/generator entries plus seed gating.</td>
+                <td>Path safety and whether missing assets are clearly deferred instead of hidden.</td>
+              </tr>
+              <tr>
+                <td><strong>Toolchain defaults</strong></td>
+                <td><code>src/internal/toolchain-defaults.*</code>, <code>scripts/refresh-toolchain-defaults.ts</code></td>
+                <td>Bundled snapshot for Bun, Node, Go, and Python with validation and refresh logic.</td>
+                <td>Freshness rules, semver validation, and deterministic snapshot timestamps.</td>
+              </tr>
+              <tr>
+                <td><strong>Lockfile engine</strong></td>
+                <td><code>src/scaffold/lockfile.ts</code></td>
+                <td>Read/write/classify <code>.anvil.lock</code>, checksums, diffs, checkpoints, and finalization.</td>
+                <td>Corrupt/in-progress behavior and the pending-to-written transition.</td>
+              </tr>
+              <tr>
+                <td><strong>Project detection</strong></td>
+                <td><code>src/scaffold/detect.ts</code></td>
+                <td>Heuristics for TypeScript, Go, and Python existing-code detection.</td>
+                <td>False positives/negatives and safe handling of unreadable filesystem paths.</td>
+              </tr>
+              <tr>
+                <td><strong>Staging tree</strong></td>
+                <td><code>src/scaffold/fstree.ts</code></td>
+                <td>In-memory target tree with create/update/unchanged classification.</td>
+                <td>Relative path normalization and not allowing absolute or escaping writes.</td>
+              </tr>
+              <tr>
+                <td><strong>Directory locking</strong></td>
+                <td><code>src/scaffold/dirlock.ts</code></td>
+                <td>Target-dir lock with PID/start-time payload and stale lock recovery.</td>
+                <td>Live-vs-stale decisions and idempotent release behavior.</td>
+              </tr>
+              <tr>
+                <td><strong>Render engine</strong></td>
+                <td><code>src/scaffold/engine.ts</code></td>
+                <td>Manifest rendering, conflict handling, checkpointed flushing, and lockfile preservation.</td>
+                <td>All-or-nothing non-interactive conflicts and interrupted-run recovery.</td>
+              </tr>
+              <tr>
+                <td><strong>Conflict UX</strong></td>
+                <td><code>src/scaffold/conflict.ts</code></td>
+                <td>Interactive overwrite/skip/diff/abort prompt using inquirer and line diffs.</td>
+                <td>Diff readability and correct action mapping back to the requested path.</td>
+              </tr>
+              <tr>
+                <td><strong>Scenario harness</strong></td>
+                <td><code>src/dev/schema.ts</code>, <code>harness.ts</code>, <code>assertions.ts</code></td>
+                <td>Strict YAML schema, temp workdir execution, output/file assertions, cleanup policy.</td>
+                <td>Clear failure messages and path traversal prevention in assertions.</td>
+              </tr>
+              <tr>
+                <td><strong>Dev CLI</strong></td>
+                <td><code>src/dev/cli.ts</code>, <code>src/dev/changed.ts</code></td>
+                <td><code>bun dev</code>, <code>bun fixtures</code>, and <code>bun agent:check</code>.</td>
+                <td>Argument parsing, changed-file selection, and failure reporting.</td>
+              </tr>
+              <tr>
+                <td><strong>Gates and docs</strong></td>
+                <td><code>.husky/pre-push</code>, <code>.github/workflows/fixtures.yml</code>, <code>AGENTS.md</code>, <code>README.md</code></td>
+                <td>Opt-in hook installation, local pre-push fixtures, CI fixtures, and reviewer guidance.</td>
+                <td>No automatic hook install via <code>prepare</code>, and CI repeats local safety checks.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="fixtures">
+      <div class="section-header">
+        <div class="label">Fixture catalog</div>
+        <h2>The nine committed scenarios are smoke tests now, but they model the real edge cases</h2>
+        <p>
+          Because <code>anvil init</code> is deferred, the current scenarios run <code>--version</code> and assert that
+          fixture inputs remain unchanged. Their main value in M1 is establishing the catalog, runner behavior,
+          sandbox safety, and future acceptance-test shape.
+        </p>
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Scenario</th>
+                <th>Input meaning</th>
+                <th>Current assertion</th>
+                <th>Future role</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>greenfield</code></td>
+                <td>Empty project directory.</td>
+                <td>CLI version succeeds; files unchanged.</td>
+                <td>Cold-start <code>anvil init</code> acceptance.</td>
+              </tr>
+              <tr>
+                <td><code>with-existing-code</code></td>
+                <td>Existing <code>src/foo.ts</code> without an anvil lockfile.</td>
+                <td>CLI version succeeds; files unchanged.</td>
+                <td>Existing-code detection and seed skipping.</td>
+              </tr>
+              <tr>
+                <td><code>re-scaffold-clean</code></td>
+                <td>Prior anvil lockfile and matching managed <code>Makefile</code>.</td>
+                <td>CLI version succeeds; files unchanged.</td>
+                <td>Idempotent re-scaffold no-op.</td>
+              </tr>
+              <tr>
+                <td><code>re-scaffold-drift</code></td>
+                <td>User-edited managed file no longer matches lockfile checksum.</td>
+                <td>CLI version succeeds; files unchanged.</td>
+                <td>Conflict reporter behavior in non-interactive mode.</td>
+              </tr>
+              <tr>
+                <td><code>re-scaffold-template-bumped</code></td>
+                <td>Old anvil version with disk still matching old lockfile.</td>
+                <td>CLI version succeeds; files unchanged.</td>
+                <td>Template-update classification on re-scaffold.</td>
+              </tr>
+              <tr>
+                <td><code>partial-toolchain</code></td>
+                <td>Partial TypeScript-ish project with package metadata but missing config.</td>
+                <td>CLI version succeeds; files unchanged.</td>
+                <td>Safe defaults for incomplete setups.</td>
+              </tr>
+              <tr>
+                <td><code>monorepo</code></td>
+                <td>Workspace-style <code>package.json</code>.</td>
+                <td>CLI version succeeds; files unchanged.</td>
+                <td>Workspace/monorepo detection behavior.</td>
+              </tr>
+              <tr>
+                <td><code>dirty-git-repo</code></td>
+                <td>Setup script creates a git repo with uncommitted changes.</td>
+                <td>CLI version succeeds; files unchanged.</td>
+                <td>Dirty-worktree detection and safety messaging.</td>
+              </tr>
+              <tr>
+                <td><code>hostile</code></td>
+                <td>Read-only file plus orphan lock PID payload.</td>
+                <td>CLI version succeeds; files unchanged.</td>
+                <td>Permission safety and stale lock cleanup paths.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="tickets">
+      <div class="section-header">
+        <div class="label">Ticket coverage</div>
+        <h2>What each M1 deliverable contributed</h2>
+        <p>
+          M1 was intentionally delivered as small, validated slices. The result is easier to review if you treat
+          each slice as a layer in the final architecture.
+        </p>
+      </div>
+
+      <div class="timeline">
+        <div class="timeline-item">
+          <div class="phase">Wave 1</div>
+          <div>
+            <strong>Independent foundations</strong>
+            <p>
+              TIX-000071 added bundled toolchain defaults. TIX-000018 created the manifest skeleton.
+              TIX-000019 added lockfile read/write/checkpoint support. TIX-000020 added project detection.
+              TIX-000052 added FsTree staging. TIX-000053 added directory locks. TIX-000059 added scenario schema.
+            </p>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="phase">Wave 2</div>
+          <div>
+            <strong>Engine and harness core</strong>
+            <p>
+              TIX-000021 wired manifest rendering into the scaffold engine. TIX-000022 added the interactive
+              conflict handler. TIX-000060 added the scenario runner and assertions. TIX-000061 added
+              <code>bun dev</code> for manual sandbox setup.
+            </p>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="phase">Wave 3</div>
+          <div>
+            <strong>Runnable checks</strong>
+            <p>
+              TIX-000062 added <code>bun fixtures</code>. TIX-000063 added <code>bun agent:check</code>.
+              TIX-000023 was deferred because full init needs missing language assets and generator support.
+              TIX-000064 was blocked because PTY acceptance needs real interactive init.
+            </p>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="phase">Wave 4</div>
+          <div>
+            <strong>Closeout gates and guidance</strong>
+            <p>
+              TIX-000065 added the opt-in pre-push/CI fixture gate. TIX-000069 added root <code>AGENTS.md</code>
+              so future agents know the project shape, inner loop, decision discipline, and reference guidance.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Ticket</th>
+                <th>Status</th>
+                <th>Reviewer summary</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td><code>TIX-000071</code></td><td><span class="status status--done">done</span></td><td>Bundled toolchain defaults snapshot and refresh script.</td></tr>
+              <tr><td><code>TIX-000018</code></td><td><span class="status status--done">done</span></td><td>Language manifest and static/template skeleton.</td></tr>
+              <tr><td><code>TIX-000019</code></td><td><span class="status status--done">done</span></td><td><code>.anvil.lock</code> schema, checksums, diffing, checkpointing.</td></tr>
+              <tr><td><code>TIX-000020</code></td><td><span class="status status--done">done</span></td><td>Existing-project detection for TypeScript, Go, and Python.</td></tr>
+              <tr><td><code>TIX-000052</code></td><td><span class="status status--done">done</span></td><td>FsTree staging and disk change classification.</td></tr>
+              <tr><td><code>TIX-000053</code></td><td><span class="status status--done">done</span></td><td>Directory lock guard with stale lock handling.</td></tr>
+              <tr><td><code>TIX-000059</code></td><td><span class="status status--done">done</span></td><td>Strict YAML scenario schema, including future PTY shape.</td></tr>
+              <tr><td><code>TIX-000021</code></td><td><span class="status status--done">done</span></td><td>Render engine for static and EJS template entries.</td></tr>
+              <tr><td><code>TIX-000022</code></td><td><span class="status status--done">done</span></td><td>Interactive overwrite/skip/diff/abort conflict handler.</td></tr>
+              <tr><td><code>TIX-000060</code></td><td><span class="status status--done">done</span></td><td>Scenario runner and assertion evaluator.</td></tr>
+              <tr><td><code>TIX-000061</code></td><td><span class="status status--done">done</span></td><td><code>bun dev</code> sandbox preparation command.</td></tr>
+              <tr><td><code>TIX-000062</code></td><td><span class="status status--done">done</span></td><td><code>bun fixtures</code> full fixture regression runner.</td></tr>
+              <tr><td><code>TIX-000063</code></td><td><span class="status status--done">done</span></td><td><code>bun agent:check</code> changed-file scenario selector.</td></tr>
+              <tr><td><code>TIX-000065</code></td><td><span class="status status--done">done</span></td><td>Pre-push hook, opt-in hook installer, fixtures CI, README docs.</td></tr>
+              <tr><td><code>TIX-000069</code></td><td><span class="status status--done">done</span></td><td>Root agent guidance under the D-21 line budget.</td></tr>
+              <tr><td><code>TIX-000023</code></td><td><span class="status status--warn">deferred</span></td><td>Full init integration needs missing language assets and generator support.</td></tr>
+              <tr><td><code>TIX-000064</code></td><td><span class="status status--warn">blocked</span></td><td>PTY scenarios need real interactive init before acceptance can be meaningful.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="review-guide">
+      <div class="section-header">
+        <div class="label">How to review</div>
+        <h2>A suggested reading order for junior reviewers</h2>
+        <p>
+          The PR is easier to understand if you read it from contracts outward, not alphabetically.
+          This order builds the mental model before the tests.
+        </p>
+      </div>
+
+      <div class="mini-grid">
+        <div class="mini-card">
+          <strong>1. Start with nouns</strong>
+          <span>Read <code>src/types.ts</code> and <code>src/manifest.ts</code>. Ask: "What state does the system need to remember?"</span>
+        </div>
+        <div class="mini-card">
+          <strong>2. Read the engine path</strong>
+          <span>Read <code>fstree.ts</code>, <code>lockfile.ts</code>, then <code>engine.ts</code>. Ask: "What happens before disk writes?"</span>
+        </div>
+        <div class="mini-card">
+          <strong>3. Review failure behavior</strong>
+          <span>Read conflict, checkpoint, and dirlock tests. Ask: "If a run fails halfway, can the next run understand it?"</span>
+        </div>
+        <div class="mini-card">
+          <strong>4. Read the harness</strong>
+          <span>Read <code>schema.ts</code>, <code>harness.ts</code>, and <code>assertions.ts</code>. Ask: "Can failures be diagnosed quickly?"</span>
+        </div>
+        <div class="mini-card">
+          <strong>5. Read dev CLI behavior</strong>
+          <span>Read <code>src/dev/cli.ts</code> and <code>changed.ts</code>. Ask: "Do commands fail closed rather than greenwashing?"</span>
+        </div>
+        <div class="mini-card">
+          <strong>6. Finish with gates</strong>
+          <span>Read hook, workflow, README, and AGENTS tests. Ask: "Will future contributors run the right checks?"</span>
+        </div>
+      </div>
+
+      <div class="split mt-16">
+        <div>
+          <h3>Review commands worth knowing</h3>
+          <div class="code-panel">
+<pre>bun test --silent
+bunx tsc --noEmit
+bun fixtures
+bun agent:check
+bun dev greenfield
+bun dev with-existing-code --name reviewer-scratch</pre>
+          </div>
+        </div>
+        <div>
+          <h3>Known boundaries to not mistake for bugs</h3>
+          <div class="code-panel">
+<pre>anvil init: not yet implemented
+generator manifest entries: intentionally throw in M1
+scenario pty shape: parsed, but harness rejects execution
+package prepare script: intentionally absent for opt-in hooks
+src/templates changes: conservatively covered by src/** all-run</pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-grid mt-16">
+        <article class="card card--danger">
+          <h3>Deferral: <code>TIX-000023</code></h3>
+          <p>
+            Full <code>anvil init</code> integration is deferred because the current manifest points at language
+            static/template/generator payloads that are not fully present yet. The engine also intentionally throws
+            for generator entries. Implementing init in this PR would either pull later language-vertical work into M1
+            or require shortcuts around the architecture.
+          </p>
+        </article>
+        <article class="card card--danger">
+          <h3>Deferral: <code>TIX-000064</code></h3>
+          <p>
+            PTY interactive scenarios depend on real interactive <code>anvil init</code> prompts and generated output.
+            The schema already models PTY scripts, but <code>harness.ts</code> rejects them with a clear unsupported
+            message until <code>TIX-000023</code> lands.
+          </p>
+        </article>
+      </div>
+
+      <div class="callout">
+        <strong>Most important reviewer question</strong>
+        <p>
+          Does every potentially destructive path fail safely? In this PR, that means non-interactive conflicts
+          should write nothing, interrupted flushes should leave understandable checkpoint state, sandbox copies
+          should not follow unsafe paths, and targeted checks should avoid false greens.
+        </p>
+      </div>
+    </section>
+
+    <section class="section" id="closeout">
+      <div class="section-header">
+        <div class="label">Closeout</div>
+        <h2>What this PR enables next</h2>
+        <p>
+          Once reviewed and merged, the next milestone can build on stable primitives instead of inventing them:
+          language assets can be added to the manifest, generator support can be implemented deliberately,
+          <code>anvil init</code> can call the engine, and the fixture catalog can graduate from CLI smoke checks
+          to real scaffold acceptance tests.
+        </p>
+      </div>
+
+      <div class="card-grid">
+        <article class="card card--c">
+          <h3>For product behavior</h3>
+          <p>
+            The scaffold engine can become the backend of <code>anvil init</code> once language payloads exist.
+            The existing checkpoint and conflict semantics mean init does not need to invent write safety from scratch.
+          </p>
+        </article>
+        <article class="card card--b">
+          <h3>For contributors</h3>
+          <p>
+            Contributors now have a local loop: use <code>bun dev</code> to inspect a sandbox, <code>bun agent:check</code>
+            for focused validation, and <code>bun fixtures</code> for the full gate.
+          </p>
+        </article>
+        <article class="card card--a">
+          <h3>For agents</h3>
+          <p>
+            Root <code>AGENTS.md</code> points agents to the project shape, decision file, fixture commands, and
+            reference-implementation discipline, reducing repeated onboarding mistakes.
+          </p>
+        </article>
+      </div>
+    </section>
+
+    <p class="footer-note">
+      Self-contained HTML walkthrough. No external assets, scripts, fonts, or network dependencies.
+    </p>
+  </main>
+</body>
+</html>
