@@ -6,6 +6,23 @@ import { getManifest } from '../src/manifest.ts';
 
 const repoRoot = join(import.meta.dir, '..');
 const pluginRoot = 'static/python/tools/flake8-plugin';
+const scaffoldFiles = [
+  'anvil_lint/__init__.py',
+  'anvil_lint/anti_slop.py',
+  'anvil_lint/error_handling.py',
+  'anvil_lint/structural.py',
+  'anvil_lint/test_quality.py',
+  'setup.py',
+  'setup.cfg',
+  'tests/conftest.py',
+  'tests/test_plugin.py',
+] as const;
+const stubModules = [
+  ['anti_slop.py', 'check_anti_slop', 'TIX-000045'],
+  ['error_handling.py', 'check_error_handling', 'TIX-000048'],
+  ['structural.py', 'check_structural', 'TIX-000046'],
+  ['test_quality.py', 'check_test_quality', 'TIX-000047'],
+] as const;
 
 function readPluginFile(path: string): string {
   return readFileSync(join(repoRoot, pluginRoot, path), 'utf8');
@@ -24,10 +41,7 @@ function listGeneratedPythonArtifacts(directory: string, relativeDirectory = '')
       }
 
       artifacts.push(...listGeneratedPythonArtifacts(fullPath, relativePath));
-      continue;
-    }
-
-    if (/\.py[cod]$/.test(entry.name)) {
+    } else if (/\.py[cod]$/.test(entry.name)) {
       artifacts.push(relativePath);
     }
   }
@@ -37,17 +51,7 @@ function listGeneratedPythonArtifacts(directory: string, relativeDirectory = '')
 
 describe('TIX-000044 Python Flake8 plugin scaffold', () => {
   test('all scaffold files exist in the static Python plugin tree', () => {
-    for (const path of [
-      'anvil_lint/__init__.py',
-      'anvil_lint/anti_slop.py',
-      'anvil_lint/error_handling.py',
-      'anvil_lint/structural.py',
-      'anvil_lint/test_quality.py',
-      'setup.py',
-      'setup.cfg',
-      'tests/conftest.py',
-      'tests/test_plugin.py',
-    ]) {
+    for (const path of scaffoldFiles) {
       expect(existsSync(join(repoRoot, pluginRoot, path))).toBe(true);
     }
   });
@@ -80,14 +84,7 @@ describe('TIX-000044 Python Flake8 plugin scaffold', () => {
   });
 
   test('stub modules expose documented empty generator functions', () => {
-    const modules = [
-      ['anti_slop.py', 'check_anti_slop', 'TIX-000045'],
-      ['error_handling.py', 'check_error_handling', 'TIX-000048'],
-      ['structural.py', 'check_structural', 'TIX-000046'],
-      ['test_quality.py', 'check_test_quality', 'TIX-000047'],
-    ] as const;
-
-    for (const [path, functionName, ticket] of modules) {
+    for (const [path, functionName, ticket] of stubModules) {
       const source = readPluginFile(`anvil_lint/${path}`);
 
       expect(source).toContain(`def ${functionName}(`);

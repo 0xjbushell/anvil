@@ -1,19 +1,22 @@
 import { describe, expect, test } from 'bun:test';
 
-async function importPlugin() {
-  return import('../../../static/typescript/tools/lint-rules/plugin.js');
+async function loadPlugin() {
+  const { default: plugin } = await import(
+    '../../../static/typescript/tools/lint-rules/plugin.js'
+  );
+
+  return plugin;
 }
 
 describe('anvil ESLint plugin', () => {
   test('loads without error', async () => {
-    const { default: plugin } = await importPlugin();
+    const plugin = await loadPlugin();
 
     expect(plugin).toBeDefined();
   });
 
   test('exports CommonJS plugin as the ESM default export', async () => {
-    const pluginModule = await importPlugin();
-    const plugin = pluginModule.default;
+    const plugin = await loadPlugin();
 
     expect(plugin).toBeDefined();
     expect(plugin.rules).toEqual({});
@@ -22,14 +25,14 @@ describe('anvil ESLint plugin', () => {
   });
 
   test('exports a recommended flat config', async () => {
-    const { default: plugin } = await importPlugin();
+    const plugin = await loadPlugin();
 
     expect(plugin.configs.recommended).toBeDefined();
     expect(plugin.configs.recommended.rules).toEqual({});
   });
 
   test('recommended config references the default-exported plugin', async () => {
-    const { default: plugin } = await importPlugin();
+    const plugin = await loadPlugin();
 
     expect(plugin.configs.recommended.plugins).toBeDefined();
     expect(plugin.configs.recommended.plugins.anvil).toBe(plugin);

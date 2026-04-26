@@ -9,6 +9,35 @@ const expectedRanges: Record<Lang, { min: number; max: number }> = {
   golang: { min: 18, max: 26 },
   python: { min: 18, max: 24 },
 };
+const expectedSeedDests: Record<Lang, string[]> = {
+  typescript: [
+    "src/seed/constants.ts",
+    "src/seed/enums.ts",
+    "src/seed/errors.ts",
+    "src/seed/seed.test.ts",
+    "src/seed/seed.ts",
+    "src/seed/types.ts",
+  ],
+  golang: [
+    "cmd/app/main.go",
+    "internal/seed/constants.go",
+    "internal/seed/enums.go",
+    "internal/seed/errors.go",
+    "internal/seed/seed.go",
+    "internal/seed/seed_test.go",
+    "internal/seed/types.go",
+  ],
+  python: [
+    "src/seed/__init__.py",
+    "src/seed/constants.py",
+    "src/seed/enums.py",
+    "src/seed/errors.py",
+    "src/seed/seed.py",
+    "src/seed/types.py",
+    "tests/conftest.py",
+    "tests/test_seed.py",
+  ],
+};
 
 function makeContext(
   lang: Lang,
@@ -141,35 +170,11 @@ describe("scaffold manifests", () => {
   });
 
   test("seed paths are correct for each language", () => {
-    expect(seedEntries("typescript").map((entry) => entry.dest).sort()).toEqual([
-      "src/seed/constants.ts",
-      "src/seed/enums.ts",
-      "src/seed/errors.ts",
-      "src/seed/seed.test.ts",
-      "src/seed/seed.ts",
-      "src/seed/types.ts",
-    ]);
+    for (const lang of languages) {
+      const seedDests = seedEntries(lang).map((entry) => entry.dest).sort();
 
-    expect(seedEntries("golang").map((entry) => entry.dest).sort()).toEqual([
-      "cmd/app/main.go",
-      "internal/seed/constants.go",
-      "internal/seed/enums.go",
-      "internal/seed/errors.go",
-      "internal/seed/seed.go",
-      "internal/seed/seed_test.go",
-      "internal/seed/types.go",
-    ]);
-
-    expect(seedEntries("python").map((entry) => entry.dest).sort()).toEqual([
-      "src/seed/__init__.py",
-      "src/seed/constants.py",
-      "src/seed/enums.py",
-      "src/seed/errors.py",
-      "src/seed/seed.py",
-      "src/seed/types.py",
-      "tests/conftest.py",
-      "tests/test_seed.py",
-    ]);
+      expect(seedDests).toEqual(expectedSeedDests[lang]);
+    }
   });
 
   test("directory tree entries use explicit glob-like paths for downstream expansion", () => {
