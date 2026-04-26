@@ -17,6 +17,11 @@ const filenameMatchExport = require('./structural/filename-match-export.js');
 const noExportedFunctionExpressions = require('./structural/no-exported-function-expressions.js');
 const noBarrelDensity = require('./structural/no-barrel-density.js');
 const noOverFragmentation = require('./structural/no-over-fragmentation.js');
+const noEmptyTests = require('./test-quality/no-empty-tests.js');
+const noTautologicalAssertions = require('./test-quality/no-tautological-assertions.js');
+const noDisabledTestsWithoutReason = require('./test-quality/no-disabled-tests-without-reason.js');
+const requireErrorPathTests = require('./test-quality/require-error-path-tests.js');
+const noSnapshotOnlyTests = require('./test-quality/no-snapshot-only-tests.js');
 
 const rules = {
   'no-log-and-continue': noLogAndContinue,
@@ -36,6 +41,11 @@ const rules = {
   'no-exported-function-expressions': noExportedFunctionExpressions,
   'no-barrel-density': noBarrelDensity,
   'no-over-fragmentation': noOverFragmentation,
+  'no-empty-tests': noEmptyTests,
+  'no-tautological-assertions': noTautologicalAssertions,
+  'no-disabled-tests-without-reason': noDisabledTestsWithoutReason,
+  'require-error-path-tests': requireErrorPathTests,
+  'no-snapshot-only-tests': noSnapshotOnlyTests,
 };
 
 const plugin = {
@@ -63,6 +73,11 @@ plugin.configs.recommended = {
     'anvil/no-exported-function-expressions': 'error',
     'anvil/no-barrel-density': 'error',
     'anvil/no-over-fragmentation': 'error',
+    'anvil/no-empty-tests': 'error',
+    'anvil/no-tautological-assertions': 'error',
+    'anvil/no-disabled-tests-without-reason': 'error',
+    'anvil/require-error-path-tests': 'error',
+    'anvil/no-snapshot-only-tests': 'error',
   },
 };
 

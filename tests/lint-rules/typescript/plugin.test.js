@@ -27,6 +27,11 @@ describe('anvil ESLint plugin', () => {
     'no-exported-function-expressions',
     'no-barrel-density',
     'no-over-fragmentation',
+    'no-empty-tests',
+    'no-tautological-assertions',
+    'no-disabled-tests-without-reason',
+    'require-error-path-tests',
+    'no-snapshot-only-tests',
   ];
 
   test('loads without error', async () => {
