@@ -1,0 +1,1124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Anvil PR #4 Visual Walkthrough</title>
+  <style>
+    :root {
+      --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+      --font-mono: ui-monospace, 'Cascadia Code', 'SF Mono', Consolas, 'DejaVu Sans Mono', monospace;
+      --font-serif: Charter, 'Bitstream Charter', Cambria, serif;
+
+      --bg: #f7f4ed;
+      --surface: #fffdf8;
+      --surface-elevated: #ffffff;
+      --surface-recessed: #efe9dc;
+      --border: rgba(65, 51, 31, 0.12);
+      --border-bright: rgba(65, 51, 31, 0.24);
+      --text: #211a12;
+      --text-dim: #665947;
+      --text-muted: #827665;
+      --accent: #b45309;
+      --accent-dim: rgba(180, 83, 9, 0.1);
+      --rule: #2563eb;
+      --rule-dim: rgba(37, 99, 235, 0.11);
+      --flow: #059669;
+      --flow-dim: rgba(5, 150, 105, 0.11);
+      --warn: #c2410c;
+      --warn-dim: rgba(194, 65, 12, 0.11);
+      --shadow: 0 18px 42px rgba(65, 51, 31, 0.11), 0 2px 9px rgba(65, 51, 31, 0.06);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #10100f;
+        --surface: #1a1815;
+        --surface-elevated: #232019;
+        --surface-recessed: #14120f;
+        --border: rgba(255, 245, 224, 0.08);
+        --border-bright: rgba(255, 245, 224, 0.18);
+        --text: #f7efe2;
+        --text-dim: #c1b59f;
+        --text-muted: #948b7d;
+        --accent: #f59e0b;
+        --accent-dim: rgba(245, 158, 11, 0.13);
+        --rule: #60a5fa;
+        --rule-dim: rgba(96, 165, 250, 0.13);
+        --flow: #34d399;
+        --flow-dim: rgba(52, 211, 153, 0.13);
+        --warn: #fb923c;
+        --warn-dim: rgba(251, 146, 60, 0.13);
+        --shadow: 0 18px 42px rgba(0, 0, 0, 0.28), 0 2px 9px rgba(0, 0, 0, 0.18);
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      font-family: var(--font-body);
+      color: var(--text);
+      background:
+        radial-gradient(circle at 8% 8%, var(--accent-dim), transparent 30rem),
+        radial-gradient(circle at 92% 12%, var(--rule-dim), transparent 32rem),
+        radial-gradient(circle at 45% 95%, var(--flow-dim), transparent 34rem),
+        var(--bg);
+      line-height: 1.6;
+      overflow-wrap: break-word;
+    }
+
+    .container {
+      width: min(1180px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 34px 0 70px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+      gap: 22px;
+      align-items: stretch;
+      margin-bottom: 22px;
+    }
+
+    .panel,
+    .hero-main,
+    .hero-side,
+    .diagram-wrap,
+    .table-wrap,
+    .mentor-note,
+    .code-panel,
+    .mini-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+    }
+
+    .hero-main {
+      padding: 34px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-main::after {
+      content: '';
+      position: absolute;
+      inset: auto -90px -140px auto;
+      width: 360px;
+      height: 360px;
+      border-radius: 50%;
+      background: radial-gradient(circle, var(--accent-dim), transparent 72%);
+      pointer-events: none;
+    }
+
+    .eyebrow,
+    .label {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+    }
+
+    h1 {
+      position: relative;
+      z-index: 1;
+      max-width: 760px;
+      margin-top: 10px;
+      font-size: clamp(34px, 6vw, 66px);
+      font-family: var(--font-serif);
+    }
+
+    h2 {
+      font-size: clamp(25px, 3vw, 38px);
+      font-family: var(--font-serif);
+    }
+
+    h3 {
+      font-size: 18px;
+    }
+
+    p {
+      margin: 0;
+      color: var(--text-dim);
+    }
+
+    code {
+      font-family: var(--font-mono);
+      font-size: 0.92em;
+      color: var(--accent);
+      background: var(--accent-dim);
+      border-radius: 5px;
+      padding: 1px 5px;
+    }
+
+    .lede {
+      position: relative;
+      z-index: 1;
+      max-width: 760px;
+      margin-top: 18px;
+      font-size: 18px;
+      color: var(--text-dim);
+    }
+
+    .hero-side {
+      padding: 24px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .metric {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 12px;
+      align-items: center;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--surface-elevated);
+      animation: fadeUp 0.45s ease-out both;
+      animation-delay: calc(var(--i, 0) * 0.06s);
+    }
+
+    .metric strong {
+      font-family: var(--font-mono);
+      font-size: 30px;
+      line-height: 1;
+      color: var(--accent);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .metric span {
+      color: var(--text-dim);
+      font-size: 13px;
+    }
+
+    .section {
+      margin-top: 22px;
+      padding: 28px;
+    }
+
+    .section > header {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+
+    .mentor-note {
+      margin-top: 18px;
+      padding: 20px;
+      border-left: 5px solid var(--flow);
+      background: linear-gradient(135deg, var(--flow-dim), transparent 65%), var(--surface);
+    }
+
+    .mentor-note strong {
+      color: var(--flow);
+    }
+
+    .grid-2,
+    .grid-3 {
+      display: grid;
+      gap: 16px;
+    }
+
+    .grid-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .grid-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .grid-2 > *,
+    .grid-3 > * {
+      min-width: 0;
+    }
+
+    .mini-card {
+      padding: 18px;
+      animation: fadeUp 0.45s ease-out both;
+      animation-delay: calc(var(--i, 0) * 0.04s);
+    }
+
+    .mini-card h3 {
+      margin-bottom: 8px;
+    }
+
+    .mini-card p,
+    .mini-card li {
+      font-size: 13px;
+      color: var(--text-dim);
+    }
+
+    .mini-card ul {
+      list-style: none;
+      margin: 12px 0 0;
+      padding: 0;
+    }
+
+    .mini-card li {
+      position: relative;
+      padding-left: 16px;
+      margin: 6px 0;
+    }
+
+    .mini-card li::before {
+      content: '›';
+      position: absolute;
+      left: 0;
+      color: var(--accent);
+      font-weight: 800;
+    }
+
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--rule);
+      background: var(--rule-dim);
+      border: 1px solid color-mix(in srgb, var(--rule) 28%, transparent);
+    }
+
+    .tag--flow {
+      color: var(--flow);
+      background: var(--flow-dim);
+      border-color: color-mix(in srgb, var(--flow) 28%, transparent);
+    }
+
+    .tag--warn {
+      color: var(--warn);
+      background: var(--warn-dim);
+      border-color: color-mix(in srgb, var(--warn) 28%, transparent);
+    }
+
+    .diagram-wrap {
+      padding: 18px;
+      overflow-x: auto;
+      margin-top: 16px;
+    }
+
+    .diagram-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .diagram-title span {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    svg {
+      max-width: 100%;
+      height: auto;
+    }
+
+    .diagram-text {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      fill: var(--text);
+    }
+
+    .diagram-muted {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      fill: var(--text-dim);
+    }
+
+    .node-rule {
+      fill: var(--rule-dim);
+      stroke: var(--rule);
+    }
+
+    .node-flow {
+      fill: var(--flow-dim);
+      stroke: var(--flow);
+    }
+
+    .node-warn {
+      fill: var(--warn-dim);
+      stroke: var(--warn);
+    }
+
+    .node-neutral {
+      fill: var(--surface-elevated);
+      stroke: var(--border-bright);
+    }
+
+    .arrow {
+      stroke: var(--text-dim);
+      stroke-width: 1.8;
+      fill: none;
+      marker-end: url(#arrow);
+    }
+
+    .arrow-flow {
+      stroke: var(--flow);
+    }
+
+    .arrow-rule {
+      stroke: var(--rule);
+    }
+
+    .arrow-dashed {
+      stroke-dasharray: 7 5;
+    }
+
+    .table-wrap {
+      overflow: hidden;
+      margin-top: 16px;
+    }
+
+    .table-scroll {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 860px;
+      font-size: 13px;
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: var(--surface-recessed);
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      text-align: left;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 13px 14px;
+      border-bottom: 1px solid var(--border-bright);
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 14px;
+      vertical-align: top;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-dim);
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tbody tr:nth-child(even) {
+      background: color-mix(in srgb, var(--surface-recessed) 44%, transparent);
+    }
+
+    tbody tr:hover {
+      background: var(--accent-dim);
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .status--pass {
+      color: var(--flow);
+      background: var(--flow-dim);
+    }
+
+    .status--rule {
+      color: var(--rule);
+      background: var(--rule-dim);
+    }
+
+    .code-panel {
+      margin-top: 16px;
+      overflow: hidden;
+    }
+
+    .code-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface-recessed);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
+    pre {
+      margin: 0;
+      padding: 18px;
+      overflow-x: auto;
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.65;
+      background: var(--surface);
+    }
+
+    .timeline {
+      display: grid;
+      gap: 14px;
+      margin-top: 16px;
+      position: relative;
+    }
+
+    .timeline-step {
+      display: grid;
+      grid-template-columns: 42px minmax(0, 1fr);
+      gap: 14px;
+      align-items: start;
+    }
+
+    .step-dot {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      color: var(--surface);
+      background: var(--accent);
+      font-family: var(--font-mono);
+      font-weight: 800;
+      font-size: 12px;
+      box-shadow: 0 0 0 6px var(--accent-dim);
+    }
+
+    .step-body {
+      padding: 15px 16px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--surface-elevated);
+    }
+
+    .step-body h3 {
+      margin-bottom: 5px;
+    }
+
+    .step-body p {
+      font-size: 13px;
+    }
+
+    .footer {
+      margin-top: 28px;
+      padding: 18px;
+      text-align: center;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(12px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .hero,
+      .grid-2,
+      .grid-3 {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-main {
+        padding: 26px;
+      }
+    }
+
+    @media (max-width: 620px) {
+      .container {
+        width: min(100% - 20px, 1180px);
+        padding-top: 18px;
+      }
+
+      .section {
+        padding: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <section class="hero">
+      <div class="hero-main">
+        <div class="eyebrow">PR #4 · TIX-000029 · Mentor walkthrough</div>
+        <h1>How the TypeScript anti-slop ESLint rules were designed</h1>
+        <p class="lede">
+          This walkthrough explains the new local ESLint plugin rules as if we were pairing on them:
+          start from the plugin entry point, follow the call flow into each rule, then trace how source
+          code becomes an AST, a rule decision, and finally a lint diagnostic.
+        </p>
+        <div class="tag-row">
+          <span class="tag">CommonJS plugin</span>
+          <span class="tag tag--flow">RuleTester contracts</span>
+          <span class="tag tag--warn">False-positive controls</span>
+        </div>
+      </div>
+
+      <aside class="hero-side" aria-label="PR metrics">
+        <div class="metric" style="--i: 0">
+          <strong>5</strong>
+          <span>new rules registered in <code>plugin.js</code></span>
+        </div>
+        <div class="metric" style="--i: 1">
+          <strong>64</strong>
+          <span>targeted lint-rule tests in the PR validation set</span>
+        </div>
+        <div class="metric" style="--i: 2">
+          <strong>267</strong>
+          <span>full Bun tests passing after the final rule fixes</span>
+        </div>
+        <div class="metric" style="--i: 3">
+          <strong>0</strong>
+          <span>slop-scan findings after the milestone PR quality gate</span>
+        </div>
+      </aside>
+    </section>
+
+    <section class="section">
+      <header>
+        <div class="label">1 · Mental model</div>
+        <h2>Think of the plugin as a router</h2>
+        <p>
+          ESLint does not know about individual files by itself. It loads one plugin object, then uses
+          the rule names in that object to find the matching rule module. That is why the smallest
+          reliable design is: <code>plugin.js</code> owns the public names, and each rule module owns one
+          behavior.
+        </p>
+      </header>
+
+      <div class="diagram-wrap">
+        <div class="diagram-title">
+          <strong>Architecture topology</strong>
+          <span>static scaffold → generated project → ESLint runtime</span>
+        </div>
+        <svg viewBox="0 0 1040 420" role="img" aria-label="Architecture diagram of the TypeScript lint rule plugin">
+          <defs>
+            <marker id="arrow" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto-start-reverse">
+              <path d="M0,0 L9,3.5 L0,7 Z" fill="var(--text-dim)"></path>
+            </marker>
+          </defs>
+
+          <g transform="translate(40 42)">
+            <rect class="node-neutral" width="230" height="92" rx="14"></rect>
+            <text class="diagram-text" x="115" y="36" text-anchor="middle">anvil source tree</text>
+            <text class="diagram-muted" x="115" y="59" text-anchor="middle">static/typescript/tools</text>
+            <text class="diagram-muted" x="115" y="77" text-anchor="middle">/lint-rules/**</text>
+          </g>
+
+          <g transform="translate(394 42)">
+            <rect class="node-flow" width="230" height="92" rx="14"></rect>
+            <text class="diagram-text" x="115" y="36" text-anchor="middle">scaffolded project</text>
+            <text class="diagram-muted" x="115" y="59" text-anchor="middle">tools/lint-rules/**</text>
+            <text class="diagram-muted" x="115" y="77" text-anchor="middle">CommonJS package boundary</text>
+          </g>
+
+          <g transform="translate(748 42)">
+            <rect class="node-rule" width="230" height="92" rx="14"></rect>
+            <text class="diagram-text" x="115" y="36" text-anchor="middle">ESLint flat config</text>
+            <text class="diagram-muted" x="115" y="59" text-anchor="middle">imports local plugin</text>
+            <text class="diagram-muted" x="115" y="77" text-anchor="middle">enables anvil/* rules</text>
+          </g>
+
+          <path class="arrow arrow-flow" d="M270 88 C320 88 344 88 394 88"></path>
+          <text class="diagram-muted" x="332" y="76" text-anchor="middle">copy at init</text>
+
+          <path class="arrow arrow-rule" d="M624 88 C674 88 698 88 748 88"></path>
+          <text class="diagram-muted" x="686" y="76" text-anchor="middle">runtime import</text>
+
+          <g transform="translate(175 228)">
+            <rect class="node-neutral" width="210" height="92" rx="14"></rect>
+            <text class="diagram-text" x="105" y="34" text-anchor="middle">plugin.js</text>
+            <text class="diagram-muted" x="105" y="58" text-anchor="middle">rules map</text>
+            <text class="diagram-muted" x="105" y="76" text-anchor="middle">recommended config</text>
+          </g>
+
+          <g transform="translate(486 204)">
+            <rect class="node-rule" width="270" height="140" rx="14"></rect>
+            <text class="diagram-text" x="135" y="34" text-anchor="middle">rule modules</text>
+            <text class="diagram-muted" x="135" y="62" text-anchor="middle">no-log-and-continue</text>
+            <text class="diagram-muted" x="135" y="82" text-anchor="middle">no-error-obscuring</text>
+            <text class="diagram-muted" x="135" y="102" text-anchor="middle">no-placeholder-comments</text>
+            <text class="diagram-muted" x="135" y="122" text-anchor="middle">no-log-and-throw + silent swallow</text>
+          </g>
+
+          <g transform="translate(824 228)">
+            <rect class="node-warn" width="180" height="92" rx="14"></rect>
+            <text class="diagram-text" x="90" y="34" text-anchor="middle">diagnostics</text>
+            <text class="diagram-muted" x="90" y="58" text-anchor="middle">context.report()</text>
+            <text class="diagram-muted" x="90" y="76" text-anchor="middle">messageId</text>
+          </g>
+
+          <path class="arrow" d="M280 134 C280 178 280 198 280 228"></path>
+          <path class="arrow arrow-rule" d="M385 274 C430 274 446 274 486 274"></path>
+          <path class="arrow arrow-flow" d="M756 274 C790 274 800 274 824 274"></path>
+        </svg>
+      </div>
+
+      <div class="mentor-note">
+        <p>
+          <strong>Mentor tip:</strong> when you inherit a plugin like this, do not start inside the
+          most complex rule. Start at <code>plugin.js</code>. Confirm the public names, then open the
+          matching file. That catches path and module-format bugs before you reason about AST logic.
+        </p>
+      </div>
+    </section>
+
+    <section class="section">
+      <header>
+        <div class="label">2 · Call flow</div>
+        <h2>What happens when ESLint runs?</h2>
+        <p>
+          Every rule follows the same lifecycle: ESLint loads the plugin, creates the rule with a
+          <code>context</code>, walks the parsed AST, and lets the rule call <code>context.report()</code>
+          when it sees an anti-pattern.
+        </p>
+      </header>
+
+      <div class="diagram-wrap">
+        <div class="diagram-title">
+          <strong>Sequence diagram</strong>
+          <span>load → create → visit → report</span>
+        </div>
+        <svg viewBox="0 0 980 520" role="img" aria-label="Sequence diagram for ESLint rule execution">
+          <defs>
+            <marker id="seq-arrow" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto-start-reverse">
+              <path d="M0,0 L9,3.5 L0,7 Z" fill="var(--text-dim)"></path>
+            </marker>
+          </defs>
+
+          <g transform="translate(60 20)">
+            <rect class="node-neutral" width="140" height="42" rx="10"></rect>
+            <text class="diagram-text" x="70" y="27" text-anchor="middle">eslint.config</text>
+          </g>
+          <g transform="translate(290 20)">
+            <rect class="node-flow" width="140" height="42" rx="10"></rect>
+            <text class="diagram-text" x="70" y="27" text-anchor="middle">plugin.js</text>
+          </g>
+          <g transform="translate(520 20)">
+            <rect class="node-rule" width="140" height="42" rx="10"></rect>
+            <text class="diagram-text" x="70" y="27" text-anchor="middle">rule module</text>
+          </g>
+          <g transform="translate(750 20)">
+            <rect class="node-warn" width="140" height="42" rx="10"></rect>
+            <text class="diagram-text" x="70" y="27" text-anchor="middle">ESLint AST</text>
+          </g>
+
+          <line x1="130" y1="62" x2="130" y2="480" stroke="var(--border-bright)" stroke-dasharray="6 5"></line>
+          <line x1="360" y1="62" x2="360" y2="480" stroke="var(--border-bright)" stroke-dasharray="6 5"></line>
+          <line x1="590" y1="62" x2="590" y2="480" stroke="var(--border-bright)" stroke-dasharray="6 5"></line>
+          <line x1="820" y1="62" x2="820" y2="480" stroke="var(--border-bright)" stroke-dasharray="6 5"></line>
+
+          <line x1="130" y1="110" x2="360" y2="110" stroke="var(--text-dim)" stroke-width="1.8" marker-end="url(#seq-arrow)"></line>
+          <text class="diagram-muted" x="245" y="98" text-anchor="middle">import local plugin</text>
+
+          <line x1="360" y1="170" x2="590" y2="170" stroke="var(--text-dim)" stroke-width="1.8" marker-end="url(#seq-arrow)"></line>
+          <text class="diagram-muted" x="475" y="158" text-anchor="middle">lookup rule by name</text>
+
+          <line x1="820" y1="230" x2="590" y2="230" stroke="var(--text-dim)" stroke-width="1.8" marker-end="url(#seq-arrow)"></line>
+          <text class="diagram-muted" x="705" y="218" text-anchor="middle">call visitor: CatchClause / Program / IfStatement</text>
+
+          <line x1="590" y1="300" x2="820" y2="300" stroke="var(--flow)" stroke-width="1.8" marker-end="url(#seq-arrow)"></line>
+          <text class="diagram-muted" x="705" y="288" text-anchor="middle">inspect AST shape and comments</text>
+
+          <line x1="590" y1="370" x2="820" y2="370" stroke="var(--warn)" stroke-width="1.8" stroke-dasharray="7 5" marker-end="url(#seq-arrow)"></line>
+          <text class="diagram-muted" x="705" y="358" text-anchor="middle">context.report({ messageId })</text>
+
+          <rect x="584" y="170" width="12" height="204" rx="3" fill="var(--rule-dim)" stroke="var(--rule)"></rect>
+          <rect x="814" y="225" width="12" height="150" rx="3" fill="var(--warn-dim)" stroke="var(--warn)"></rect>
+        </svg>
+      </div>
+
+      <div class="grid-3">
+        <article class="mini-card" style="--i: 0">
+          <h3>Rule shape</h3>
+          <p>Each file exports <code>{ meta, create }</code>. <code>meta</code> documents the rule;
+            <code>create(context)</code> returns the AST visitors.</p>
+        </article>
+        <article class="mini-card" style="--i: 1">
+          <h3>Visitor shape</h3>
+          <p>Rules stay focused: catch-based rules visit <code>CatchClause</code>, comment rules visit
+            <code>Program</code>, branch rules visit <code>CatchClause</code> and <code>IfStatement</code>.</p>
+        </article>
+        <article class="mini-card" style="--i: 2">
+          <h3>Report shape</h3>
+          <p>Rules report by <code>messageId</code>. Tests assert those IDs so wording can change less
+            often than behavior.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <header>
+        <div class="label">3 · Data flow</div>
+        <h2>How source code becomes a lint finding</h2>
+        <p>
+          The rule does not read raw TypeScript text in most cases. ESLint parses the file first, then
+          sends structured nodes to each visitor. The only exception in this batch is
+          <code>no-placeholder-comments</code>, which intentionally reads the comment stream.
+        </p>
+      </header>
+
+      <div class="diagram-wrap">
+        <div class="diagram-title">
+          <strong>Data flow diagram</strong>
+          <span>source text → AST/comments → decision → report</span>
+        </div>
+        <svg viewBox="0 0 1040 520" role="img" aria-label="Data flow diagram for ESLint rule decisions">
+          <defs>
+            <marker id="data-arrow" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto-start-reverse">
+              <path d="M0,0 L9,3.5 L0,7 Z" fill="var(--text-dim)"></path>
+            </marker>
+          </defs>
+
+          <g transform="translate(38 48)">
+            <rect class="node-neutral" width="180" height="70" rx="14"></rect>
+            <text class="diagram-text" x="90" y="32" text-anchor="middle">source file</text>
+            <text class="diagram-muted" x="90" y="52" text-anchor="middle">.ts / .js text</text>
+          </g>
+
+          <g transform="translate(310 48)">
+            <rect class="node-flow" width="180" height="70" rx="14"></rect>
+            <text class="diagram-text" x="90" y="32" text-anchor="middle">parser output</text>
+            <text class="diagram-muted" x="90" y="52" text-anchor="middle">AST + comments</text>
+          </g>
+
+          <g transform="translate(596 28)">
+            <rect class="node-rule" width="200" height="110" rx="14"></rect>
+            <text class="diagram-text" x="100" y="31" text-anchor="middle">rule decision</text>
+            <text class="diagram-muted" x="100" y="56" text-anchor="middle">helpers normalize syntax</text>
+            <text class="diagram-muted" x="100" y="76" text-anchor="middle">guards reduce false positives</text>
+            <text class="diagram-muted" x="100" y="96" text-anchor="middle">messageId selected</text>
+          </g>
+
+          <g transform="translate(880 48)">
+            <rect class="node-warn" width="128" height="70" rx="14"></rect>
+            <text class="diagram-text" x="64" y="32" text-anchor="middle">finding</text>
+            <text class="diagram-muted" x="64" y="52" text-anchor="middle">line + message</text>
+          </g>
+
+          <path class="arrow" marker-end="url(#data-arrow)" d="M218 83 C258 83 270 83 310 83"></path>
+          <path class="arrow arrow-flow" marker-end="url(#data-arrow)" d="M490 83 C540 83 552 83 596 83"></path>
+          <path class="arrow arrow-rule" marker-end="url(#data-arrow)" d="M796 83 C836 83 848 83 880 83"></path>
+
+          <g transform="translate(92 232)">
+            <rect class="node-neutral" width="200" height="122" rx="14"></rect>
+            <text class="diagram-text" x="100" y="30" text-anchor="middle">AST helpers</text>
+            <text class="diagram-muted" x="100" y="55" text-anchor="middle">unwrap TS assertions</text>
+            <text class="diagram-muted" x="100" y="75" text-anchor="middle">recognize console/logger</text>
+            <text class="diagram-muted" x="100" y="95" text-anchor="middle">avoid property-key traps</text>
+          </g>
+
+          <g transform="translate(420 216)">
+            <rect class="node-flow" width="210" height="154" rx="14"></rect>
+            <text class="diagram-text" x="105" y="30" text-anchor="middle">rule-specific guards</text>
+            <text class="diagram-muted" x="105" y="57" text-anchor="middle">ticketed TODO/FIXME allowed</text>
+            <text class="diagram-muted" x="105" y="77" text-anchor="middle">HACK always flagged</text>
+            <text class="diagram-muted" x="105" y="97" text-anchor="middle">RULE-05 scoped to error branches</text>
+            <text class="diagram-muted" x="105" y="117" text-anchor="middle">suppression comments allowed</text>
+            <text class="diagram-muted" x="105" y="137" text-anchor="middle">default-return paths checked</text>
+          </g>
+
+          <g transform="translate(760 232)">
+            <rect class="node-warn" width="200" height="122" rx="14"></rect>
+            <text class="diagram-text" x="100" y="30" text-anchor="middle">RuleTester contract</text>
+            <text class="diagram-muted" x="100" y="55" text-anchor="middle">valid cases protect users</text>
+            <text class="diagram-muted" x="100" y="75" text-anchor="middle">invalid cases prove detection</text>
+            <text class="diagram-muted" x="100" y="95" text-anchor="middle">regressions stay fixed</text>
+          </g>
+
+          <path class="arrow arrow-dashed" marker-end="url(#data-arrow)" d="M696 138 C642 184 350 188 226 232"></path>
+          <path class="arrow arrow-dashed arrow-flow" marker-end="url(#data-arrow)" d="M696 138 C660 180 590 195 545 216"></path>
+          <path class="arrow arrow-dashed arrow-rule" marker-end="url(#data-arrow)" d="M696 138 C746 182 810 198 860 232"></path>
+        </svg>
+      </div>
+
+      <div class="mentor-note">
+        <p>
+          <strong>Mentor tip:</strong> AST rules are mostly data-classification problems. Write down the
+          shape you expect, write a RuleTester case for it, then make the visitor just smart enough to
+          distinguish that shape from nearby valid code.
+        </p>
+      </div>
+    </section>
+
+    <section class="section">
+      <header>
+        <div class="label">4 · Rule-by-rule map</div>
+        <h2>What each rule owns</h2>
+        <p>
+          The table below is the practical handoff: when a junior engineer asks “where should I look?”,
+          start with the rule’s visitor, then read the test row that explains what false positive the
+          implementation is trying to avoid.
+        </p>
+      </header>
+
+      <div class="table-wrap">
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Rule</th>
+                <th>Visitor / data source</th>
+                <th>Flags</th>
+                <th>False-positive guard</th>
+                <th>Test lesson</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="status status--rule">RULE-01</span><br><code>no-log-and-continue</code></td>
+                <td><code>CatchClause</code> body analysis</td>
+                <td>Catch blocks where every meaningful path only logs.</td>
+                <td>Allows rethrow, return, and recovery logic; empty catches are delegated to RULE-09.</td>
+                <td>Includes guarded log-only catch regression so <code>if (debug) console.error(err)</code> is caught.</td>
+              </tr>
+              <tr>
+                <td><span class="status status--rule">RULE-02</span><br><code>no-error-obscuring</code></td>
+                <td><code>CatchClause</code> statements + expression traversal</td>
+                <td>Default returns and generic <code>new Error("...")</code> throws that lose the caught error.</td>
+                <td>Allows <code>{ cause: err }</code>, <code>err.message</code>, custom wrappers, and prior guaranteed context preservation.</td>
+                <td>Includes conditional-log-then-default-return regression because a debug branch is not guaranteed preservation.</td>
+              </tr>
+              <tr>
+                <td><span class="status status--rule">RULE-03</span><br><code>no-placeholder-comments</code></td>
+                <td><code>context.sourceCode.getAllComments()</code></td>
+                <td>Vague TODO/FIXME, HACK, placeholder, fill-in, temporary, and stub comments.</td>
+                <td>Allows actionable TODO/FIXME comments with ticket references; HACK remains flagged.</td>
+                <td>Tests intentionally include placeholder words inside ticketed TODO/FIXME to lock the exception down.</td>
+              </tr>
+              <tr>
+                <td><span class="status status--rule">RULE-05</span><br><code>no-log-and-throw</code></td>
+                <td><code>CatchClause</code> and <code>IfStatement</code> branch blocks</td>
+                <td>Logging and throwing or returning an error in the same error-handling block.</td>
+                <td>A plain arbitrary block is valid; this avoids flagging non-error-handling control flow.</td>
+                <td>Tests cover both catch blocks and same-branch <code>if (err)</code> blocks.</td>
+              </tr>
+              <tr>
+                <td><span class="status status--rule">RULE-09</span><br><code>no-silent-error-swallow</code></td>
+                <td><code>CatchClause</code> empty-body check</td>
+                <td>Empty catches or catches containing only semicolons.</td>
+                <td>Allows explicit suppression comments like <code>intentionally ignored</code>, <code>best-effort cleanup</code>, or <code>nosec</code>.</td>
+                <td>Tests separate log-only handling from truly silent swallowing.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <header>
+        <div class="label">5 · Design decisions</div>
+        <h2>Why the code is shaped this way</h2>
+        <p>
+          The implementation is intentionally plain CommonJS and test-first. That keeps the generated
+          scaffold easy to inspect, and it matches the way ESLint flat config imports a local plugin
+          from a generated project.
+        </p>
+      </header>
+
+      <div class="grid-2">
+        <article class="mini-card" style="--i: 0">
+          <h3>CommonJS package boundary</h3>
+          <p>
+            The generated TS project may be ESM, but the local ESLint plugin stays CommonJS via the
+            nearest <code>tools/lint-rules/package.json</code>. This prevents module-format drift.
+          </p>
+        </article>
+        <article class="mini-card" style="--i: 1">
+          <h3>Shared AST helper</h3>
+          <p>
+            <code>ast-utils.js</code> centralizes logging-call recognition and expression unwrapping.
+            That avoids three rules independently deciding what <code>logger.error()</code> means.
+          </p>
+        </article>
+        <article class="mini-card" style="--i: 2">
+          <h3>Scoped branch logic</h3>
+          <p>
+            RULE-05 only checks catch bodies and error-handling <code>if</code> branches. That keeps it
+            focused on duplicate error reporting instead of every ordinary throw.
+          </p>
+        </article>
+        <article class="mini-card" style="--i: 3">
+          <h3>Tests as executable spec</h3>
+          <p>
+            Every rule has valid and invalid examples. The tests document boundary behavior, not just
+            happy-path detection.
+          </p>
+        </article>
+      </div>
+
+      <div class="code-panel">
+        <div class="code-header">The pattern every rule follows</div>
+        <pre><code>module.exports = {
+  meta: {
+    type: 'problem',
+    docs: { description: '...', recommended: true },
+    messages: { messageId: 'Human-readable lint message.' },
+    schema: [],
+  },
+  create(context) {
+    return {
+      CatchClause(node) {
+        if (/* rule-specific decision */) {
+          context.report({ node, messageId: 'messageId' });
+        }
+      },
+    };
+  },
+};</code></pre>
+      </div>
+    </section>
+
+    <section class="section">
+      <header>
+        <div class="label">6 · How it was built</div>
+        <h2>The engineering workflow behind the PR</h2>
+        <p>
+          This ticket was written in a test-first loop. The important part for a junior engineer is
+          that the tests were not just “coverage”; they were a design tool that caught overscoped and
+          underscoped rule behavior.
+        </p>
+      </header>
+
+      <div class="timeline">
+        <div class="timeline-step">
+          <div class="step-dot">1</div>
+          <div class="step-body">
+            <h3>Start with the public contract</h3>
+            <p>Define the plugin rule names and the expected RuleTester examples from the ticket and spec.</p>
+          </div>
+        </div>
+        <div class="timeline-step">
+          <div class="step-dot">2</div>
+          <div class="step-body">
+            <h3>Make the tests fail for the right reason</h3>
+            <p>Rule modules were initially missing, so the red state proved the tests were wired to real files.</p>
+          </div>
+        </div>
+        <div class="timeline-step">
+          <div class="step-dot">3</div>
+          <div class="step-body">
+            <h3>Implement narrow AST visitors</h3>
+            <p>Each rule got just enough traversal to detect its anti-pattern while preserving valid nearby code.</p>
+          </div>
+        </div>
+        <div class="timeline-step">
+          <div class="step-dot">4</div>
+          <div class="step-body">
+            <h3>Review for false positives and false negatives</h3>
+            <p>Independent review drove regressions for guarded logging, scoped error branches, and conditional default returns.</p>
+          </div>
+        </div>
+        <div class="timeline-step">
+          <div class="step-dot">5</div>
+          <div class="step-body">
+            <h3>Validate the whole repo</h3>
+            <p>Targeted lint-rule tests, full Bun tests, typecheck, agent check, fixture checks, slop-scan, and PR checks all ran cleanly.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <header>
+        <div class="label">7 · How to extend this next</div>
+        <h2>Adding the next ESLint rule without getting lost</h2>
+        <p>
+          Use the same recipe for TIX-000030 and later rule tickets. The shape should feel boring:
+          tests first, one rule module, plugin registration, then a review pass for overbreadth.
+        </p>
+      </header>
+
+      <div class="grid-3">
+        <article class="mini-card" style="--i: 0">
+          <h3>1. Write the examples</h3>
+          <ul>
+            <li>At least three valid cases</li>
+            <li>At least three invalid cases</li>
+            <li>One boundary case from reviewer intuition</li>
+          </ul>
+        </article>
+        <article class="mini-card" style="--i: 1">
+          <h3>2. Keep the rule local</h3>
+          <ul>
+            <li>One public rule name</li>
+            <li>One <code>messageId</code> per finding type</li>
+            <li>Shared helpers only when repeated</li>
+          </ul>
+        </article>
+        <article class="mini-card" style="--i: 2">
+          <h3>3. Validate the contract</h3>
+          <ul>
+            <li>Targeted RuleTester command</li>
+            <li>Full Bun test suite</li>
+            <li>Plugin registration test</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <footer class="footer">
+      Generated for Anvil PR #4 · self-contained HTML · no external scripts, fonts, images, or stylesheets.
+    </footer>
+  </main>
+</body>
+</html>

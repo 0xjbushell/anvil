@@ -9,6 +9,14 @@ async function loadPlugin() {
 }
 
 describe('anvil ESLint plugin', () => {
+  const expectedRuleNames = [
+    'no-log-and-continue',
+    'no-error-obscuring',
+    'no-placeholder-comments',
+    'no-log-and-throw',
+    'no-silent-error-swallow',
+  ];
+
   test('loads without error', async () => {
     const plugin = await loadPlugin();
 
@@ -19,7 +27,12 @@ describe('anvil ESLint plugin', () => {
     const plugin = await loadPlugin();
 
     expect(plugin).toBeDefined();
-    expect(plugin.rules).toEqual({});
+    expect(Object.keys(plugin.rules)).toEqual(expectedRuleNames);
+    for (const ruleName of expectedRuleNames) {
+      expect(plugin.rules[ruleName]).toBeDefined();
+      expect(plugin.rules[ruleName].meta).toBeDefined();
+      expect(typeof plugin.rules[ruleName].create).toBe('function');
+    }
     expect(plugin.configs).toBeDefined();
     expect(typeof plugin.configs).toBe('object');
   });
@@ -28,7 +41,9 @@ describe('anvil ESLint plugin', () => {
     const plugin = await loadPlugin();
 
     expect(plugin.configs.recommended).toBeDefined();
-    expect(plugin.configs.recommended.rules).toEqual({});
+    expect(plugin.configs.recommended.rules).toEqual(
+      Object.fromEntries(expectedRuleNames.map((ruleName) => [`anvil/${ruleName}`, 'error'])),
+    );
   });
 
   test('recommended config references the default-exported plugin', async () => {
