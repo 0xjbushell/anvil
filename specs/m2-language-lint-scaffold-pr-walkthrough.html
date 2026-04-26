@@ -1,0 +1,1144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Anvil PR #3 Visual Walkthrough</title>
+  <style>
+    :root {
+      --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+      --font-mono: ui-monospace, 'Cascadia Code', 'SF Mono', Consolas, 'DejaVu Sans Mono', monospace;
+
+      --bg: #f4f7fb;
+      --surface: #ffffff;
+      --surface-elevated: #fafdff;
+      --surface-recessed: #edf3f8;
+      --border: rgba(15, 23, 42, 0.09);
+      --border-bright: rgba(15, 23, 42, 0.18);
+      --text: #0f172a;
+      --text-dim: #5d6b7e;
+      --text-muted: #7c8798;
+      --accent: #2563eb;
+      --accent-dim: rgba(37, 99, 235, 0.09);
+      --ts: #2563eb;
+      --ts-dim: rgba(37, 99, 235, 0.1);
+      --go: #0891b2;
+      --go-dim: rgba(8, 145, 178, 0.1);
+      --py: #059669;
+      --py-dim: rgba(5, 150, 105, 0.1);
+      --warn: #b45309;
+      --warn-dim: rgba(180, 83, 9, 0.1);
+      --shadow: 0 14px 34px rgba(15, 23, 42, 0.08), 0 2px 8px rgba(15, 23, 42, 0.04);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #07111f;
+        --surface: #111827;
+        --surface-elevated: #172033;
+        --surface-recessed: #0d1626;
+        --border: rgba(255, 255, 255, 0.08);
+        --border-bright: rgba(255, 255, 255, 0.16);
+        --text: #e7edf7;
+        --text-dim: #9aa9bd;
+        --text-muted: #7f8ea3;
+        --accent: #60a5fa;
+        --accent-dim: rgba(96, 165, 250, 0.13);
+        --ts: #60a5fa;
+        --ts-dim: rgba(96, 165, 250, 0.13);
+        --go: #22d3ee;
+        --go-dim: rgba(34, 211, 238, 0.13);
+        --py: #34d399;
+        --py-dim: rgba(52, 211, 153, 0.13);
+        --warn: #fbbf24;
+        --warn-dim: rgba(251, 191, 36, 0.12);
+        --shadow: 0 16px 42px rgba(0, 0, 0, 0.28), 0 2px 8px rgba(0, 0, 0, 0.18);
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      font-family: var(--font-body);
+      color: var(--text);
+      background:
+        radial-gradient(circle at 10% 10%, var(--ts-dim), transparent 28rem),
+        radial-gradient(circle at 90% 12%, var(--go-dim), transparent 30rem),
+        radial-gradient(circle at 50% 95%, var(--py-dim), transparent 32rem),
+        var(--bg);
+      line-height: 1.6;
+      overflow-wrap: break-word;
+    }
+
+    .container {
+      width: min(1180px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 34px 0 64px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.25fr) minmax(260px, 0.75fr);
+      gap: 22px;
+      align-items: stretch;
+      margin-bottom: 22px;
+    }
+
+    .hero-main,
+    .hero-side,
+    .section,
+    .card,
+    .callout,
+    .diagram-wrap,
+    .table-wrap,
+    .code-panel,
+    .mini-card {
+      background: color-mix(in srgb, var(--surface) 96%, transparent);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+    }
+
+    .hero-main {
+      padding: 32px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-main::after {
+      content: '';
+      position: absolute;
+      inset: auto -90px -140px auto;
+      width: 360px;
+      height: 360px;
+      border-radius: 50%;
+      background: radial-gradient(circle, var(--accent-dim), transparent 70%);
+      pointer-events: none;
+    }
+
+    .eyebrow,
+    .label {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      line-height: 1.14;
+      letter-spacing: -0.025em;
+    }
+
+    h1 {
+      max-width: 820px;
+      margin-top: 10px;
+      font-size: clamp(34px, 5.4vw, 64px);
+    }
+
+    h2 {
+      font-size: clamp(25px, 3vw, 36px);
+    }
+
+    h3 {
+      font-size: 18px;
+    }
+
+    p {
+      margin: 0;
+      color: var(--text-dim);
+    }
+
+    code,
+    .mono {
+      font-family: var(--font-mono);
+    }
+
+    code {
+      padding: 2px 6px;
+      border-radius: 6px;
+      color: var(--accent);
+      background: var(--accent-dim);
+      font-size: 0.92em;
+    }
+
+    .hero-main p {
+      max-width: 800px;
+      margin-top: 16px;
+      font-size: 16px;
+    }
+
+    .hero-side {
+      padding: 22px;
+      display: grid;
+      gap: 14px;
+      align-content: start;
+    }
+
+    .quick-fact {
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      background: var(--surface-elevated);
+    }
+
+    .quick-fact strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 13px;
+    }
+
+    .quick-fact span {
+      display: block;
+      color: var(--text-dim);
+      font-size: 13px;
+    }
+
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 14px;
+      margin: 22px 0;
+    }
+
+    .kpi {
+      min-width: 0;
+      padding: 18px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: 0 7px 20px rgba(15, 23, 42, 0.05);
+      animation: fadeScale 0.35s ease-out both;
+      animation-delay: calc(var(--i, 0) * 0.06s);
+    }
+
+    .kpi-value {
+      font-family: var(--font-mono);
+      font-size: 30px;
+      font-weight: 800;
+      color: var(--text);
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .kpi-label {
+      margin-top: 7px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 800;
+      color: var(--text-dim);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .review-path {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 26px;
+    }
+
+    .review-link {
+      display: block;
+      min-width: 0;
+      padding: 14px 16px;
+      color: var(--text);
+      text-decoration: none;
+      background: color-mix(in srgb, var(--surface) 88%, var(--accent) 4%);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+    }
+
+    .review-link:hover {
+      transform: translateY(-2px);
+      border-color: color-mix(in srgb, var(--border-bright) 45%, var(--accent) 55%);
+      background: var(--accent-dim);
+    }
+
+    .review-link strong,
+    .review-link span {
+      display: block;
+    }
+
+    .review-link strong {
+      margin-bottom: 3px;
+      font-size: 13px;
+    }
+
+    .review-link span {
+      color: var(--text-dim);
+      font-size: 12px;
+    }
+
+    .section {
+      margin-top: 22px;
+      padding: 26px;
+      animation: fadeUp 0.45s ease-out both;
+    }
+
+    .section-header {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+
+    .section-header p {
+      max-width: 920px;
+    }
+
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 14px;
+    }
+
+    .card {
+      --card-accent: var(--accent);
+      min-width: 0;
+      padding: 18px;
+      border-left: 4px solid var(--card-accent);
+      box-shadow: none;
+      animation: fadeUp 0.35s ease-out both;
+      animation-delay: calc(var(--i, 0) * 0.05s);
+    }
+
+    .card--ts { --card-accent: var(--ts); }
+    .card--go { --card-accent: var(--go); }
+    .card--py { --card-accent: var(--py); }
+    .card--warn { --card-accent: var(--warn); }
+
+    .card h3 {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .card h3::before {
+      content: '';
+      display: inline-block;
+      flex: 0 0 auto;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--card-accent);
+    }
+
+    .card p {
+      font-size: 13px;
+    }
+
+    .node-list {
+      list-style: none;
+      padding: 0;
+      margin: 12px 0 0;
+      color: var(--text-dim);
+      font-size: 13px;
+    }
+
+    .node-list li {
+      position: relative;
+      padding-left: 16px;
+      margin: 7px 0;
+    }
+
+    .node-list li::before {
+      content: '>';
+      position: absolute;
+      left: 0;
+      top: 0;
+      color: var(--accent);
+      font-family: var(--font-mono);
+      font-weight: 800;
+    }
+
+    .diagram-wrap {
+      margin-top: 16px;
+      padding: 16px;
+      overflow-x: auto;
+      box-shadow: none;
+      background: linear-gradient(180deg, var(--surface-elevated), var(--surface));
+    }
+
+    .diagram-wrap svg {
+      display: block;
+      min-width: 900px;
+      max-width: 100%;
+      height: auto;
+      margin: 0 auto;
+    }
+
+    .svg-title {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 800;
+      fill: var(--text);
+    }
+
+    .svg-text {
+      font-family: var(--font-body);
+      font-size: 12px;
+      fill: var(--text-dim);
+    }
+
+    .svg-mono {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      fill: var(--text-dim);
+    }
+
+    .table-wrap {
+      margin-top: 16px;
+      overflow: hidden;
+      box-shadow: none;
+    }
+
+    .table-scroll {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    thead {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    th {
+      padding: 12px 14px;
+      text-align: left;
+      white-space: nowrap;
+      color: var(--text-dim);
+      background: var(--surface-elevated);
+      border-bottom: 1px solid var(--border-bright);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+    }
+
+    td {
+      min-width: 0;
+      padding: 13px 14px;
+      vertical-align: top;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-dim);
+    }
+
+    tbody tr:nth-child(even) {
+      background: color-mix(in srgb, var(--surface-recessed) 38%, transparent);
+    }
+
+    tbody tr:hover {
+      background: var(--accent-dim);
+    }
+
+    tbody tr:last-child td {
+      border-bottom: 0;
+    }
+
+    td strong {
+      color: var(--text);
+    }
+
+    .status {
+      --status-color: var(--accent);
+      --status-bg: var(--accent-dim);
+      display: inline-flex;
+      align-items: center;
+      white-space: nowrap;
+      padding: 3px 8px;
+      border-radius: 999px;
+      color: var(--status-color);
+      background: var(--status-bg);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .status--done {
+      --status-color: var(--py);
+      --status-bg: var(--py-dim);
+    }
+
+    .status--info {
+      --status-color: var(--accent);
+      --status-bg: var(--accent-dim);
+    }
+
+    .status--warn {
+      --status-color: var(--warn);
+      --status-bg: var(--warn-dim);
+    }
+
+    .callout {
+      margin-top: 16px;
+      padding: 16px 18px;
+      box-shadow: none;
+      border-left: 4px solid var(--warn);
+      background: color-mix(in srgb, var(--surface) 84%, var(--warn) 5%);
+    }
+
+    .callout strong {
+      color: var(--text);
+    }
+
+    .callout p {
+      margin-top: 5px;
+      font-size: 13px;
+    }
+
+    .code-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 14px;
+      margin-top: 16px;
+    }
+
+    .code-panel {
+      min-width: 0;
+      overflow: hidden;
+      box-shadow: none;
+    }
+
+    .code-title {
+      padding: 11px 14px;
+      color: var(--text);
+      background: var(--surface-elevated);
+      border-bottom: 1px solid var(--border);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    pre {
+      margin: 0;
+      padding: 14px;
+      overflow-x: auto;
+      color: var(--text-dim);
+      background: var(--surface-recessed);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.55;
+      tab-size: 2;
+    }
+
+    .timeline {
+      position: relative;
+      display: grid;
+      gap: 14px;
+      margin-top: 16px;
+    }
+
+    .timeline::before {
+      content: '';
+      position: absolute;
+      top: 8px;
+      bottom: 8px;
+      left: 15px;
+      width: 2px;
+      background: var(--border-bright);
+    }
+
+    .timeline-item {
+      position: relative;
+      display: grid;
+      grid-template-columns: 42px minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+    }
+
+    .timeline-dot {
+      position: relative;
+      z-index: 1;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--surface);
+      border: 2px solid var(--accent);
+      display: grid;
+      place-items: center;
+      color: var(--accent);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .timeline-body {
+      min-width: 0;
+      padding: 13px 15px;
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      background: var(--surface-elevated);
+    }
+
+    .timeline-body strong {
+      display: block;
+      margin-bottom: 3px;
+    }
+
+    .timeline-body span {
+      color: var(--text-dim);
+      font-size: 13px;
+    }
+
+    footer {
+      margin-top: 26px;
+      color: var(--text-muted);
+      font-size: 12px;
+      text-align: center;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeScale {
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    @media (max-width: 900px) {
+      .hero,
+      .review-path {
+        grid-template-columns: 1fr;
+      }
+
+      .kpi-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 640px) {
+      .container {
+        width: min(100% - 22px, 1180px);
+        padding-top: 18px;
+      }
+
+      .hero-main,
+      .hero-side,
+      .section {
+        padding: 20px;
+      }
+
+      .kpi-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <section class="hero" aria-labelledby="page-title">
+      <div class="hero-main">
+        <div class="eyebrow">Anvil PR #3 - M2 scaffold wave</div>
+        <h1 id="page-title">Language lint scaffolds for TypeScript, Go, and Python</h1>
+        <p>
+          This PR does not implement lint rules yet. It lays down the empty plugin/analyzer
+          infrastructure that future rule tickets will fill in, then wires those files into
+          the scaffold manifest so generated projects receive the right tool skeleton.
+        </p>
+      </div>
+      <aside class="hero-side" aria-label="Quick facts">
+        <div class="quick-fact">
+          <strong>PR branch</strong>
+          <span><code>feat/m2-next</code> into <code>main</code></span>
+        </div>
+        <div class="quick-fact">
+          <strong>Tickets</strong>
+          <span><code>TIX-000028</code>, <code>TIX-000036</code>, <code>TIX-000044</code></span>
+        </div>
+        <div class="quick-fact">
+          <strong>Reviewer goal</strong>
+          <span>Confirm static scaffold files, manifest entries, and tests agree.</span>
+        </div>
+        <div class="quick-fact">
+          <strong>Intentional non-goal</strong>
+          <span>No custom lint rule logic is added in this wave.</span>
+        </div>
+      </aside>
+    </section>
+
+    <section class="kpi-row" aria-label="PR metrics">
+      <div class="kpi" style="--i: 0">
+        <div class="kpi-value">3</div>
+        <div class="kpi-label">Language verticals</div>
+      </div>
+      <div class="kpi" style="--i: 1">
+        <div class="kpi-value">3</div>
+        <div class="kpi-label">Tickets completed</div>
+      </div>
+      <div class="kpi" style="--i: 2">
+        <div class="kpi-value">32</div>
+        <div class="kpi-label">Files in PR diff</div>
+      </div>
+      <div class="kpi" style="--i: 3">
+        <div class="kpi-value">207</div>
+        <div class="kpi-label">Bun tests passed</div>
+      </div>
+      <div class="kpi" style="--i: 4">
+        <div class="kpi-value">0</div>
+        <div class="kpi-label">Slop-scan findings</div>
+      </div>
+    </section>
+
+    <nav class="review-path" aria-label="Review path">
+      <a class="review-link" href="#mental-model">
+        <strong>1. Mental model</strong>
+        <span>How manifest entries become generated tools.</span>
+      </a>
+      <a class="review-link" href="#language-scaffolds">
+        <strong>2. Language scaffolds</strong>
+        <span>What each TS, Go, and Python skeleton contains.</span>
+      </a>
+      <a class="review-link" href="#review-fixes">
+        <strong>3. Review fixes</strong>
+        <span>The subtle wiring gaps this PR corrected.</span>
+      </a>
+      <a class="review-link" href="#review-checklist">
+        <strong>4. Checklist</strong>
+        <span>Files and invariants worth reviewing closely.</span>
+      </a>
+    </nav>
+
+    <section class="section" id="mental-model">
+      <div class="section-header">
+        <div class="label">Mental model</div>
+        <h2>The manifest is the contract between static files and generated projects</h2>
+        <p>
+          Anvil scaffolding already had seed code and project templates. This PR extends that
+          contract with language-specific lint tool directories. The key review question is:
+          for every file under <code>static/&lt;lang&gt;/...</code>, does <code>src/manifest.ts</code>
+          point to the same destination a generated project should receive?
+        </p>
+      </div>
+
+      <div class="diagram-wrap" role="img" aria-label="Manifest to generated project data flow">
+        <svg viewBox="0 0 1020 470" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="arrow" markerWidth="9" markerHeight="7" refX="9" refY="3.5" orient="auto">
+              <path d="M0,0 L9,3.5 L0,7 Z" fill="var(--text-dim)"/>
+            </marker>
+            <filter id="soft-shadow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="7" stdDeviation="8" flood-color="#0f172a" flood-opacity="0.13"/>
+            </filter>
+          </defs>
+
+          <rect x="24" y="24" width="972" height="422" rx="22" fill="var(--surface-recessed)" stroke="var(--border)"/>
+          <text x="510" y="58" text-anchor="middle" class="svg-title">How a scaffold file travels through PR #3</text>
+
+          <g filter="url(#soft-shadow)">
+            <rect x="70" y="112" width="190" height="94" rx="14" fill="var(--surface)" stroke="var(--accent)" stroke-width="1.5"/>
+            <text x="165" y="142" text-anchor="middle" class="svg-title">src/manifest.ts</text>
+            <text x="165" y="164" text-anchor="middle" class="svg-text">adds entries for each</text>
+            <text x="165" y="184" text-anchor="middle" class="svg-text">language lint tool</text>
+          </g>
+
+          <g filter="url(#soft-shadow)">
+            <rect x="405" y="86" width="220" height="66" rx="14" fill="var(--surface)" stroke="var(--ts)" stroke-width="1.5"/>
+            <text x="515" y="114" text-anchor="middle" class="svg-title">TypeScript static tree</text>
+            <text x="515" y="135" text-anchor="middle" class="svg-mono">tools/lint-rules/**</text>
+
+            <rect x="405" y="202" width="220" height="66" rx="14" fill="var(--surface)" stroke="var(--go)" stroke-width="1.5"/>
+            <text x="515" y="230" text-anchor="middle" class="svg-title">Go static tree</text>
+            <text x="515" y="251" text-anchor="middle" class="svg-mono">tools/go-analyzers/**</text>
+
+            <rect x="405" y="318" width="220" height="66" rx="14" fill="var(--surface)" stroke="var(--py)" stroke-width="1.5"/>
+            <text x="515" y="346" text-anchor="middle" class="svg-title">Python static tree</text>
+            <text x="515" y="367" text-anchor="middle" class="svg-mono">tools/flake8-plugin/**</text>
+          </g>
+
+          <g filter="url(#soft-shadow)">
+            <rect x="760" y="112" width="190" height="94" rx="14" fill="var(--surface)" stroke="var(--accent)" stroke-width="1.5"/>
+            <text x="855" y="142" text-anchor="middle" class="svg-title">Generated project</text>
+            <text x="855" y="164" text-anchor="middle" class="svg-text">receives empty tools</text>
+            <text x="855" y="184" text-anchor="middle" class="svg-text">ready for future rules</text>
+          </g>
+
+          <g filter="url(#soft-shadow)">
+            <rect x="760" y="284" width="190" height="86" rx="14" fill="var(--surface)" stroke="var(--py)" stroke-width="1.5"/>
+            <text x="855" y="313" text-anchor="middle" class="svg-title">Tests guard the map</text>
+            <text x="855" y="334" text-anchor="middle" class="svg-text">manifest, plugin, Go,</text>
+            <text x="855" y="354" text-anchor="middle" class="svg-text">and Python contracts</text>
+          </g>
+
+          <path d="M260 159 C315 159 340 119 405 119" fill="none" stroke="var(--text-dim)" stroke-width="1.8" marker-end="url(#arrow)"/>
+          <path d="M260 159 C315 159 340 235 405 235" fill="none" stroke="var(--text-dim)" stroke-width="1.8" marker-end="url(#arrow)"/>
+          <path d="M260 159 C315 159 340 351 405 351" fill="none" stroke="var(--text-dim)" stroke-width="1.8" marker-end="url(#arrow)"/>
+
+          <path d="M625 119 C690 119 705 159 760 159" fill="none" stroke="var(--ts)" stroke-width="1.8" marker-end="url(#arrow)"/>
+          <path d="M625 235 C690 235 705 159 760 159" fill="none" stroke="var(--go)" stroke-width="1.8" marker-end="url(#arrow)"/>
+          <path d="M625 351 C690 351 705 159 760 159" fill="none" stroke="var(--py)" stroke-width="1.8" marker-end="url(#arrow)"/>
+          <path d="M855 206 L855 284" fill="none" stroke="var(--text-dim)" stroke-width="1.8" stroke-dasharray="6 4" marker-end="url(#arrow)"/>
+
+          <text x="335" y="91" class="svg-mono">staticEntry()</text>
+          <text x="333" y="255" class="svg-mono">staticTemplateEntry()</text>
+          <text x="676" y="93" class="svg-mono">copy into scaffold</text>
+          <text x="872" y="250" class="svg-mono">validate contract</text>
+        </svg>
+      </div>
+
+      <div class="callout">
+        <strong>Why the manifest changes matter</strong>
+        <p>
+          The scaffold engine copies by destination, not by discovery. If the static tree and
+          manifest path drift apart, tests can pass by importing static files directly while
+          generated projects silently miss those files. This PR adds tests around those edges.
+        </p>
+      </div>
+    </section>
+
+    <section class="section" id="language-scaffolds">
+      <div class="section-header">
+        <div class="label">Language scaffolds</div>
+        <h2>Each language gets an empty but runnable rule host</h2>
+        <p>
+          The files are deliberately boring: small loaders, empty rule maps, stub checker
+          functions, and harness tests. That is the point. Future tickets can add rule logic
+          without also inventing packaging, import style, or generated-project layout.
+        </p>
+      </div>
+
+      <div class="card-grid">
+        <article class="card card--ts" style="--i: 0">
+          <h3>TypeScript / JavaScript</h3>
+          <p>
+            Adds a CommonJS ESLint plugin scaffold at
+            <code>static/typescript/tools/lint-rules/plugin.js</code>.
+          </p>
+          <ul class="node-list">
+            <li><code>rules = {}</code> keeps the plugin valid before rules exist.</li>
+            <li><code>configs.recommended</code> is a flat config with a self-reference.</li>
+            <li><code>package.json</code> sets <code>"type": "commonjs"</code> near the plugin.</li>
+            <li><code>helpers.js</code> creates a future-ready ESLint v9 <code>RuleTester</code>.</li>
+          </ul>
+        </article>
+
+        <article class="card card--go" style="--i: 1">
+          <h3>Go</h3>
+          <p>
+            Adds an empty multichecker binary at
+            <code>static/golang/tools/go-analyzers/cmd/anvil-lint/main.go</code>.
+          </p>
+          <ul class="node-list">
+            <li><code>multichecker.Main()</code> starts with no analyzers registered.</li>
+            <li><code>go.mod.ejs</code> renders <code>go &lt;%= toolchain.go %&gt;</code>.</li>
+            <li><code>Makefile</code> builds <code>bin/anvil-lint</code> from the command package.</li>
+            <li><code>testdata/.gitkeep</code> reserves space for future analyzer fixtures.</li>
+          </ul>
+        </article>
+
+        <article class="card card--py" style="--i: 2">
+          <h3>Python</h3>
+          <p>
+            Adds a Flake8 plugin package under
+            <code>static/python/tools/flake8-plugin/anvil_lint</code>.
+          </p>
+          <ul class="node-list">
+            <li><code>AnvilChecker</code> exposes Flake8 <code>name</code>, <code>version</code>, and <code>run()</code>.</li>
+            <li>Stub modules cover anti-slop, error-handling, structural, and test-quality categories.</li>
+            <li><code>setup.py</code> and <code>setup.cfg</code> register <code>ANV = anvil_lint:AnvilChecker</code>.</li>
+            <li>Generated-project tests exercise checker loading and empty-result behavior.</li>
+          </ul>
+        </article>
+      </div>
+
+      <div class="code-grid" aria-label="Representative code snippets">
+        <div class="code-panel">
+          <div class="code-title">TypeScript plugin shape</div>
+          <pre><code>'use strict';
+
+const rules = {};
+
+const plugin = {
+  rules,
+  configs: {},
+};
+
+plugin.configs.recommended = {
+  plugins: { anvil: plugin },
+  rules: {},
+};
+
+module.exports = plugin;</code></pre>
+        </div>
+
+        <div class="code-panel">
+          <div class="code-title">Go multichecker entry point</div>
+          <pre><code>package main
+
+import "golang.org/x/tools/go/analysis/multichecker"
+
+func main() {
+  multichecker.Main()
+}</code></pre>
+        </div>
+
+        <div class="code-panel">
+          <div class="code-title">Python checker delegation</div>
+          <pre><code>def run(self) -&gt; Generator[tuple[int, int, str, type], None, None]:
+    yield from check_anti_slop(self.tree, self.filename)
+    yield from check_error_handling(self.tree, self.filename)
+    yield from check_structural(self.tree, self.filename)
+    yield from check_test_quality(self.tree, self.filename)</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <div class="label">Manifest wiring</div>
+        <h2>The destination paths are what generated projects see</h2>
+        <p>
+          A reviewer should read <code>src/manifest.ts</code> as the source of truth for what
+          a generated project receives. The static source path is derived from the language
+          and destination, except for the Go analyzer <code>go.mod</code>, which is a static EJS
+          template rendered through <code>staticTemplateEntry()</code>.
+        </p>
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Language</th>
+                <th>Manifest destinations added</th>
+                <th>Why it exists</th>
+                <th>Guardrail test</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>TypeScript</strong></td>
+                <td>
+                  <code>tools/lint-rules/plugin.js</code>,
+                  <code>package.json</code>, and category globs.
+                </td>
+                <td>Ships a valid ESLint plugin host and empty category directories.</td>
+                <td><code>tests/lint-rules/typescript/plugin.test.js</code> plus manifest glob checks.</td>
+              </tr>
+              <tr>
+                <td><strong>Go</strong></td>
+                <td>
+                  <code>tools/go-analyzers/cmd/anvil-lint/**/*</code>,
+                  analyzer package globs, <code>testdata/**/*</code>,
+                  <code>go.mod</code>, and <code>Makefile</code>.
+                </td>
+                <td>Ships a buildable analyzer module with room for future analyzer packages.</td>
+                <td><code>src/scaffold/golang-analyzer-scaffold.test.ts</code> plus scratch build/vet validation.</td>
+              </tr>
+              <tr>
+                <td><strong>Python</strong></td>
+                <td>
+                  <code>tools/flake8-plugin/anvil_lint/**/*</code>,
+                  <code>tests/**/*</code>, <code>setup.py</code>, and <code>setup.cfg</code>.
+                </td>
+                <td>Ships an installable Flake8 extension package and generated-project tests.</td>
+                <td><code>tests/python-flake8-plugin.test.ts</code> plus Python AST/bytecode checks.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="review-fixes">
+      <div class="section-header">
+        <div class="label">Review findings addressed</div>
+        <h2>Three subtle scaffold-contract issues were fixed before the PR opened</h2>
+        <p>
+          These are useful places for reviewers to focus because they are not obvious from
+          looking at a single file. Each issue was about keeping generated-project behavior
+          aligned with the static tree and test expectations.
+        </p>
+      </div>
+
+      <div class="timeline">
+        <div class="timeline-item">
+          <div class="timeline-dot">1</div>
+          <div class="timeline-body">
+            <strong>Go <code>testdata</code> now copies into generated projects</strong>
+            <span>
+              The static <code>testdata/.gitkeep</code> directory was present and tested, but
+              generated projects would miss it until <code>tools/go-analyzers/testdata/**/*</code>
+              was added to the Go manifest.
+            </span>
+          </div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-dot">2</div>
+          <div class="timeline-body">
+            <strong>TypeScript static paths now match manifest destinations</strong>
+            <span>
+              Static files moved under <code>static/typescript/tools/lint-rules/**</code> so
+              <code>staticEntry("typescript", "tools/lint-rules/...")</code> resolves to real files.
+            </span>
+          </div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-dot">3</div>
+          <div class="timeline-body">
+            <strong>Python includes the error-handling checker category</strong>
+            <span>
+              The Flake8 scaffold now has <code>error_handling.py</code>, imports it, delegates
+              from <code>AnvilChecker.run()</code>, and covers it in scaffold tests.
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="review-checklist">
+      <div class="section-header">
+        <div class="label">Reviewer checklist</div>
+        <h2>What to inspect if you only have limited review time</h2>
+        <p>
+          The best review pass is to trace each language from manifest entry to static file
+          to test. The table below calls out the exact seams that would break generated
+          projects if they regressed.
+        </p>
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Area</th>
+                <th>Files</th>
+                <th>Review question</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Manifest</strong></td>
+                <td><code>src/manifest.ts</code>, <code>src/manifest.test.ts</code></td>
+                <td>Do all scaffold destinations point to real static/template sources?</td>
+                <td><span class="status status--done">covered</span></td>
+              </tr>
+              <tr>
+                <td><strong>TypeScript</strong></td>
+                <td><code>static/typescript/tools/lint-rules/**</code>, <code>tests/lint-rules/typescript/**</code></td>
+                <td>Can ESM generated projects import the CommonJS plugin safely?</td>
+                <td><span class="status status--done">covered</span></td>
+              </tr>
+              <tr>
+                <td><strong>Go</strong></td>
+                <td><code>static/golang/tools/go-analyzers/**</code>, <code>src/scaffold/golang-analyzer-scaffold.test.ts</code></td>
+                <td>Does the rendered analyzer module build and vet without rule analyzers?</td>
+                <td><span class="status status--done">covered</span></td>
+              </tr>
+              <tr>
+                <td><strong>Python</strong></td>
+                <td><code>static/python/tools/flake8-plugin/**</code>, <code>tests/python-flake8-plugin.test.ts</code></td>
+                <td>Does the Flake8 checker load, delegate all categories, and avoid bytecode artifacts?</td>
+                <td><span class="status status--done">covered</span></td>
+              </tr>
+              <tr>
+                <td><strong>Scope</strong></td>
+                <td>All new scaffold directories</td>
+                <td>Are rule implementations still deferred to follow-up tickets?</td>
+                <td><span class="status status--info">intentional</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <div class="label">Validation story</div>
+        <h2>The PR proves scaffold shape, generated compatibility, and repository health</h2>
+        <p>
+          The validation set intentionally mixes broad repo gates with focused scaffold checks.
+          Broad gates catch regressions in existing Anvil behavior; focused checks prove the
+          new language tool trees are wired and runnable enough for future rule tickets.
+        </p>
+      </div>
+
+      <div class="card-grid">
+        <article class="card card--ts" style="--i: 0">
+          <h3>Repo gates</h3>
+          <ul class="node-list">
+            <li><code>bun install --frozen-lockfile</code></li>
+            <li><code>slop-scan scan . --lint</code></li>
+            <li><code>bun test --silent</code></li>
+            <li><code>bun x tsc --noEmit</code></li>
+            <li><code>bun fixtures</code> and <code>bun agent:check</code></li>
+          </ul>
+        </article>
+
+        <article class="card card--go" style="--i: 1">
+          <h3>Language smoke checks</h3>
+          <ul class="node-list">
+            <li>Rendered Go analyzer <code>go.mod.ejs</code> into a scratch module.</li>
+            <li>Ran <code>go mod tidy</code>, <code>go build ./cmd/anvil-lint</code>, and <code>go vet ./...</code>.</li>
+            <li>Parsed Python scaffold files with <code>ast.parse</code> without creating bytecode.</li>
+            <li>Verified no <code>__pycache__</code> or <code>.pyc</code> artifacts exist in static files.</li>
+          </ul>
+        </article>
+
+        <article class="card card--py" style="--i: 2">
+          <h3>Independent review</h3>
+          <ul class="node-list">
+            <li><code>omc:code-review</code> passed after the final wiring fixes.</li>
+            <li><code>omc:test-run</code> passed after targeted Go scratch validation.</li>
+            <li>GitHub PR check <code>fixtures</code> completed successfully.</li>
+          </ul>
+        </article>
+      </div>
+
+      <div class="callout">
+        <strong>How to think about follow-up work</strong>
+        <p>
+          Future rule tickets should add one rule at a time inside these category folders,
+          then extend the matching test harness. They should not need to redesign plugin
+          packaging, analyzer module structure, or manifest destination paths.
+        </p>
+      </div>
+    </section>
+
+    <footer>
+      Self-contained walkthrough for Anvil PR #3. No external assets, fonts, scripts, or network requests.
+    </footer>
+  </main>
+</body>
+</html>

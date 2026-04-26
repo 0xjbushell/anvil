@@ -21,6 +21,14 @@ function templateEntry(lang: Lang, dest: string): ManifestEntry {
   };
 }
 
+function staticTemplateEntry(lang: Lang, dest: string): ManifestEntry {
+  return {
+    dest,
+    src: `static/${lang}/${dest}.ejs`,
+    source: "template",
+  };
+}
+
 function generatorEntry(dest: string, src: string): ManifestEntry {
   return {
     dest,
@@ -37,7 +45,9 @@ const typescriptEntries: ManifestEntry[] = [
   staticEntry("typescript", "src/seed/constants.ts", includeSeed),
   staticEntry("typescript", "src/seed/enums.ts", includeSeed),
   staticEntry("typescript", "tools/lint-rules/plugin.js"),
+  staticEntry("typescript", "tools/lint-rules/package.json"),
   staticEntry("typescript", "tools/lint-rules/anti-slop/**/*"),
+  staticEntry("typescript", "tools/lint-rules/error-handling/**/*"),
   staticEntry("typescript", "tools/lint-rules/structural/**/*"),
   staticEntry("typescript", "tools/lint-rules/test-quality/**/*"),
   staticEntry("typescript", "tools/crap-score.ts"),
@@ -68,11 +78,11 @@ const golangEntries: ManifestEntry[] = [
   staticEntry("golang", "cmd/app/main.go", includeSeed),
   staticEntry("golang", "tools/tools.go"),
   staticEntry("golang", "tools/go-analyzers/cmd/anvil-lint/**/*"),
-  staticEntry("golang", "tools/go-analyzers/cmd/crap-report/**/*"),
   staticEntry("golang", "tools/go-analyzers/anti_slop/**/*"),
   staticEntry("golang", "tools/go-analyzers/structural/**/*"),
   staticEntry("golang", "tools/go-analyzers/test_quality/**/*"),
-  staticEntry("golang", "tools/go-analyzers/go.mod"),
+  staticEntry("golang", "tools/go-analyzers/testdata/**/*"),
+  staticTemplateEntry("golang", "tools/go-analyzers/go.mod"),
   staticEntry("golang", "tools/go-analyzers/Makefile"),
   templateEntry("golang", "go.mod"),
   templateEntry("golang", ".golangci.yml"),
@@ -96,6 +106,7 @@ const pythonEntries: ManifestEntry[] = [
   staticEntry("python", "tests/conftest.py", includeSeed),
   staticEntry("python", "tests/test_seed.py", includeSeed),
   staticEntry("python", "tools/flake8-plugin/anvil_lint/**/*"),
+  staticEntry("python", "tools/flake8-plugin/tests/**/*"),
   staticEntry("python", "tools/flake8-plugin/setup.py"),
   staticEntry("python", "tools/flake8-plugin/setup.cfg"),
   templateEntry("python", "pyproject.toml"),

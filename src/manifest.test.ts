@@ -9,6 +9,35 @@ const expectedRanges: Record<Lang, { min: number; max: number }> = {
   golang: { min: 18, max: 26 },
   python: { min: 18, max: 24 },
 };
+const expectedSeedDests: Record<Lang, string[]> = {
+  typescript: [
+    "src/seed/constants.ts",
+    "src/seed/enums.ts",
+    "src/seed/errors.ts",
+    "src/seed/seed.test.ts",
+    "src/seed/seed.ts",
+    "src/seed/types.ts",
+  ],
+  golang: [
+    "cmd/app/main.go",
+    "internal/seed/constants.go",
+    "internal/seed/enums.go",
+    "internal/seed/errors.go",
+    "internal/seed/seed.go",
+    "internal/seed/seed_test.go",
+    "internal/seed/types.go",
+  ],
+  python: [
+    "src/seed/__init__.py",
+    "src/seed/constants.py",
+    "src/seed/enums.py",
+    "src/seed/errors.py",
+    "src/seed/seed.py",
+    "src/seed/types.py",
+    "tests/conftest.py",
+    "tests/test_seed.py",
+  ],
+};
 
 function makeContext(
   lang: Lang,
@@ -88,7 +117,9 @@ describe("scaffold manifests", () => {
         }
 
         if (entry.source === "template") {
-          expect(entry.src.startsWith("src/templates/")).toBe(true);
+          expect(
+            entry.src.startsWith("src/templates/") || entry.src.startsWith(`static/${lang}/`),
+          ).toBe(true);
           expect(entry.src.endsWith(".ejs")).toBe(true);
         }
       }
@@ -139,50 +170,27 @@ describe("scaffold manifests", () => {
   });
 
   test("seed paths are correct for each language", () => {
-    expect(seedEntries("typescript").map((entry) => entry.dest).sort()).toEqual([
-      "src/seed/constants.ts",
-      "src/seed/enums.ts",
-      "src/seed/errors.ts",
-      "src/seed/seed.test.ts",
-      "src/seed/seed.ts",
-      "src/seed/types.ts",
-    ]);
+    for (const lang of languages) {
+      const seedDests = seedEntries(lang).map((entry) => entry.dest).sort();
 
-    expect(seedEntries("golang").map((entry) => entry.dest).sort()).toEqual([
-      "cmd/app/main.go",
-      "internal/seed/constants.go",
-      "internal/seed/enums.go",
-      "internal/seed/errors.go",
-      "internal/seed/seed.go",
-      "internal/seed/seed_test.go",
-      "internal/seed/types.go",
-    ]);
-
-    expect(seedEntries("python").map((entry) => entry.dest).sort()).toEqual([
-      "src/seed/__init__.py",
-      "src/seed/constants.py",
-      "src/seed/enums.py",
-      "src/seed/errors.py",
-      "src/seed/seed.py",
-      "src/seed/types.py",
-      "tests/conftest.py",
-      "tests/test_seed.py",
-    ]);
+      expect(seedDests).toEqual(expectedSeedDests[lang]);
+    }
   });
 
   test("directory tree entries use explicit glob-like paths for downstream expansion", () => {
     const expectedGlobDests: Record<Lang, string[]> = {
       typescript: [
         "tools/lint-rules/anti-slop/**/*",
+        "tools/lint-rules/error-handling/**/*",
         "tools/lint-rules/structural/**/*",
         "tools/lint-rules/test-quality/**/*",
       ],
       golang: [
         "tools/go-analyzers/anti_slop/**/*",
         "tools/go-analyzers/cmd/anvil-lint/**/*",
-        "tools/go-analyzers/cmd/crap-report/**/*",
         "tools/go-analyzers/structural/**/*",
         "tools/go-analyzers/test_quality/**/*",
+        "tools/go-analyzers/testdata/**/*",
       ],
       python: ["tools/flake8-plugin/anvil_lint/**/*"],
     };
@@ -194,6 +202,18 @@ describe("scaffold manifests", () => {
         expect(dests.has(dest)).toBe(true);
       }
     }
+  });
+
+  test("TypeScript manifest includes lint-rule CommonJS package boundary", () => {
+    const dests = getManifest("typescript").entries.map((entry) => entry.dest);
+
+    expect(dests).toContain("tools/lint-rules/package.json");
+  });
+
+  test("Go analyzer manifest defers CRAP report until its scaffold exists", () => {
+    const dests = getManifest("golang").entries.map((entry) => entry.dest);
+
+    expect(dests).not.toContain("tools/go-analyzers/cmd/crap-report/**/*");
   });
 
   test("invalid languages throw", () => {
