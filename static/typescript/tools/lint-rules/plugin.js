@@ -9,6 +9,14 @@ const requireStructuredLogging = require('./anti-slop/require-structured-logging
 const requireTestFiles = require('./anti-slop/require-test-files.js');
 const noAsyncNoise = require('./anti-slop/no-async-noise.js');
 const noSilentErrorSwallow = require('./error-handling/no-silent-error-swallow.js');
+const typesFileOrganization = require('./structural/types-file-organization.js');
+const errorsFileOrganization = require('./structural/errors-file-organization.js');
+const constantsFileOrganization = require('./structural/constants-file-organization.js');
+const enumsFileOrganization = require('./structural/enums-file-organization.js');
+const filenameMatchExport = require('./structural/filename-match-export.js');
+const noExportedFunctionExpressions = require('./structural/no-exported-function-expressions.js');
+const noBarrelDensity = require('./structural/no-barrel-density.js');
+const noOverFragmentation = require('./structural/no-over-fragmentation.js');
 
 const rules = {
   'no-log-and-continue': noLogAndContinue,
@@ -20,6 +28,14 @@ const rules = {
   'require-test-files': requireTestFiles,
   'no-async-noise': noAsyncNoise,
   'no-silent-error-swallow': noSilentErrorSwallow,
+  'types-file-organization': typesFileOrganization,
+  'errors-file-organization': errorsFileOrganization,
+  'constants-file-organization': constantsFileOrganization,
+  'enums-file-organization': enumsFileOrganization,
+  'filename-match-export': filenameMatchExport,
+  'no-exported-function-expressions': noExportedFunctionExpressions,
+  'no-barrel-density': noBarrelDensity,
+  'no-over-fragmentation': noOverFragmentation,
 };
 
 const plugin = {
@@ -39,6 +55,14 @@ plugin.configs.recommended = {
     'anvil/require-test-files': 'error',
     'anvil/no-async-noise': 'error',
     'anvil/no-silent-error-swallow': 'error',
+    'anvil/types-file-organization': 'error',
+    'anvil/errors-file-organization': 'error',
+    'anvil/constants-file-organization': 'error',
+    'anvil/enums-file-organization': 'error',
+    'anvil/filename-match-export': 'error',
+    'anvil/no-exported-function-expressions': 'error',
+    'anvil/no-barrel-density': 'error',
+    'anvil/no-over-fragmentation': 'error',
   },
 };
 

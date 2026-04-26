@@ -19,6 +19,14 @@ describe('anvil ESLint plugin', () => {
     'require-test-files',
     'no-async-noise',
     'no-silent-error-swallow',
+    'types-file-organization',
+    'errors-file-organization',
+    'constants-file-organization',
+    'enums-file-organization',
+    'filename-match-export',
+    'no-exported-function-expressions',
+    'no-barrel-density',
+    'no-over-fragmentation',
   ];
 
   test('loads without error', async () => {
