@@ -5,9 +5,10 @@ anvil is a Bun + TypeScript scaffolder for agentic engineering projects; it gene
 
 ## Inner loop
 - After every change, run `bun agent:check`.
+- Before handing off work, run `bun fixtures` and `bun mutation`.
 - To explore manually, run `bun dev <scenario>`, then cd into `.sandbox/scratch` and inspect the generated tree/output.
 - On regression, read the failed scenario YAML and input under `tests/fixtures/`, reproduce in the sandbox, fix the cause, and rerun.
-- The pre-push hook and CI run the full `bun fixtures` gate; use it before handoff when changes may affect fixtures.
+- The pre-push hook and CI run the full `bun fixtures` and `bun mutation` gates; use them before handoff when changes may affect quality.
 
 ## Reference implementations
 Before implementing a subsystem, read [D-69](specs/decisions/anvil-decisions.md#d-69-oss-reference-implementations-as-agent-context) for the reference registry and source of truth; match reference idioms unless an anvil decision explicitly overrides them.
