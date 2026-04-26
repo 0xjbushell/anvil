@@ -1,5 +1,5 @@
-export function alpha() {
-  const value0 = 0;
+export function alpha(seed = 0) {
+  const value0 = seed;
   const value1 = 1;
   const value2 = 2;
   const value3 = 3;

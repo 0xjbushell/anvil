@@ -119,12 +119,7 @@ module.exports = {
           return;
         }
 
-        let siblingFiles;
-        try {
-          siblingFiles = listSiblingSourceFiles(dir);
-        } catch {
-          return;
-        }
+        const siblingFiles = fs.existsSync(dir) ? listSiblingSourceFiles(dir) : [];
 
         if (siblingFiles.length === 0 || path.basename(filename) !== siblingFiles[0]) {
           return;
@@ -132,12 +127,8 @@ module.exports = {
 
         let tinyCount = 0;
         for (const siblingFile of siblingFiles) {
-          try {
-            if (isTinySingleExport(path.join(dir, siblingFile), options.tinyLineThreshold)) {
-              tinyCount += 1;
-            }
-          } catch {
-            return;
+          if (isTinySingleExport(path.join(dir, siblingFile), options.tinyLineThreshold)) {
+            tinyCount += 1;
           }
         }
 

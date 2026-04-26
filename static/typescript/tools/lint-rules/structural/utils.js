@@ -208,7 +208,8 @@ function getExportedDefinitions(programNode) {
 }
 
 function normalizeSymbolName(name) {
-  return String(name || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+  const rawName = name === null || name === undefined ? '' : String(name);
+  return rawName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
 }
 
 function unwrapExpression(node) {
