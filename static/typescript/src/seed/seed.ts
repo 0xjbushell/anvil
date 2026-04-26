@@ -9,9 +9,9 @@ const logger = pino({
   name: "seed",
   level: process.env.NODE_ENV === "test" ? "silent" : "info",
 });
+const supportedLanguages = new Set<string>(Object.values(Language));
 
 export function isSupportedLanguage(value: string): value is Language {
-  const supportedLanguages = new Set<string>(Object.values(Language));
   return value.length > 0 && supportedLanguages.has(value);
 }
 

@@ -1,5 +1,5 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
-import { mkdir, rm } from "node:fs/promises";
+import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -64,7 +64,7 @@ function writeCoverageProject(source: string, coverageOverrides = {}) {
     ),
   );
 
-  return { projectDir, coverageDir, sourcePath };
+  return { projectDir, sourcePath };
 }
 
 describe("CRAP score script", () => {
@@ -173,7 +173,6 @@ describe("CRAP score script", () => {
     const projectDir = mkdtempSync(join(tempRoot, "missing-"));
     const errors: string[] = [];
 
-    await mkdir(join(projectDir, "coverage"), { recursive: true });
     const exitCode = runCrapScore([], {
       cwd: projectDir,
       stdout: () => undefined,
