@@ -14,6 +14,10 @@ describe('anvil ESLint plugin', () => {
     'no-error-obscuring',
     'no-placeholder-comments',
     'no-log-and-throw',
+    'no-pass-through-wrapper',
+    'require-structured-logging',
+    'require-test-files',
+    'no-async-noise',
     'no-silent-error-swallow',
   ];
 

@@ -4,6 +4,10 @@ const noLogAndContinue = require('./anti-slop/no-log-and-continue.js');
 const noErrorObscuring = require('./anti-slop/no-error-obscuring.js');
 const noPlaceholderComments = require('./anti-slop/no-placeholder-comments.js');
 const noLogAndThrow = require('./anti-slop/no-log-and-throw.js');
+const noPassThroughWrapper = require('./anti-slop/no-pass-through-wrapper.js');
+const requireStructuredLogging = require('./anti-slop/require-structured-logging.js');
+const requireTestFiles = require('./anti-slop/require-test-files.js');
+const noAsyncNoise = require('./anti-slop/no-async-noise.js');
 const noSilentErrorSwallow = require('./error-handling/no-silent-error-swallow.js');
 
 const rules = {
@@ -11,6 +15,10 @@ const rules = {
   'no-error-obscuring': noErrorObscuring,
   'no-placeholder-comments': noPlaceholderComments,
   'no-log-and-throw': noLogAndThrow,
+  'no-pass-through-wrapper': noPassThroughWrapper,
+  'require-structured-logging': requireStructuredLogging,
+  'require-test-files': requireTestFiles,
+  'no-async-noise': noAsyncNoise,
   'no-silent-error-swallow': noSilentErrorSwallow,
 };
 
@@ -26,6 +34,10 @@ plugin.configs.recommended = {
     'anvil/no-error-obscuring': 'error',
     'anvil/no-placeholder-comments': 'error',
     'anvil/no-log-and-throw': 'error',
+    'anvil/no-pass-through-wrapper': 'error',
+    'anvil/require-structured-logging': 'error',
+    'anvil/require-test-files': 'error',
+    'anvil/no-async-noise': 'error',
     'anvil/no-silent-error-swallow': 'error',
   },
 };
