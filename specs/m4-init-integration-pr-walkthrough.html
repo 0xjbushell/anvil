@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>M4 Init Integration PR Walkthrough</title>
+<style>
+  :root {
+    --font-body: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    --font-mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, "DejaVu Sans Mono", monospace;
+    --font-serif: Charter, "Bitstream Charter", Cambria, serif;
+
+    --bg: #f5f1e8;
+    --surface: #fffcf4;
+    --surface-elevated: #ffffff;
+    --surface-recessed: #eee6d8;
+    --border: rgba(62, 50, 36, 0.14);
+    --border-bright: rgba(62, 50, 36, 0.28);
+    --text: #251f19;
+    --text-dim: #74695c;
+    --accent: #0f766e;
+    --accent-dim: rgba(15, 118, 110, 0.10);
+    --node-a: #0f766e;
+    --node-a-dim: rgba(15, 118, 110, 0.12);
+    --node-b: #7c3aed;
+    --node-b-dim: rgba(124, 58, 237, 0.10);
+    --node-c: #c2410c;
+    --node-c-dim: rgba(194, 65, 12, 0.10);
+    --node-d: #0f4c81;
+    --node-d-dim: rgba(15, 76, 129, 0.10);
+    --ok: #15803d;
+    --warn: #b45309;
+    --shadow: rgba(62, 50, 36, 0.10);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14120f;
+      --surface: #211d18;
+      --surface-elevated: #2a251e;
+      --surface-recessed: #181512;
+      --border: rgba(255, 244, 220, 0.08);
+      --border-bright: rgba(255, 244, 220, 0.18);
+      --text: #f1e7d0;
+      --text-dim: #b2a58e;
+      --accent: #5eead4;
+      --accent-dim: rgba(94, 234, 212, 0.10);
+      --node-a: #5eead4;
+      --node-a-dim: rgba(94, 234, 212, 0.12);
+      --node-b: #c4b5fd;
+      --node-b-dim: rgba(196, 181, 253, 0.12);
+      --node-c: #fdba74;
+      --node-c-dim: rgba(253, 186, 116, 0.12);
+      --node-d: #93c5fd;
+      --node-d-dim: rgba(147, 197, 253, 0.12);
+      --ok: #86efac;
+      --warn: #fbbf24;
+      --shadow: rgba(0, 0, 0, 0.35);
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    font-family: var(--font-body);
+    color: var(--text);
+    background:
+      radial-gradient(circle at 20% 8%, var(--node-a-dim) 0, transparent 34%),
+      radial-gradient(circle at 82% 20%, var(--node-b-dim) 0, transparent 34%),
+      radial-gradient(circle at 48% 86%, var(--node-c-dim) 0, transparent 28%),
+      var(--bg);
+    line-height: 1.6;
+    overflow-wrap: break-word;
+  }
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.92em;
+    color: var(--accent);
+    background: var(--accent-dim);
+    border-radius: 0.35rem;
+    padding: 0.08rem 0.32rem;
+  }
+
+  .shell {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 42px 22px 64px;
+  }
+
+  .hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
+    gap: 22px;
+    align-items: stretch;
+    margin-bottom: 22px;
+  }
+
+  .panel {
+    min-width: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    box-shadow: 0 18px 48px var(--shadow);
+    padding: 24px;
+    animation: fadeUp 0.42s ease-out both;
+    animation-delay: calc(var(--i, 0) * 0.055s);
+  }
+
+  .panel--hero {
+    background:
+      linear-gradient(135deg, var(--surface-elevated), var(--surface)),
+      var(--surface);
+    border-color: color-mix(in srgb, var(--border) 45%, var(--accent) 55%);
+  }
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .eyebrow::before {
+    content: "";
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    background: currentColor;
+    box-shadow: 0 0 0 5px var(--accent-dim);
+  }
+
+  h1, h2, h3 { line-height: 1.14; }
+
+  h1 {
+    margin: 0 0 14px;
+    max-width: 840px;
+    font-size: clamp(34px, 6vw, 64px);
+    letter-spacing: -0.055em;
+  }
+
+  h2 {
+    margin: 0 0 14px;
+    font-size: clamp(24px, 3vw, 36px);
+    letter-spacing: -0.035em;
+  }
+
+  h3 {
+    margin: 0 0 10px;
+    font-size: 18px;
+  }
+
+  p { margin: 0; color: var(--text-dim); }
+  p + p { margin-top: 12px; }
+
+  .lead {
+    max-width: 820px;
+    font-size: 18px;
+    color: var(--text-dim);
+  }
+
+  .mentor {
+    display: grid;
+    gap: 14px;
+    align-content: start;
+  }
+
+  .mentor-card {
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--surface-elevated);
+  }
+
+  .mentor-card strong {
+    display: block;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    margin: 20px 0 28px;
+  }
+
+  .kpi {
+    min-width: 0;
+    padding: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    animation: fadeScale 0.35s ease-out both;
+    animation-delay: calc(var(--i, 0) * 0.055s);
+  }
+
+  .kpi__value {
+    font-family: var(--font-mono);
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--text);
+  }
+
+  .kpi__label {
+    margin-top: 4px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .section {
+    margin-top: 22px;
+  }
+
+  .section-grid {
+    display: grid;
+    grid-template-columns: minmax(260px, 0.42fr) minmax(0, 1fr);
+    gap: 22px;
+    align-items: start;
+  }
+
+  .guide {
+    position: sticky;
+    top: 16px;
+    display: grid;
+    gap: 12px;
+  }
+
+  .guide .panel { padding: 18px; }
+
+  .tag-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-top: 16px;
+  }
+
+  .tag, .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+    border-radius: 999px;
+    padding: 5px 9px;
+  }
+
+  .tag { color: var(--accent); background: var(--accent-dim); }
+  .tag--b { color: var(--node-b); background: var(--node-b-dim); }
+  .tag--c { color: var(--node-c); background: var(--node-c-dim); }
+  .status--ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 13%, transparent); }
+  .status--warn { color: var(--warn); background: color-mix(in srgb, var(--warn) 13%, transparent); }
+
+  .stack {
+    display: grid;
+    gap: 22px;
+    min-width: 0;
+  }
+
+  .diagram-wrap {
+    position: relative;
+    overflow: auto;
+    padding: 18px;
+    background:
+      linear-gradient(180deg, var(--surface-elevated), var(--surface)),
+      var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+  }
+
+  .diagram-wrap svg {
+    display: block;
+    width: 100%;
+    min-width: 760px;
+    height: auto;
+  }
+
+  .diagram-title {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    align-items: baseline;
+    margin-bottom: 14px;
+  }
+
+  .diagram-title h3 { margin: 0; }
+
+  .diagram-title span {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .callouts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+    margin-top: 16px;
+  }
+
+  .callout {
+    min-width: 0;
+    padding: 15px;
+    border-radius: 15px;
+    border: 1px solid var(--border);
+    background: var(--surface-elevated);
+  }
+
+  .callout strong {
+    display: block;
+    margin-bottom: 5px;
+    color: var(--text);
+  }
+
+  .steps {
+    counter-reset: step;
+    display: grid;
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .steps li {
+    counter-increment: step;
+    position: relative;
+    min-width: 0;
+    padding: 14px 14px 14px 52px;
+    border: 1px solid var(--border);
+    border-radius: 15px;
+    background: var(--surface-elevated);
+  }
+
+  .steps li::before {
+    content: counter(step);
+    position: absolute;
+    left: 14px;
+    top: 14px;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--surface);
+    background: var(--accent);
+  }
+
+  .steps strong { display: block; color: var(--text); }
+
+  .table-wrap {
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: var(--surface);
+  }
+
+  .table-scroll { overflow-x: auto; }
+
+  table {
+    width: 100%;
+    min-width: 900px;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 12px 14px;
+    background: var(--surface-elevated);
+    border-bottom: 1px solid var(--border-bright);
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-align: left;
+    text-transform: uppercase;
+  }
+
+  td {
+    padding: 13px 14px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+
+  tbody tr:nth-child(even) { background: color-mix(in srgb, var(--surface-recessed) 45%, transparent); }
+  tbody tr:hover { background: var(--accent-dim); }
+  tbody tr:last-child td { border-bottom: none; }
+
+  .two-col {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+
+  .mini-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .mini-list li {
+    position: relative;
+    padding-left: 18px;
+    margin-top: 9px;
+    color: var(--text-dim);
+  }
+
+  .mini-list li::before {
+    content: ">";
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+    font-family: var(--font-mono);
+    font-weight: 800;
+  }
+
+  .note {
+    border-left: 4px solid var(--node-c);
+    background: var(--node-c-dim);
+  }
+
+  .footer {
+    margin-top: 28px;
+    text-align: center;
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+
+  .svg-node { fill: var(--surface-elevated); stroke-width: 1.7; }
+  .svg-node-a { stroke: var(--node-a); }
+  .svg-node-b { stroke: var(--node-b); }
+  .svg-node-c { stroke: var(--node-c); }
+  .svg-node-d { stroke: var(--node-d); }
+  .svg-node-fill-a { fill: var(--node-a-dim); }
+  .svg-node-fill-b { fill: var(--node-b-dim); }
+  .svg-node-fill-c { fill: var(--node-c-dim); }
+  .svg-line { stroke: var(--text-dim); stroke-width: 1.8; fill: none; }
+  .svg-line-soft { stroke: var(--border-bright); stroke-width: 1.5; fill: none; stroke-dasharray: 7 5; }
+  .svg-text { fill: var(--text); font-family: var(--font-body); font-size: 13px; font-weight: 700; }
+  .svg-subtext { fill: var(--text-dim); font-family: var(--font-mono); font-size: 10px; }
+  .svg-label { fill: var(--text-dim); font-family: var(--font-mono); font-size: 10px; }
+  .svg-small { fill: var(--text); font-family: var(--font-mono); font-size: 9.5px; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fadeScale {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  @media (max-width: 920px) {
+    .hero,
+    .section-grid,
+    .two-col,
+    .callouts {
+      grid-template-columns: 1fr;
+    }
+
+    .guide { position: static; }
+    .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+
+  @media (max-width: 560px) {
+    .shell { padding: 24px 14px 44px; }
+    .panel { padding: 18px; border-radius: 16px; }
+    .kpi-grid { grid-template-columns: 1fr; }
+    .diagram-wrap { padding: 12px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+</style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div class="panel panel--hero" style="--i: 0">
+        <div class="eyebrow">PR #7 mentor walkthrough</div>
+        <h1>M4: turning <code>anvil init</code> from a stub into a safe orchestration pipeline</h1>
+        <p class="lead">
+          Think of this PR as the moment the scaffolder gets its front door. The command now reads the user's
+          intent, detects the target project, resolves safe defaults, builds a scaffold context, previews or writes
+          files, and then runs best-effort setup without hiding failures.
+        </p>
+        <div class="tag-row">
+          <span class="tag">CLI orchestration</span>
+          <span class="tag tag--b">Scaffold context</span>
+          <span class="tag tag--c">Dry-run safety</span>
+          <span class="tag">Mutation gate</span>
+        </div>
+      </div>
+
+      <aside class="mentor" aria-label="Mentor framing">
+        <div class="mentor-card">
+          <strong>Mentor rule of thumb</strong>
+          <p><code>init.ts</code> should coordinate; it should not know template internals. Template decisions stay in the manifest and scaffold engine.</p>
+        </div>
+        <div class="mentor-card">
+          <strong>The architectural win</strong>
+          <p>The PR splits "decide what to scaffold" from "write the scaffold" and from "run optional setup commands."</p>
+        </div>
+        <div class="mentor-card">
+          <strong>What to trace first</strong>
+          <p>Start at <code>src/cli.ts</code>, then read <code>src/commands/init.ts</code> from bottom to top. The exported command shows the whole lifecycle.</p>
+        </div>
+      </aside>
+    </section>
+
+    <section class="kpi-grid" aria-label="PR highlights">
+      <div class="kpi" style="--i: 1">
+        <div class="kpi__value">1 command</div>
+        <div class="kpi__label">real init entry point</div>
+      </div>
+      <div class="kpi" style="--i: 2">
+        <div class="kpi__value">3 modes</div>
+        <div class="kpi__label">interactive, headless, dry-run</div>
+      </div>
+      <div class="kpi" style="--i: 3">
+        <div class="kpi__value">TS templates</div>
+        <div class="kpi__label">real rendered project files</div>
+      </div>
+      <div class="kpi" style="--i: 4">
+        <div class="kpi__value">83.09%</div>
+        <div class="kpi__label">latest mutation score</div>
+      </div>
+    </section>
+
+    <section class="section section-grid">
+      <aside class="guide">
+        <div class="panel" style="--i: 5">
+          <div class="eyebrow">Mental model</div>
+          <h2>Four jobs, four places</h2>
+          <p>
+            A junior engineer should avoid reading this PR as one giant command. Read it as four small services
+            inside the CLI: entrypoint, context builder, scaffold engine, and post-scaffold runner.
+          </p>
+          <ul class="mini-list">
+            <li><code>cli.ts</code> parses user intent.</li>
+            <li><code>init.ts</code> orders the workflow and owns safety gates.</li>
+            <li><code>init-context.ts</code> turns environment facts into a typed <code>ScaffoldContext</code>.</li>
+            <li><code>engine.ts</code> previews/writes; <code>init-post.ts</code> runs optional setup.</li>
+          </ul>
+        </div>
+      </aside>
+
+      <div class="stack">
+        <div class="panel" style="--i: 6">
+          <div class="diagram-title">
+            <h3>Architecture map</h3>
+            <span>who owns what</span>
+          </div>
+          <div class="diagram-wrap" role="img" aria-label="Architecture diagram from CLI to init orchestration, context resolution, scaffold engine, templates, lockfile, and post scaffold commands.">
+            <svg viewBox="0 0 1120 520" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+                  <path d="M0,0 L10,4 L0,8 Z" fill="var(--text-dim)"></path>
+                </marker>
+                <marker id="arrow-soft" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+                  <path d="M0,0 L10,4 L0,8 Z" fill="var(--border-bright)"></path>
+                </marker>
+              </defs>
+
+              <rect x="20" y="42" width="150" height="74" rx="16" class="svg-node svg-node-a svg-node-fill-a"></rect>
+              <text x="95" y="72" text-anchor="middle" class="svg-text">User</text>
+              <text x="95" y="94" text-anchor="middle" class="svg-subtext">anvil init flags</text>
+
+              <rect x="230" y="42" width="170" height="74" rx="16" class="svg-node svg-node-a"></rect>
+              <text x="315" y="70" text-anchor="middle" class="svg-text">src/cli.ts</text>
+              <text x="315" y="92" text-anchor="middle" class="svg-subtext">parse + validate lang</text>
+
+              <rect x="462" y="42" width="190" height="112" rx="18" class="svg-node svg-node-b svg-node-fill-b"></rect>
+              <text x="557" y="70" text-anchor="middle" class="svg-text">src/commands/init.ts</text>
+              <text x="557" y="94" text-anchor="middle" class="svg-subtext">TTY guard</text>
+              <text x="557" y="112" text-anchor="middle" class="svg-subtext">lock discipline</text>
+              <text x="557" y="130" text-anchor="middle" class="svg-subtext">dry-run branch</text>
+
+              <rect x="735" y="28" width="170" height="86" rx="16" class="svg-node svg-node-c"></rect>
+              <text x="820" y="58" text-anchor="middle" class="svg-text">init-context.ts</text>
+              <text x="820" y="80" text-anchor="middle" class="svg-subtext">answers + toolchain</text>
+              <text x="820" y="98" text-anchor="middle" class="svg-subtext">fallback warnings</text>
+
+              <rect x="735" y="148" width="170" height="86" rx="16" class="svg-node svg-node-d"></rect>
+              <text x="820" y="178" text-anchor="middle" class="svg-text">detect.ts</text>
+              <text x="820" y="200" text-anchor="middle" class="svg-subtext">existing code facts</text>
+              <text x="820" y="218" text-anchor="middle" class="svg-subtext">source/package hints</text>
+
+              <rect x="462" y="276" width="190" height="100" rx="18" class="svg-node svg-node-a"></rect>
+              <text x="557" y="306" text-anchor="middle" class="svg-text">scaffold engine</text>
+              <text x="557" y="328" text-anchor="middle" class="svg-subtext">previewScaffold()</text>
+              <text x="557" y="346" text-anchor="middle" class="svg-subtext">scaffold()</text>
+              <text x="557" y="364" text-anchor="middle" class="svg-subtext">checkpoint lockfile</text>
+
+              <rect x="230" y="286" width="170" height="78" rx="16" class="svg-node svg-node-c"></rect>
+              <text x="315" y="316" text-anchor="middle" class="svg-text">manifest.ts</text>
+              <text x="315" y="338" text-anchor="middle" class="svg-subtext">static/template entries</text>
+
+              <rect x="20" y="286" width="150" height="78" rx="16" class="svg-node svg-node-c svg-node-fill-c"></rect>
+              <text x="95" y="316" text-anchor="middle" class="svg-text">TS templates</text>
+              <text x="95" y="338" text-anchor="middle" class="svg-subtext">package, Makefile, docs</text>
+
+              <rect x="735" y="296" width="170" height="86" rx="16" class="svg-node svg-node-b"></rect>
+              <text x="820" y="326" text-anchor="middle" class="svg-text">init-post.ts</text>
+              <text x="820" y="348" text-anchor="middle" class="svg-subtext">install deps</text>
+              <text x="820" y="366" text-anchor="middle" class="svg-subtext">git + hooks best effort</text>
+
+              <rect x="960" y="188" width="140" height="76" rx="16" class="svg-node svg-node-a"></rect>
+              <text x="1030" y="218" text-anchor="middle" class="svg-text">filesystem</text>
+              <text x="1030" y="240" text-anchor="middle" class="svg-subtext">files + .anvil.lock</text>
+
+              <path d="M170 79 H230" class="svg-line" marker-end="url(#arrow)"></path>
+              <path d="M400 79 H462" class="svg-line" marker-end="url(#arrow)"></path>
+              <path d="M652 83 H735" class="svg-line" marker-end="url(#arrow)"></path>
+              <path d="M652 116 C690 116 690 191 735 191" class="svg-line" marker-end="url(#arrow)"></path>
+              <path d="M557 154 V276" class="svg-line" marker-end="url(#arrow)"></path>
+              <path d="M462 326 H400" class="svg-line" marker-end="url(#arrow)"></path>
+              <path d="M230 326 H170" class="svg-line" marker-end="url(#arrow)"></path>
+              <path d="M652 326 H735" class="svg-line" marker-end="url(#arrow)"></path>
+              <path d="M905 339 C960 339 960 262 1030 262" class="svg-line" marker-end="url(#arrow)"></path>
+              <path d="M652 326 C720 420 940 390 1030 264" class="svg-line-soft" marker-end="url(#arrow-soft)"></path>
+
+              <text x="197" y="68" text-anchor="middle" class="svg-label">options</text>
+              <text x="431" y="68" text-anchor="middle" class="svg-label">InitOptions</text>
+              <text x="694" y="72" text-anchor="middle" class="svg-label">ask</text>
+              <text x="708" y="164" text-anchor="middle" class="svg-label">inspect</text>
+              <text x="584" y="220" text-anchor="middle" class="svg-label">ScaffoldContext</text>
+              <text x="432" y="316" text-anchor="middle" class="svg-label">entries</text>
+              <text x="200" y="316" text-anchor="middle" class="svg-label">render</text>
+              <text x="692" y="314" text-anchor="middle" class="svg-label">after write</text>
+              <text x="944" y="322" text-anchor="middle" class="svg-label">commands</text>
+              <text x="804" y="423" text-anchor="middle" class="svg-label">write/preview output</text>
+            </svg>
+          </div>
+          <div class="callouts">
+            <div class="callout">
+              <strong>Why the split matters</strong>
+              <p><code>init.ts</code> can be tested with injected dependencies, while the engine still owns rendering and conflict mechanics.</p>
+            </div>
+            <div class="callout">
+              <strong>Where safety lives</strong>
+              <p>TTY checks, dry-run no-write behavior, cross-language lockfile rejection, and lock release all sit in the command layer.</p>
+            </div>
+            <div class="callout">
+              <strong>Where extensibility lives</strong>
+              <p>New scaffold outputs should be manifest/template changes, not special cases inside the command orchestration.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel" style="--i: 7">
+          <div class="diagram-title">
+            <h3>Call flow: what happens when a user runs init</h3>
+            <span>sequence view</span>
+          </div>
+          <div class="diagram-wrap" role="img" aria-label="Sequence diagram showing CLI, init command, context resolver, scaffold engine, post scaffold runner, and filesystem interactions.">
+            <svg viewBox="0 0 1120 560" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <marker id="seq-arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+                  <path d="M0,0 L10,4 L0,8 Z" fill="var(--text-dim)"></path>
+                </marker>
+              </defs>
+
+              <g>
+                <rect x="50" y="18" width="126" height="34" rx="9" class="svg-node svg-node-a"></rect>
+                <text x="113" y="40" text-anchor="middle" class="svg-small">CLI</text>
+                <line x1="113" y1="52" x2="113" y2="525" class="svg-line-soft"></line>
+              </g>
+              <g>
+                <rect x="234" y="18" width="146" height="34" rx="9" class="svg-node svg-node-b"></rect>
+                <text x="307" y="40" text-anchor="middle" class="svg-small">init.ts</text>
+                <line x1="307" y1="52" x2="307" y2="525" class="svg-line-soft"></line>
+              </g>
+              <g>
+                <rect x="448" y="18" width="158" height="34" rx="9" class="svg-node svg-node-c"></rect>
+                <text x="527" y="40" text-anchor="middle" class="svg-small">init-context</text>
+                <line x1="527" y1="52" x2="527" y2="525" class="svg-line-soft"></line>
+              </g>
+              <g>
+                <rect x="674" y="18" width="148" height="34" rx="9" class="svg-node svg-node-a"></rect>
+                <text x="748" y="40" text-anchor="middle" class="svg-small">engine</text>
+                <line x1="748" y1="52" x2="748" y2="525" class="svg-line-soft"></line>
+              </g>
+              <g>
+                <rect x="888" y="18" width="138" height="34" rx="9" class="svg-node svg-node-d"></rect>
+                <text x="957" y="40" text-anchor="middle" class="svg-small">init-post</text>
+                <line x1="957" y1="52" x2="957" y2="525" class="svg-line-soft"></line>
+              </g>
+
+              <line x1="113" y1="86" x2="307" y2="86" class="svg-line" marker-end="url(#seq-arrow)"></line>
+              <text x="210" y="75" text-anchor="middle" class="svg-label">parse lang/non-interactive/dry-run</text>
+
+              <rect x="300" y="92" width="14" height="390" rx="4" fill="var(--node-b-dim)" stroke="var(--node-b)"></rect>
+
+              <line x1="307" y1="126" x2="527" y2="126" class="svg-line" marker-end="url(#seq-arrow)"></line>
+              <text x="417" y="115" text-anchor="middle" class="svg-label">resolve answers + defaults</text>
+
+              <rect x="520" y="132" width="14" height="98" rx="4" fill="var(--node-c-dim)" stroke="var(--node-c)"></rect>
+              <path d="M527 166 C590 166 590 206 527 206" class="svg-line-soft" marker-end="url(#seq-arrow)"></path>
+              <text x="605" y="189" text-anchor="middle" class="svg-label">fetch latest with timeout, fallback</text>
+
+              <line x1="527" y1="232" x2="307" y2="232" class="svg-line" marker-end="url(#seq-arrow)"></line>
+              <text x="417" y="221" text-anchor="middle" class="svg-label">ScaffoldContext + warnings</text>
+
+              <line x1="307" y1="282" x2="748" y2="282" class="svg-line" marker-end="url(#seq-arrow)"></line>
+              <text x="528" y="271" text-anchor="middle" class="svg-label">dry-run? previewScaffold(ctx) : scaffold(ctx)</text>
+
+              <rect x="741" y="288" width="14" height="92" rx="4" fill="var(--node-a-dim)" stroke="var(--node-a)"></rect>
+              <path d="M748 318 C805 318 805 354 748 354" class="svg-line-soft" marker-end="url(#seq-arrow)"></path>
+              <text x="824" y="341" text-anchor="middle" class="svg-label">manifest entries -> tree changes -> lockfile</text>
+
+              <line x1="748" y1="386" x2="307" y2="386" class="svg-line" marker-end="url(#seq-arrow)"></line>
+              <text x="528" y="375" text-anchor="middle" class="svg-label">preview counts or scaffold result</text>
+
+              <line x1="307" y1="430" x2="957" y2="430" class="svg-line" marker-end="url(#seq-arrow)"></line>
+              <text x="632" y="419" text-anchor="middle" class="svg-label">only after real scaffold succeeds</text>
+
+              <rect x="950" y="436" width="14" height="54" rx="4" fill="var(--node-d-dim)" stroke="var(--node-d)"></rect>
+              <path d="M957 462 C1010 462 1010 486 957 486" class="svg-line-soft" marker-end="url(#seq-arrow)"></path>
+              <text x="1032" y="477" text-anchor="middle" class="svg-label">install/git/hooks best effort</text>
+
+              <line x1="307" y1="512" x2="113" y2="512" class="svg-line" marker-end="url(#seq-arrow)"></line>
+              <text x="210" y="501" text-anchor="middle" class="svg-label">exit code + summary</text>
+            </svg>
+          </div>
+          <p>
+            The important teaching point: dry-run enters the same context-building path, but it stops at
+            <code>previewScaffold</code>. It deliberately avoids directory creation, lock acquisition, scaffold flush,
+            and post-scaffold commands.
+          </p>
+        </div>
+
+        <div class="panel" style="--i: 8">
+          <div class="diagram-title">
+            <h3>Data flow: how raw facts become generated files</h3>
+            <span>inputs -> context -> outputs</span>
+          </div>
+          <div class="diagram-wrap" role="img" aria-label="Data flow diagram showing flags, target directory, lockfile, detection, prompts, toolchain sources, manifest, scaffold context, and outputs.">
+            <svg viewBox="0 0 1120 620" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <marker id="df-arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+                  <path d="M0,0 L10,4 L0,8 Z" fill="var(--text-dim)"></path>
+                </marker>
+              </defs>
+
+              <rect x="30" y="50" width="190" height="72" rx="16" class="svg-node svg-node-a"></rect>
+              <text x="125" y="80" text-anchor="middle" class="svg-text">CLI flags</text>
+              <text x="125" y="101" text-anchor="middle" class="svg-subtext">lang, dry-run, non-interactive</text>
+
+              <rect x="30" y="164" width="190" height="72" rx="16" class="svg-node svg-node-a"></rect>
+              <text x="125" y="194" text-anchor="middle" class="svg-text">Target directory</text>
+              <text x="125" y="215" text-anchor="middle" class="svg-subtext">cwd + filesystem facts</text>
+
+              <rect x="30" y="278" width="190" height="72" rx="16" class="svg-node svg-node-a"></rect>
+              <text x="125" y="308" text-anchor="middle" class="svg-text">Existing lockfile</text>
+              <text x="125" y="329" text-anchor="middle" class="svg-subtext">complete or in-progress</text>
+
+              <rect x="30" y="392" width="190" height="72" rx="16" class="svg-node svg-node-a"></rect>
+              <text x="125" y="422" text-anchor="middle" class="svg-text">Toolchain sources</text>
+              <text x="125" y="443" text-anchor="middle" class="svg-subtext">local bun + remote latest</text>
+
+              <rect x="308" y="110" width="200" height="88" rx="18" class="svg-node svg-node-c svg-node-fill-c"></rect>
+              <text x="408" y="141" text-anchor="middle" class="svg-text">Resolve answers</text>
+              <text x="408" y="164" text-anchor="middle" class="svg-subtext">prompts or safe defaults</text>
+              <text x="408" y="182" text-anchor="middle" class="svg-subtext">package manager, seed, branch</text>
+
+              <rect x="308" y="284" width="200" height="88" rx="18" class="svg-node svg-node-b svg-node-fill-b"></rect>
+              <text x="408" y="315" text-anchor="middle" class="svg-text">Resolve toolchain</text>
+              <text x="408" y="338" text-anchor="middle" class="svg-subtext">timeout + fallback warning</text>
+              <text x="408" y="356" text-anchor="middle" class="svg-subtext">bun/node/go/python</text>
+
+              <rect x="596" y="186" width="214" height="110" rx="20" class="svg-node svg-node-d"></rect>
+              <text x="703" y="220" text-anchor="middle" class="svg-text">ScaffoldContext</text>
+              <text x="703" y="244" text-anchor="middle" class="svg-subtext">single typed object</text>
+              <text x="703" y="263" text-anchor="middle" class="svg-subtext">projectName, lang, targetDir</text>
+              <text x="703" y="282" text-anchor="middle" class="svg-subtext">toolchain, skipSeed, year</text>
+
+              <rect x="596" y="384" width="214" height="88" rx="18" class="svg-node svg-node-c"></rect>
+              <text x="703" y="415" text-anchor="middle" class="svg-text">Manifest + templates</text>
+              <text x="703" y="438" text-anchor="middle" class="svg-subtext">static and EJS entries</text>
+              <text x="703" y="456" text-anchor="middle" class="svg-subtext">TypeScript dynamic files</text>
+
+              <rect x="896" y="98" width="190" height="88" rx="18" class="svg-node svg-node-a"></rect>
+              <text x="991" y="129" text-anchor="middle" class="svg-text">Dry-run output</text>
+              <text x="991" y="152" text-anchor="middle" class="svg-subtext">counts only</text>
+              <text x="991" y="170" text-anchor="middle" class="svg-subtext">no files, no lock artifacts</text>
+
+              <rect x="896" y="250" width="190" height="88" rx="18" class="svg-node svg-node-b"></rect>
+              <text x="991" y="281" text-anchor="middle" class="svg-text">Scaffold output</text>
+              <text x="991" y="304" text-anchor="middle" class="svg-subtext">files + .anvil.lock</text>
+              <text x="991" y="322" text-anchor="middle" class="svg-subtext">checkpointed writes</text>
+
+              <rect x="896" y="402" width="190" height="88" rx="18" class="svg-node svg-node-d"></rect>
+              <text x="991" y="433" text-anchor="middle" class="svg-text">Post setup</text>
+              <text x="991" y="456" text-anchor="middle" class="svg-subtext">install, git, hooks</text>
+              <text x="991" y="474" text-anchor="middle" class="svg-subtext">warnings, not fatal</text>
+
+              <path d="M220 86 C258 86 258 136 308 148" class="svg-line" marker-end="url(#df-arrow)"></path>
+              <path d="M220 200 C258 200 258 164 308 164" class="svg-line" marker-end="url(#df-arrow)"></path>
+              <path d="M220 314 C258 314 258 320 308 320" class="svg-line" marker-end="url(#df-arrow)"></path>
+              <path d="M220 428 C258 428 258 356 308 348" class="svg-line" marker-end="url(#df-arrow)"></path>
+              <path d="M508 154 C552 154 552 220 596 230" class="svg-line" marker-end="url(#df-arrow)"></path>
+              <path d="M508 328 C552 328 552 270 596 260" class="svg-line" marker-end="url(#df-arrow)"></path>
+              <path d="M703 296 V384" class="svg-line" marker-end="url(#df-arrow)"></path>
+              <path d="M810 236 C850 236 850 142 896 142" class="svg-line" marker-end="url(#df-arrow)"></path>
+              <path d="M810 260 C850 260 850 294 896 294" class="svg-line" marker-end="url(#df-arrow)"></path>
+              <path d="M810 428 H896" class="svg-line" marker-end="url(#df-arrow)"></path>
+              <path d="M991 338 V402" class="svg-line-soft" marker-end="url(#df-arrow)"></path>
+
+              <text x="264" y="91" text-anchor="middle" class="svg-label">intent</text>
+              <text x="260" y="216" text-anchor="middle" class="svg-label">detect</text>
+              <text x="260" y="305" text-anchor="middle" class="svg-label">reuse/resume</text>
+              <text x="263" y="411" text-anchor="middle" class="svg-label">latest or fallback</text>
+              <text x="552" y="190" text-anchor="middle" class="svg-label">answers</text>
+              <text x="552" y="318" text-anchor="middle" class="svg-label">versions</text>
+              <text x="732" y="350" text-anchor="middle" class="svg-label">render inputs</text>
+              <text x="850" y="134" text-anchor="middle" class="svg-label">dry-run</text>
+              <text x="850" y="286" text-anchor="middle" class="svg-label">real run</text>
+              <text x="853" y="418" text-anchor="middle" class="svg-label">after write</text>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section two-col">
+      <div class="panel" style="--i: 9">
+        <div class="eyebrow">Safety choices</div>
+        <h2>The "boring" guardrails are the architecture</h2>
+        <ul class="steps">
+          <li>
+            <strong>Interactive work requires a TTY.</strong>
+            If the user pipes into the command without <code>--non-interactive</code>, init exits cleanly before prompts or writes.
+          </li>
+          <li>
+            <strong>Dry-run resolves a path but does not create it.</strong>
+            The command uses <code>path.resolve</code> for dry-run and only calls <code>mkdir</code>/<code>realpath</code> on real writes.
+          </li>
+          <li>
+            <strong>Real writes are locked.</strong>
+            Non-dry-run acquires a directory lock and releases it in <code>finally</code>, so failures do not strand the lock.
+          </li>
+          <li>
+            <strong>Interrupted lockfiles are explicit.</strong>
+            Interactive users can resume; non-interactive runs stop and tell the operator what to do.
+          </li>
+        </ul>
+      </div>
+
+      <div class="panel note" style="--i: 10">
+        <div class="eyebrow">Mentor note</div>
+        <h2>Why dependency injection shows up everywhere</h2>
+        <p>
+          This PR makes the command testable by injecting <code>cwd</code>, <code>stdin</code>, prompts, lock acquisition,
+          filesystem probes, command runners, fetch, scaffold, and preview functions. That can look noisy at first,
+          but it lets tests prove important behavior without shelling out or writing real projects.
+        </p>
+        <p>
+          As a rule: inject the boundary, not the business rule. The business rule still lives in plain TypeScript;
+          only the outside-world effects are replaceable in tests.
+        </p>
+      </div>
+    </section>
+
+    <section class="section panel" style="--i: 11">
+      <div class="eyebrow">File map</div>
+      <h2>Where to look when changing this later</h2>
+      <div class="table-wrap">
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>File / area</th>
+                <th>Responsibility</th>
+                <th>Teaching note</th>
+                <th>Tests that protect it</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>src/cli.ts</code></td>
+                <td>Commander wiring for <code>init</code> and exit-code plumbing.</td>
+                <td>Keep parsing thin. Validate flags, then hand a typed <code>InitOptions</code> object to the command.</td>
+                <td><code>src/cli.test.ts</code></td>
+              </tr>
+              <tr>
+                <td><code>src/commands/init.ts</code></td>
+                <td>Top-level orchestration: target resolution, lockfile reads, detection, answers, toolchain, dry-run/write branch, summary.</td>
+                <td>This is the coordinator. If it starts rendering templates directly, the boundary has leaked.</td>
+                <td><code>src/commands/init.test.ts</code></td>
+              </tr>
+              <tr>
+                <td><code>src/commands/init-context.ts</code></td>
+                <td>Prompt adapters, non-interactive defaults, project-name validation, default branch detection, latest toolchain resolution.</td>
+                <td>Its output is ordinary data. Once you have <code>ScaffoldContext</code>, downstream code should not need to ask the user again.</td>
+                <td><code>src/commands/init-context.test.ts</code></td>
+              </tr>
+              <tr>
+                <td><code>src/scaffold/engine.ts</code></td>
+                <td>Builds scaffold tree, resolves conflicts, previews changes, writes files, checkpoints/finalizes lockfiles.</td>
+                <td><code>previewScaffold</code> mirrors the write path enough to be trustworthy, but skips flushing files.</td>
+                <td><code>src/scaffold/engine.test.ts</code></td>
+              </tr>
+              <tr>
+                <td><code>src/commands/init-post.ts</code></td>
+                <td>Best-effort package install, git initialization, pre-commit hook install, Python plugin install.</td>
+                <td>Post setup can warn, but it should not turn a good scaffold into a failed scaffold.</td>
+                <td><code>src/commands/init-post.test.ts</code></td>
+              </tr>
+              <tr>
+                <td><code>src/manifest.ts</code> and <code>src/templates/typescript/</code></td>
+                <td>TypeScript scaffold file list and dynamic rendered project files.</td>
+                <td>New outputs belong here. The command should stay language-agnostic except for choosing <code>lang</code>.</td>
+                <td><code>src/manifest.test.ts</code></td>
+              </tr>
+              <tr>
+                <td><code>src/scaffold/conflict-reporter.ts</code></td>
+                <td>Non-interactive conflict output with unified diffs.</td>
+                <td>Headless mode cannot prompt, so it reports conflicts and returns a failure code without mutating user files.</td>
+                <td><code>src/scaffold/conflict-reporter.test.ts</code></td>
+              </tr>
+              <tr>
+                <td><code>stryker.config.mjs</code></td>
+                <td>Mutation gate expanded to cover init, post-scaffold, toolchain fallback, CRAP, and changed-file routing.</td>
+                <td>Mutation is treated as a core quality gate, not an optional report.</td>
+                <td><code>bun mutation</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="section two-col">
+      <div class="panel" style="--i: 12">
+        <div class="eyebrow">Failure design</div>
+        <h2>How the PR handles imperfect environments</h2>
+        <ul class="mini-list">
+          <li>Latest-version network calls use an abortable timeout and wrap both initial fetch and response body parsing.</li>
+          <li>Network failures produce warnings and fall back to bundled toolchain defaults from Anvil.</li>
+          <li><code>.git</code> stat failures warn and skip hooks instead of failing the scaffold.</li>
+          <li>Package installs, <code>git init</code>, pre-commit, and Python plugin install are best-effort commands.</li>
+          <li>Cross-language re-scaffold is a hard stop because applying a different manifest over an old lockfile is unsafe.</li>
+        </ul>
+      </div>
+
+      <div class="panel" style="--i: 13">
+        <div class="eyebrow">Quality gates</div>
+        <h2>How we know the design holds</h2>
+        <ul class="mini-list">
+          <li><span class="status status--ok">PASS</span> full Bun test suite: 546 passing tests.</li>
+          <li><span class="status status--ok">PASS</span> fixture scenarios: 9 sandbox fixtures.</li>
+          <li><span class="status status--ok">PASS</span> agent check: 9 scenarios.</li>
+          <li><span class="status status--ok">PASS</span> typecheck with <code>bun x tsc --noEmit</code>.</li>
+          <li><span class="status status--ok">PASS</span> Stryker mutation: 83.09% against an 80% break threshold.</li>
+          <li><span class="status status--ok">PASS</span> slop-scan: 0 findings.</li>
+          <li><span class="status status--ok">PASS</span> GitHub PR check: fixtures workflow successful.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section panel" style="--i: 14">
+      <div class="eyebrow">How to extend it</div>
+      <h2>A junior-friendly change recipe</h2>
+      <ol class="steps">
+        <li>
+          <strong>Adding a new generated file?</strong>
+          Add a manifest entry and either a static file or template. Then add manifest/render tests. Do not special-case it in <code>init.ts</code>.
+        </li>
+        <li>
+          <strong>Adding a new prompt/default?</strong>
+          Put the decision in <code>init-context.ts</code>, add it to the answer/context data, and test interactive and non-interactive behavior.
+        </li>
+        <li>
+          <strong>Adding a post-scaffold command?</strong>
+          Keep it best-effort unless the scaffold cannot be valid without it. Return warnings with manual remediation commands.
+        </li>
+        <li>
+          <strong>Changing dry-run behavior?</strong>
+          First prove what must not happen: no directory creation, no lock acquisition, no scaffold flush, no post commands.
+        </li>
+        <li>
+          <strong>Changing a safety branch?</strong>
+          Add focused tests and make sure the mutation target still covers the branch. This project treats mutation as a gate.
+        </li>
+      </ol>
+    </section>
+
+    <footer class="footer">
+      Self-contained walkthrough for PR #7. No external assets, scripts, fonts, or network requests.
+    </footer>
+  </main>
+</body>
+</html>
