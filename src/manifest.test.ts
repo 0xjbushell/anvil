@@ -41,7 +41,7 @@ const expectedTypescriptTemplateFiles = [
 ];
 const expectedRanges: Record<Lang, { min: number; max: number }> = {
   typescript: { min: 23, max: 30 },
-  golang: { min: 18, max: 26 },
+  golang: { min: 18, max: 27 },
   python: { min: 18, max: 24 },
 };
 const expectedSeedDests: Record<Lang, string[]> = {

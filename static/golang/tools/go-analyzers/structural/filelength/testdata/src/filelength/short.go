@@ -1,0 +1,3 @@
+package filelength
+
+func Short() {}
