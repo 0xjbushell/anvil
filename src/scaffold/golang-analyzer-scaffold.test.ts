@@ -4,18 +4,32 @@ import { describe, expect, test } from "bun:test";
 import { getManifest } from "../manifest.ts";
 
 const analyzerRoot = new URL("../../static/golang/tools/go-analyzers/", import.meta.url);
+const expectedHarnessImports = [
+  '"golang.org/x/tools/go/analysis/multichecker"',
+  '"tools/go-analyzers/anti_slop/noplaceholder"',
+  '"tools/go-analyzers/anti_slop/nopassthrough"',
+  '"tools/go-analyzers/anti_slop/nosilenterrorswallow"',
+  '"tools/go-analyzers/anti_slop/structuredlog"',
+  '"tools/go-analyzers/test_quality/noemptytest"',
+  '"tools/go-analyzers/test_quality/requireerrortest"',
+];
+const expectedHarnessAnalyzers = [
+  "noplaceholder.Analyzer",
+  "nopassthrough.Analyzer",
+  "nosilenterrorswallow.Analyzer",
+  "structuredlog.Analyzer",
+  "noemptytest.Analyzer",
+  "requireerrortest.Analyzer",
+];
 
 function analyzerFile(relativePath: string): Bun.BunFile {
   return Bun.file(new URL(relativePath, analyzerRoot));
 }
 
 describe("Go analyzer scaffold", () => {
-  test("ships the empty multichecker harness and package directories", async () => {
+  test("ships the multichecker harness and analyzer package directories", async () => {
     const expectedFiles = [
       "cmd/anvil-lint/main.go",
-      "anti_slop/.gitkeep",
-      "structural/.gitkeep",
-      "test_quality/.gitkeep",
       "testdata/.gitkeep",
       "go.mod.ejs",
       "Makefile",
@@ -25,9 +39,16 @@ describe("Go analyzer scaffold", () => {
       expect(await analyzerFile(file).exists()).toBe(true);
     }
 
-    expect(await analyzerFile("cmd/anvil-lint/main.go").text()).toBe(
-      'package main\n\nimport "golang.org/x/tools/go/analysis/multichecker"\n\nfunc main() {\n\tmultichecker.Main()\n}\n',
-    );
+    const harness = await analyzerFile("cmd/anvil-lint/main.go").text();
+
+    for (const importPath of expectedHarnessImports) {
+      expect(harness).toContain(importPath);
+    }
+
+    expect(harness).toContain("multichecker.Main(");
+    for (const analyzer of expectedHarnessAnalyzers) {
+      expect(harness).toContain(analyzer);
+    }
   });
 
   test("renders go.mod from the resolved Go toolchain version", async () => {
