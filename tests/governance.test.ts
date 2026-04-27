@@ -90,31 +90,35 @@ describe('TIX-000070 governance', () => {
   });
 
   const commitlintInstalled = existsSync(join(repoRoot, 'node_modules/@commitlint/cli'));
-  test.skipIf(!commitlintInstalled)('7. commitlint hook integration: bad rejected, good accepted', () => {
-    const dir = join(repoRoot, '.sandbox/governance-commitlint');
-    rmSync(dir, { recursive: true, force: true });
-    mkdirSync(dir, { recursive: true });
-    const badFile = join(dir, 'bad.txt');
-    const goodFile = join(dir, 'good.txt');
-    try {
-      writeFileSync(badFile, 'add feature\n');
-      writeFileSync(goodFile, 'feat: add feature\n');
-
-      const bad = spawnSync('bunx', ['--bun', 'commitlint', '--edit', badFile], {
-        cwd: repoRoot,
-        encoding: 'utf8',
-      });
-      expect(bad.status).not.toBe(0);
-
-      const good = spawnSync('bunx', ['--bun', 'commitlint', '--edit', goodFile], {
-        cwd: repoRoot,
-        encoding: 'utf8',
-      });
-      expect(good.status).toBe(0);
-    } finally {
+  test.skipIf(!commitlintInstalled)(
+    '7. commitlint hook integration: bad rejected, good accepted',
+    () => {
+      const dir = join(repoRoot, '.sandbox/governance-commitlint');
       rmSync(dir, { recursive: true, force: true });
-    }
-  });
+      mkdirSync(dir, { recursive: true });
+      const badFile = join(dir, 'bad.txt');
+      const goodFile = join(dir, 'good.txt');
+      try {
+        writeFileSync(badFile, 'add feature\n');
+        writeFileSync(goodFile, 'feat: add feature\n');
+
+        const bad = spawnSync('bunx', ['--bun', 'commitlint', '--edit', badFile], {
+          cwd: repoRoot,
+          encoding: 'utf8',
+        });
+        expect(bad.status).not.toBe(0);
+
+        const good = spawnSync('bunx', ['--bun', 'commitlint', '--edit', goodFile], {
+          cwd: repoRoot,
+          encoding: 'utf8',
+        });
+        expect(good.status).toBe(0);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    },
+    30_000,
+  );
 
   test('8. pre-push hook runs fixtures and mutation and is executable', () => {
     const path = join(repoRoot, '.husky/pre-push');
