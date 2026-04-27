@@ -4,6 +4,7 @@ specs/review-*.html
 
 # Node / Bun
 node_modules/
+dist/
 
 # Python
 __pycache__/

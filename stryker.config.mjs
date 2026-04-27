@@ -5,6 +5,7 @@ export const mutationTestCommand = [
   "src/commands/init-context.test.ts",
   "src/commands/init-post.test.ts",
   "src/commands/init.test.ts",
+  "src/commands/doctor.test.ts",
   "src/internal/toolchain-defaults.test.ts",
   "src/scaffold/conflict-reporter.test.ts",
 ].join(" ");
@@ -25,6 +26,12 @@ export const mutationTargets = [
   "src/commands/init-context.ts:417-461",
   "src/commands/init-post.ts:35-47",
   "src/commands/init-post.ts:130-166",
+  "src/commands/doctor.ts:311-318",
+  "src/commands/doctor.ts:581-592",
+  "src/commands/doctor.ts:669-678",
+  "src/commands/doctor.ts:704-711",
+  "src/commands/doctor.ts:725-735",
+  "src/commands/doctor.ts:893-896",
 ];
 
 /** @type {import('@stryker-mutator/api/core').PartialStrykerOptions} */

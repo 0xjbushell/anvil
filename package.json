@@ -7,8 +7,16 @@
   "bin": {
     "anvil": "./bin/anvil.ts"
   },
+  "files": [
+    "bin",
+    "src",
+    "static",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
-    "build": "bun build ./bin/anvil.ts --outdir ./dist --target bun",
+    "build": "bun run scripts/build.ts",
+    "prepublishOnly": "bun test && bun run build",
     "dev": "bun src/dev/cli.ts",
     "fixtures": "bun src/dev/cli.ts fixtures",
     "agent:check": "bun src/dev/cli.ts agent:check",
@@ -27,7 +35,8 @@
     "picomatch": "^4.0.2",
     "pino": "^9.5.0",
     "write-file-atomic": "^6.0.0",
-    "zod": "^3.24.1"
+    "zod": "^3.24.1",
+    "yaml": "^2.6.1"
   },
   "trustedDependencies": [],
   "devDependencies": {
@@ -41,7 +50,6 @@
     "eslint": "^9",
     "husky": "^9.1.7",
     "node-pty": "^1.0.0",
-    "typescript": "^5.7.2",
-    "yaml": "^2.6.1"
+    "typescript": "^5.7.2"
   }
 }

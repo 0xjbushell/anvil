@@ -2,6 +2,16 @@
 
 A scaffolding CLI.
 
+## Installation
+
+Bun users can run anvil directly:
+
+    bunx anvil init --lang typescript
+
+For environments without Bun, install the standalone binary:
+
+    curl -fsSL https://anvil.sh/install.sh | sh
+
 ## Third-party code
 
 Anvil vendors a small number of third-party libraries directly into

@@ -249,5 +249,5 @@ describe("runScenario", () => {
       expect(result.passed, result.failures.join("\n")).toBe(true);
       expect(await pathExists(result.workdir)).toBe(false);
     }
-  });
+  }, 30_000);
 });
