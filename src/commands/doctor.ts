@@ -142,16 +142,13 @@ function check(
   };
 }
 
-async function fileExists(filePath: string): Promise<boolean> {
-  return Bun.file(filePath).exists();
-}
-
 async function readTextIfExists(filePath: string): Promise<string | null> {
-  if (!(await fileExists(filePath))) {
+  const file = Bun.file(filePath);
+  if (!(await file.exists())) {
     return null;
   }
 
-  return Bun.file(filePath).text();
+  return file.text();
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -166,16 +163,17 @@ async function readLockfileForDoctor(targetDir: string, deps: ResolvedDoctorDepe
   return { result, lockfile: null };
 }
 
-async function commandSucceeds(
+async function probeCommand(
   command: string,
   args: string[],
   targetDir: string,
   deps: ResolvedDoctorDependencies,
-): Promise<boolean> {
+): Promise<{ succeeded: boolean; error: string | null }> {
   try {
-    return (await deps.runCommand(command, args, { cwd: targetDir })).exitCode === 0;
-  } catch {
-    return false;
+    const result = await deps.runCommand(command, args, { cwd: targetDir });
+    return { succeeded: result.exitCode === 0, error: null };
+  } catch (error) {
+    return { succeeded: false, error: describeError(error) };
   }
 }
 
@@ -184,17 +182,26 @@ async function checkToolAvailability(
   targetDir: string,
   deps: ResolvedDoctorDependencies,
 ): Promise<DoctorCheck> {
+  const probeErrors: string[] = [];
   for (const command of requirement.commands ?? [requirement.name]) {
-    if (await commandSucceeds("which", [command], targetDir, deps)) {
+    const result = await probeCommand("which", [command], targetDir, deps);
+    if (result.succeeded) {
       return check(`tool: ${requirement.name}`, "pass", `${requirement.name} is available via ${command}`);
     }
+
+    if (result.error !== null) {
+      probeErrors.push(`${command}: ${result.error}`);
+    }
   }
+
+  const instruction =
+    probeErrors.length === 0 ? requirement.instruction : `${requirement.instruction} Probe error: ${probeErrors.join("; ")}`;
 
   return check(
     `tool: ${requirement.name}`,
     requirement.required ? "fail" : "warn",
     `${requirement.name} is not available on PATH`,
-    { instruction: requirement.instruction },
+    { instruction },
   );
 }
 
@@ -352,16 +359,17 @@ async function checkGoProjectDeps(targetDir: string, deps: ResolvedDoctorDepende
 
 async function checkGoAnalyzer(targetDir: string, deps: ResolvedDoctorDependencies): Promise<DoctorCheck[]> {
   const analyzerPath = path.join(targetDir, "tools/go-analyzers/bin/anvil-lint");
-  if (await fileExists(analyzerPath)) {
+  if (await Bun.file(analyzerPath).exists()) {
     return [check("golang dependency: anvil-lint", "pass", "anvil-lint binary exists")];
   }
 
-  const built = await commandSucceeds("make", ["-C", "tools/go-analyzers", "build"], targetDir, deps);
+  const build = await probeCommand("make", ["-C", "tools/go-analyzers", "build"], targetDir, deps);
   return [
-    built
+    build.succeeded
       ? check("golang dependency: anvil-lint", "pass", "anvil-lint builds successfully")
       : check("golang dependency: anvil-lint", "fail", "anvil-lint is missing and could not be built", {
-          instruction: "Run make -C tools/go-analyzers build.",
+          instruction:
+            build.error === null ? "Run make -C tools/go-analyzers build." : `make -C tools/go-analyzers build failed: ${build.error}`,
         }),
   ];
 }
@@ -422,7 +430,7 @@ export async function checkTools(
 }
 
 async function configExists(name: string, targetDir: string, missingStatus: "fail" | "warn", instruction: string): Promise<DoctorCheck> {
-  return (await fileExists(path.join(targetDir, name)))
+  return (await Bun.file(path.join(targetDir, name)).exists())
     ? check(name, "pass", `${name} exists`)
     : check(name, missingStatus, `${name} is missing`, { instruction });
 }
@@ -594,7 +602,7 @@ async function buildLockfileChecks(
 
   for (const entry of lockfile.files) {
     const filePath = path.join(targetDir, entry.path);
-    if (!(await fileExists(filePath))) {
+    if (!(await Bun.file(filePath).exists())) {
       checks.push(
         check(`lockfile checksum: ${entry.path}`, "warn", `${entry.path} tracked in lockfile but missing from disk`, {
           instruction: "Re-run `anvil init` if the scaffolded file should be restored.",
@@ -747,15 +755,15 @@ async function detectLanguage(targetDir: string, lockfile: AnvilLockfile | null)
     return lockfile.lang;
   }
 
-  if (await fileExists(path.join(targetDir, "go.mod"))) {
+  if (await Bun.file(path.join(targetDir, "go.mod")).exists()) {
     return "golang";
   }
 
-  if (await fileExists(path.join(targetDir, "package.json"))) {
+  if (await Bun.file(path.join(targetDir, "package.json")).exists()) {
     return "typescript";
   }
 
-  if (await fileExists(path.join(targetDir, "pyproject.toml"))) {
+  if (await Bun.file(path.join(targetDir, "pyproject.toml")).exists()) {
     return "python";
   }
 
@@ -777,7 +785,7 @@ async function detectPackageManager(targetDir: string, lockfile: AnvilLockfile |
 
   for (const candidate of candidates) {
     for (const fileName of candidate.files) {
-      if (await fileExists(path.join(targetDir, fileName))) {
+      if (await Bun.file(path.join(targetDir, fileName)).exists()) {
         return candidate.packageManager;
       }
     }
