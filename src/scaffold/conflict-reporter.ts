@@ -35,8 +35,20 @@ function splitPreservingLineEndings(value: string): string[] {
   });
 }
 
+function diffPrefix(part: Change): string {
+  if (part.added) {
+    return "+";
+  }
+
+  if (part.removed) {
+    return "-";
+  }
+
+  return " ";
+}
+
 function renderDiffPart(part: Change): string {
-  const prefix = part.added ? "+" : part.removed ? "-" : " ";
+  const prefix = diffPrefix(part);
   return splitPreservingLineEndings(part.value)
     .map((line) => colorPatchLine(`${prefix}${line}`))
     .join("");

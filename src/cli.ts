@@ -5,6 +5,7 @@ import doctor from './commands/doctor.ts';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json') as { version: string };
+const initLangChoices = ['golang', 'typescript', 'python'] satisfies InitOptions['lang'][];
 
 export interface ProgramHandlers {
   init?: (options: InitOptions) => Promise<InitResult | void>;
@@ -18,7 +19,7 @@ function applyInitExitCode(result: InitResult | void): void {
 }
 
 function isInitLang(value: unknown): value is InitOptions['lang'] {
-  return value === 'typescript' || value === 'golang' || value === 'python';
+  return typeof value === 'string' && initLangChoices.includes(value as InitOptions['lang']);
 }
 
 function readInitOptions(options: Record<string, unknown>): InitOptions {
@@ -48,7 +49,7 @@ export function createProgram(handlers: ProgramHandlers = {}): Command {
     .description('Scaffold a new project (or re-scaffold an existing one)')
     .addOption(
       new Option('--lang <language>', 'project language')
-        .choices(['golang', 'typescript', 'python'])
+        .choices(initLangChoices)
         .makeOptionMandatory(true),
     )
     .option('--non-interactive', 'run without interactive prompts (explicit opt-in; D-67)', false)

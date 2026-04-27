@@ -6,6 +6,7 @@ import type { TextWriter } from "../scaffold/conflict-reporter.ts";
 import type { DetectionResult } from "../scaffold/detect.ts";
 import type { AnvilLockfile, Lang, PackageManager, ScaffoldContext, ToolchainVersions } from "../types.ts";
 import type { CommandRunner, RunCommandResult } from "./init-post.ts";
+import { commandText, describeError, writeLine } from "./init-utils.ts";
 
 export interface ToolchainResolution {
   toolchain: ToolchainVersions;
@@ -67,18 +68,6 @@ export function defaultPrompts(): PromptAdapter {
     confirm: (config) => confirm(config),
     select: (config) => select(config),
   };
-}
-
-function describeError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function commandText(command: string, args: string[]): string {
-  return [command, ...args].join(" ");
-}
-
-function writeLine(writer: TextWriter, line: string): void {
-  writer.write(`${line}\n`);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -147,12 +136,20 @@ async function fetchJson(fetcher: Fetcher, url: string, source: string, timeoutM
   });
 }
 
-async function fetchLatestNode(fetcher: Fetcher, timeoutMs: number): Promise<string> {
-  const entries = requireArray(
-    await fetchJson(fetcher, "https://nodejs.org/dist/index.json", "nodejs.org", timeoutMs),
-    "nodejs.org",
+async function fetchJsonRecords(
+  fetcher: Fetcher,
+  url: string,
+  source: string,
+  timeoutMs: number,
+): Promise<Record<string, unknown>[]> {
+  return requireArray(await fetchJson(fetcher, url, source, timeoutMs), source).map((entry) =>
+    requireRecord(entry, source),
   );
-  const candidate = entries.map((entry) => requireRecord(entry, "nodejs.org")).find((entry) => entry.lts !== false);
+}
+
+async function fetchLatestNode(fetcher: Fetcher, timeoutMs: number): Promise<string> {
+  const entries = await fetchJsonRecords(fetcher, "https://nodejs.org/dist/index.json", "nodejs.org", timeoutMs);
+  const candidate = entries.find((entry) => entry.lts !== false);
   if (typeof candidate?.version !== "string") {
     throw new Error("nodejs.org response did not include an LTS version");
   }
@@ -161,10 +158,8 @@ async function fetchLatestNode(fetcher: Fetcher, timeoutMs: number): Promise<str
 }
 
 async function fetchLatestGo(fetcher: Fetcher, timeoutMs: number): Promise<string> {
-  const entries = requireArray(await fetchJson(fetcher, "https://go.dev/dl/?mode=json", "go.dev", timeoutMs), "go.dev");
-  const candidate = entries
-    .map((entry) => requireRecord(entry, "go.dev"))
-    .find((entry) => typeof entry.version === "string" && !/(?:beta|rc)/i.test(entry.version));
+  const entries = await fetchJsonRecords(fetcher, "https://go.dev/dl/?mode=json", "go.dev", timeoutMs);
+  const candidate = entries.find((entry) => typeof entry.version === "string" && !/(?:beta|rc)/i.test(entry.version));
   if (typeof candidate?.version !== "string") {
     throw new Error("go.dev response did not include a stable version");
   }
@@ -174,13 +169,10 @@ async function fetchLatestGo(fetcher: Fetcher, timeoutMs: number): Promise<strin
 
 async function fetchLatestPython(fetcher: Fetcher, now: Date, timeoutMs: number): Promise<string> {
   const today = now.toISOString().slice(0, 10);
-  const entries = requireArray(
-    await fetchJson(fetcher, "https://endoflife.date/api/python.json", "endoflife.date", timeoutMs),
-    "endoflife.date",
+  const entries = await fetchJsonRecords(fetcher, "https://endoflife.date/api/python.json", "endoflife.date", timeoutMs);
+  const candidate = entries.find(
+    (entry) => typeof entry.latest === "string" && typeof entry.eol === "string" && entry.eol > today,
   );
-  const candidate = entries
-    .map((entry) => requireRecord(entry, "endoflife.date"))
-    .find((entry) => typeof entry.latest === "string" && typeof entry.eol === "string" && entry.eol > today);
   if (typeof candidate?.latest !== "string") {
     throw new Error("endoflife.date response did not include a supported Python version");
   }

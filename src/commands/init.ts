@@ -20,6 +20,7 @@ import {
   type RunCommandResult,
   type StatProbe,
 } from "./init-post.ts";
+import { describeError, writeLine } from "./init-utils.ts";
 import { createInteractiveConflictHandler } from "../scaffold/conflict.ts";
 import { createConflictReporter, type TextWriter } from "../scaffold/conflict-reporter.ts";
 import { acquire } from "../scaffold/dirlock.ts";
@@ -121,14 +122,6 @@ function resolveDependencies(deps: InitDependencies): ResolvedInitDependencies {
     stat: deps.stat ?? stat,
     fetch: deps.fetch ?? globalThis.fetch,
   };
-}
-
-function describeError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function writeLine(writer: TextWriter, line = ""): void {
-  writer.write(`${line}\n`);
 }
 
 function fail(stderr: TextWriter, message: string): InitResult {

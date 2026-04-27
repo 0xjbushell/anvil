@@ -4,6 +4,7 @@ import path from "node:path";
 
 import type { TextWriter } from "../scaffold/conflict-reporter.ts";
 import type { ScaffoldContext } from "../types.ts";
+import { commandText, describeError, writeLine } from "./init-utils.ts";
 
 export interface RunCommandResult {
   exitCode: number;
@@ -28,14 +29,6 @@ export interface PostScaffoldDependencies {
   stat?: StatProbe;
 }
 
-function describeError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function writeLine(writer: TextWriter, line = ""): void {
-  writer.write(`${line}\n`);
-}
-
 type PathStatus = "exists" | "missing" | "unknown";
 
 async function pathStatus(filePath: string, label: string, deps: PostScaffoldDependencies): Promise<PathStatus> {
@@ -52,10 +45,6 @@ async function pathStatus(filePath: string, label: string, deps: PostScaffoldDep
     );
     return "unknown";
   }
-}
-
-function commandText(command: string, args: string[]): string {
-  return [command, ...args].join(" ");
 }
 
 async function runBestEffort(
