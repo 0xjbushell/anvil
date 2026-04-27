@@ -1,0 +1,36 @@
+default_install_hook_types: [pre-commit, pre-push]
+repos:
+  - repo: local
+    hooks:
+      # Tier 1 — pre-commit (<30s)
+      - id: lint
+        name: lint
+        entry: make lint
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+      - id: format
+        name: format
+        entry: make format
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+      - id: typecheck
+        name: typecheck
+        entry: make typecheck
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        # If slow, remove this hook and rely on make check instead.
+      # Tier 2 — pre-push (<5min)
+      - id: check
+        name: check (tests + coverage + deadcode + CRAP + audit)
+        entry: make check
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.0
+    hooks:
+      - id: gitleaks
+        stages: [pre-commit]

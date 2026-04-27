@@ -1,0 +1,40 @@
+import eslint from "@eslint/js";
+import importPlugin from "eslint-plugin-import";
+import security from "eslint-plugin-security";
+import tseslint from "typescript-eslint";
+import anvilPlugin from "./tools/lint-rules/plugin.js";
+
+export default tseslint.config(
+  eslint.configs.recommended,
+  ...tseslint.configs.strictTypeChecked,
+  security.configs.recommended,
+  anvilPlugin.configs.recommended,
+  {
+    plugins: {
+      import: importPlugin,
+    },
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    rules: {
+      "@typescript-eslint/no-explicit-any": "error",
+      "@typescript-eslint/no-floating-promises": "error",
+      "@typescript-eslint/strict-boolean-expressions": "warn",
+      "import/order": ["error", {
+        alphabetize: { order: "asc" },
+        "newlines-between": "always",
+      }],
+      "max-lines": ["warn", { max: 250, skipBlankLines: true, skipComments: true }],
+      "max-lines-per-function": ["warn", { max: 50, skipBlankLines: true, skipComments: true }],
+      "no-console": "error",
+      "no-restricted-syntax": ["error", "WithStatement"],
+      "prefer-const": "error",
+    },
+  },
+  {
+    ignores: ["coverage/", "dist/", "node_modules/", "reports/", ".stryker-tmp/", "tools/lint-rules/"],
+  },
+);

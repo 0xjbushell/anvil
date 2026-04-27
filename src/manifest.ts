@@ -29,14 +29,6 @@ function staticTemplateEntry(lang: Lang, dest: string): ManifestEntry {
   };
 }
 
-function generatorEntry(dest: string, src: string): ManifestEntry {
-  return {
-    dest,
-    src,
-    source: "generator",
-  };
-}
-
 const typescriptEntries: ManifestEntry[] = [
   staticEntry("typescript", "src/seed/seed.ts", includeSeed),
   staticEntry("typescript", "src/seed/seed.test.ts", includeSeed),
@@ -54,7 +46,7 @@ const typescriptEntries: ManifestEntry[] = [
   templateEntry("typescript", "eslint.config.mjs"),
   templateEntry("typescript", "tsconfig.json"),
   templateEntry("typescript", ".prettierrc"),
-  generatorEntry("package.json", "typescript/package-json"),
+  templateEntry("typescript", "package.json"),
   templateEntry("typescript", "vitest.config.ts"),
   staticEntry("typescript", "knip.json"),
   staticEntry("typescript", "stryker.config.mjs"),
