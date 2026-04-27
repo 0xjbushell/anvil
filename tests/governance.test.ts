@@ -173,7 +173,8 @@ describe('TIX-000070 governance', () => {
   test('12. package exposes mutation as a first-class quality gate', () => {
     const pkg = JSON.parse(read('package.json'));
 
-    expect(pkg.scripts?.mutation).toBe('bun scripts/mutation.ts');
-    expect(pkg.scripts?.quality).toContain('bun mutation');
+    expect(pkg.scripts?.mutation).toBe('stryker run');
+    expect(pkg.scripts?.quality).toBe('bun mutation');
+    expect(pkg.devDependencies?.['@stryker-mutator/core']).toBe('9.6.1');
   });
 });
