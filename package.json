@@ -14,6 +14,8 @@
     "agent:check": "bun src/dev/cli.ts agent:check",
     "test": "bun test",
     "lint": "bunx tsc --noEmit",
+    "mutation": "bun scripts/mutation.ts",
+    "quality": "bun mutation",
     "format": "echo \"format not yet configured\""
   },
   "dependencies": {

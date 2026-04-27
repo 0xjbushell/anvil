@@ -21,11 +21,11 @@ Types: `feat`, `fix`, `docs`, `chore`, `refactor`, `perf`, `test`, `build`, `ci`
 Hook installation is opt-in. Run `scripts/install-hooks.sh` after installing dependencies to
 configure Git to use the `.husky/` hooks. The `commit-msg` hook validates this locally.
 
-### Fixture checks
+### Quality checks
 
-The `pre-push` hook runs `bun fixtures` before code leaves your machine and blocks the push if the
-fixtures fail. `git push --no-verify` skips the local `pre-push` hook when you need an emergency
-bypass, but CI reruns `bun fixtures` for pull requests and pushes to `main`.
+The `pre-push` hook runs `bun fixtures` and `bun mutation` before code leaves your machine and
+blocks the push if either gate fails. `git push --no-verify` skips the local `pre-push` hook when you
+need an emergency bypass, but CI reruns `bun fixtures` and `bun mutation` for pull requests and pushes to `main`.
 
 ### Release process
 

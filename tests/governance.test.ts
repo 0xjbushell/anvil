@@ -34,7 +34,7 @@ describe('TIX-000069 AGENTS.md', () => {
     expect(txt).toContain('reproduce in the sandbox');
     expect(txt).toContain('fix the cause');
     expect(txt).toContain('rerun');
-    expect(txt).toContain('pre-push hook and CI run the full `bun fixtures` gate');
+    expect(txt).toContain('pre-push hook and CI run the full `bun fixtures` and `bun mutation` gates');
     expect(txt).toContain('[D-69]');
     expect(txt).toContain('match reference idioms unless an anvil decision explicitly overrides them');
     expect(txt).toContain('specs/decisions/anvil-decisions.md');
@@ -116,11 +116,13 @@ describe('TIX-000070 governance', () => {
     }
   });
 
-  test('8. pre-push hook runs fixtures and is executable', () => {
+  test('8. pre-push hook runs fixtures and mutation and is executable', () => {
     const path = join(repoRoot, '.husky/pre-push');
     const txt = readFileSync(path, 'utf8');
     expect(txt.startsWith('#!/usr/bin/env sh')).toBe(true);
+    expect(txt.split(/\r?\n/).some((line) => line.trim() === 'set -e')).toBe(true);
     expect(txt.split(/\r?\n/).some((line) => line.trim() === 'bun fixtures')).toBe(true);
+    expect(txt.split(/\r?\n/).some((line) => line.trim() === 'bun mutation')).toBe(true);
     const mode = statSync(path).mode;
     expect(mode & 0o111).toBeTruthy();
   });
@@ -135,7 +137,7 @@ describe('TIX-000070 governance', () => {
     expect(mode & 0o111).toBeTruthy();
   });
 
-  test('10. fixtures workflow YAML is valid and runs fixtures', () => {
+  test('10. fixtures workflow YAML is valid and runs fixtures plus mutation', () => {
     const wf = parseYaml(read('.github/workflows/fixtures.yml'));
     expect(wf?.on?.pull_request).toBeDefined();
     expect(wf?.on?.push?.branches).toContain('main');
@@ -148,8 +150,10 @@ describe('TIX-000070 governance', () => {
     );
     const installIndex = runSteps.findIndex((run: string) => run.includes('bun install --frozen-lockfile'));
     const fixturesIndex = runSteps.findIndex((run: string) => run.trim() === 'bun fixtures');
+    const mutationIndex = runSteps.findIndex((run: string) => run.trim() === 'bun mutation');
     expect(installIndex).toBeGreaterThanOrEqual(0);
     expect(fixturesIndex).toBeGreaterThan(installIndex);
+    expect(mutationIndex).toBeGreaterThan(fixturesIndex);
   });
 
   test('11. README §Contributing documents local and CI fixture checks', () => {
@@ -161,7 +165,15 @@ describe('TIX-000070 governance', () => {
     expect(txt).toContain('scripts/install-hooks.sh');
     expect(txt).toContain('pre-push');
     expect(txt).toContain('bun fixtures');
+    expect(txt).toContain('bun mutation');
     expect(txt).toContain('git push --no-verify');
     expect(txt).toContain('pull requests and pushes to `main`');
+  });
+
+  test('12. package exposes mutation as a first-class quality gate', () => {
+    const pkg = JSON.parse(read('package.json'));
+
+    expect(pkg.scripts?.mutation).toBe('bun scripts/mutation.ts');
+    expect(pkg.scripts?.quality).toContain('bun mutation');
   });
 });

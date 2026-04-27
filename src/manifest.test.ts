@@ -4,6 +4,21 @@ import { getManifest, type Lang, type ManifestEntry, type ScaffoldContext } from
 
 const languages: Lang[] = ["typescript", "golang", "python"];
 const validSources = new Set(["static", "template", "generator"]);
+const typescriptStaticRoot = new URL("../static/typescript/", import.meta.url);
+const expectedTypescriptStaticFiles = [
+  "src/seed/seed.ts",
+  "src/seed/seed.test.ts",
+  "src/seed/types.ts",
+  "src/seed/errors.ts",
+  "src/seed/constants.ts",
+  "src/seed/enums.ts",
+  "tools/crap-score.ts",
+  "knip.json",
+  "stryker.config.mjs",
+  ".gitattributes",
+  ".editorconfig",
+  ".gitleaks.toml",
+];
 const expectedRanges: Record<Lang, { min: number; max: number }> = {
   typescript: { min: 23, max: 30 },
   golang: { min: 18, max: 26 },
@@ -77,6 +92,10 @@ function seedEntries(lang: Lang): ManifestEntry[] {
   }
 
   return entries.filter((entry) => entry.dest.startsWith("src/seed/"));
+}
+
+function typescriptStaticFile(relativePath: string): Bun.BunFile {
+  return Bun.file(new URL(relativePath, typescriptStaticRoot));
 }
 
 describe("scaffold manifests", () => {
@@ -208,6 +227,64 @@ describe("scaffold manifests", () => {
     const dests = getManifest("typescript").entries.map((entry) => entry.dest);
 
     expect(dests).toContain("tools/lint-rules/package.json");
+  });
+
+  test("TypeScript manifest includes all static scaffold outputs", () => {
+    const entries = new Map(getManifest("typescript").entries.map((entry) => [entry.dest, entry]));
+
+    for (const file of expectedTypescriptStaticFiles) {
+      expect(entries.get(file)).toMatchObject({
+        dest: file,
+        src: `static/typescript/${file}`,
+        source: "static",
+      });
+    }
+  });
+
+  test("TypeScript static scaffold files exist", async () => {
+    for (const file of expectedTypescriptStaticFiles) {
+      expect(await typescriptStaticFile(file).exists()).toBe(true);
+    }
+  });
+
+  test("TypeScript seed files stay within size limits and avoid disposability markers", async () => {
+    const seedFiles = expectedTypescriptStaticFiles.filter((file) => file.startsWith("src/seed/"));
+    const disposableSignals = /\b(TODO|FIXME|temporary|placeholder|implement later|stub)\b/i;
+
+    for (const file of seedFiles) {
+      const text = await typescriptStaticFile(file).text();
+      const lines = text.trimEnd().split("\n");
+
+      expect(lines.length).toBeLessThanOrEqual(100);
+      expect(text).not.toMatch(disposableSignals);
+    }
+  });
+
+  test("TypeScript seed module demonstrates required conventions", async () => {
+    const seed = await typescriptStaticFile("src/seed/seed.ts").text();
+    const seedTest = await typescriptStaticFile("src/seed/seed.test.ts").text();
+
+    expect(seed).toContain('from "pino"');
+    expect(seed).toContain("logger.info({");
+    expect(seed).not.toContain("console.");
+    expect(seed).toContain("throw new GreetingError");
+    expect(seedTest).toContain("toThrow(GreetingError)");
+    expect(seedTest).not.toContain(".skip(");
+    expect(seedTest).not.toContain("toMatchSnapshot");
+  });
+
+  test("TypeScript static quality configs are valid", async () => {
+    expect(JSON.parse(await typescriptStaticFile("knip.json").text())).toMatchObject({
+      entry: expect.any(Array),
+      project: expect.any(Array),
+    });
+
+    expect(await typescriptStaticFile("stryker.config.mjs").text()).toContain(
+      'testRunner: "vitest"',
+    );
+    expect(await typescriptStaticFile(".editorconfig").text()).toContain("end_of_line = lf");
+    expect(await typescriptStaticFile(".gitleaks.toml").text()).toContain("[allowlist]");
+    expect(await typescriptStaticFile(".gitattributes").text()).toContain("* text=auto eol=lf");
   });
 
   test("Go analyzer manifest defers CRAP report until its scaffold exists", () => {
