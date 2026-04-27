@@ -64,21 +64,34 @@ function expectSuccess(result: SpawnSyncReturns<string>, label: string): void {
   }
 }
 
-function hostBinaryName(): string | null {
-  const platform =
-    process.platform === "linux"
-      ? "linux"
-      : process.platform === "darwin"
-        ? "darwin"
-        : process.platform === "win32"
-          ? "windows"
-          : null;
-  const arch = process.arch === "x64" ? "x64" : process.arch === "arm64" ? "arm64" : null;
-  if (platform === null || arch === null) {
-    return null;
+function hostPlatform(): "linux" | "darwin" | "windows" {
+  switch (process.platform) {
+    case "linux":
+      return "linux";
+    case "darwin":
+      return "darwin";
+    case "win32":
+      return "windows";
+    default:
+      throw new Error(`Unsupported test platform: ${process.platform}`);
   }
+}
 
-  return platform === "windows" ? `anvil-${platform}-${arch}.exe` : `anvil-${platform}-${arch}`;
+function hostArch(): "x64" | "arm64" {
+  switch (process.arch) {
+    case "x64":
+      return "x64";
+    case "arm64":
+      return "arm64";
+    default:
+      throw new Error(`Unsupported test architecture: ${process.arch}`);
+  }
+}
+
+function hostBinaryName(): string {
+  const platform = hostPlatform();
+  const name = `anvil-${platform}-${hostArch()}`;
+  return platform === "windows" ? `${name}.exe` : name;
 }
 
 describe("TIX-000027 distribution", () => {
@@ -147,10 +160,9 @@ describe("TIX-000027 distribution", () => {
       }
 
       const hostBinary = hostBinaryName();
-      expect(hostBinary).not.toBeNull();
       const runDir = mkdtempSync(path.join(tmpdir(), "anvil-dist-run-"));
       try {
-        const run = spawnSync(path.join(distDir, hostBinary as string), ["--version"], {
+        const run = spawnSync(path.join(distDir, hostBinary), ["--version"], {
           cwd: runDir,
           encoding: "utf8",
           timeout: 30_000,
