@@ -33,6 +33,12 @@ export interface ScaffoldResult {
   lockfile: AnvilLockfile;
 }
 
+export interface ScaffoldPreviewResult {
+  changes: FsTreeChange[];
+  filesSkipped: string[];
+  lockfile: AnvilLockfile | null;
+}
+
 export interface ScaffoldOptions {
   onConflict?: ConflictHandler;
   onReport?: (report: ConflictReport) => Promise<void>;
@@ -559,5 +565,17 @@ export async function scaffold(ctx: ScaffoldContext, options: ScaffoldOptions): 
     filesCreated: flushResult.filesCreated,
     filesSkipped: [...conditionSkipped, ...conflictDecision.filesSkipped],
     lockfile: flushResult.lockfile,
+  };
+}
+
+export async function previewScaffold(ctx: ScaffoldContext): Promise<ScaffoldPreviewResult> {
+  const lockfileResult = await readLockfile(ctx.targetDir);
+  const oldLockfile = validateLockfileStatus(ctx, lockfileResult);
+  const { tree, filesSkipped } = await buildTree(ctx);
+
+  return {
+    changes: await tree.listChanges(ctx.targetDir),
+    filesSkipped,
+    lockfile: oldLockfile,
   };
 }

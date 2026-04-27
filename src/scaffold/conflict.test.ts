@@ -9,16 +9,8 @@ interface SelectConfig {
   choices: Array<{ value: PromptAction }>;
 }
 
-interface DiffPart {
-  value: string;
-  added?: boolean;
-  removed?: boolean;
-}
-
 let selectResponses: PromptAction[] = [];
 let selectCalls: SelectConfig[] = [];
-let diffLineCalls: Array<[string, string]> = [];
-let diffResult: DiffPart[] = [];
 let stderrOutput = "";
 
 const originalStderrWrite = process.stderr.write;
@@ -34,17 +26,8 @@ const selectMock = mock(async (config: SelectConfig): Promise<PromptAction> => {
   return response;
 });
 
-const diffLinesMock = mock((existingContent: string, newContent: string): DiffPart[] => {
-  diffLineCalls.push([existingContent, newContent]);
-  return diffResult;
-});
-
 mock.module("@inquirer/prompts", () => ({
   select: selectMock,
-}));
-
-mock.module("diff", () => ({
-  diffLines: diffLinesMock,
 }));
 
 const conflictModule = await import("./conflict.ts");
@@ -73,11 +56,6 @@ describe("createInteractiveConflictHandler", () => {
   beforeEach(() => {
     selectResponses = [];
     selectCalls = [];
-    diffLineCalls = [];
-    diffResult = [
-      { value: "old line\n", removed: true },
-      { value: "new line\n", added: true },
-    ];
     stderrOutput = "";
     stubStderr();
   });
@@ -121,7 +99,6 @@ describe("createInteractiveConflictHandler", () => {
 
     expect(result).toEqual({ path: filePath, action: "overwrite" });
     expect(selectCalls).toHaveLength(2);
-    expect(diffLineCalls).toEqual([["old line\n", "new line\n"]]);
     expect(stderrOutput).toContain(`--- existing ${filePath}`);
     expect(stderrOutput).toContain(`+++ new ${filePath}`);
     expect(stderrOutput).toContain("-old line");
@@ -136,7 +113,6 @@ describe("createInteractiveConflictHandler", () => {
 
     expect(result).toEqual({ path: filePath, action: "skip" });
     expect(selectCalls).toHaveLength(2);
-    expect(diffLineCalls).toEqual([["old line\n", "new line\n"]]);
     expect(stderrOutput).toContain(`--- existing ${filePath}`);
     expect(stderrOutput).toContain(`+++ new ${filePath}`);
     expect(stderrOutput).toContain("-old line");

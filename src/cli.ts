@@ -1,13 +1,42 @@
 import { Command, Option } from 'commander';
 import { createRequire } from 'node:module';
-import init from './commands/init.ts';
+import init, { type InitOptions, type InitResult } from './commands/init.ts';
 import doctor from './commands/doctor.ts';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json') as { version: string };
 
-export function createProgram(): Command {
+export interface ProgramHandlers {
+  init?: (options: InitOptions) => Promise<InitResult | void>;
+  doctor?: () => Promise<void>;
+}
+
+function applyInitExitCode(result: InitResult | void): void {
+  if (result !== undefined && result.exitCode !== 0) {
+    process.exitCode = result.exitCode;
+  }
+}
+
+function isInitLang(value: unknown): value is InitOptions['lang'] {
+  return value === 'typescript' || value === 'golang' || value === 'python';
+}
+
+function readInitOptions(options: Record<string, unknown>): InitOptions {
+  if (!isInitLang(options.lang)) {
+    throw new Error(`Invalid init language: ${String(options.lang)}`);
+  }
+
+  return {
+    lang: options.lang,
+    nonInteractive: options.nonInteractive === true,
+    dryRun: options.dryRun === true,
+  };
+}
+
+export function createProgram(handlers: ProgramHandlers = {}): Command {
   const program = new Command();
+  const initHandler = handlers.init ?? init;
+  const doctorHandler = handlers.doctor ?? doctor;
 
   program
     .name('anvil')
@@ -25,14 +54,14 @@ export function createProgram(): Command {
     .option('--non-interactive', 'run without interactive prompts (explicit opt-in; D-67)', false)
     .option('--dry-run', 'preview changes without writing to disk', false)
     .action(async (options) => {
-      await init(options);
+      applyInitExitCode(await initHandler(readInitOptions(options as Record<string, unknown>)));
     });
 
   program
     .command('doctor')
     .description('Verify lint/quality config health and auto-fix non-destructive issues')
     .action(async () => {
-      await doctor();
+      await doctorHandler();
     });
 
   return program;
@@ -41,5 +70,5 @@ export function createProgram(): Command {
 export const program = createProgram();
 
 if (import.meta.main) {
-  program.parse(process.argv);
+  await program.parseAsync(process.argv);
 }

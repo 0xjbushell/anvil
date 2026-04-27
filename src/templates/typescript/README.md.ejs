@@ -1,0 +1,31 @@
+# <%= projectName %>
+
+## Getting Started
+
+```bash
+<%= packageManager ?? "npm" %> install
+make check
+```
+
+## Development
+
+| Command | Description |
+| --- | --- |
+| `make lint` | Run linters |
+| `make test` | Run tests |
+| `make coverage` | Run tests with coverage thresholds |
+| `make check` | Full pre-push validation |
+| `make quality` | Complete quality gate, including mutation testing |
+| `make fix` | Auto-fix lint and format issues |
+
+## Project Structure
+
+```text
+src/           Source code
+tools/         Quality tooling (lint rules, CRAP score)
+coverage/      Test coverage reports (generated)
+```
+
+## Required External Tools
+
+Install `gitleaks` and `pre-commit` so `make security` and scaffolded git hooks work locally.

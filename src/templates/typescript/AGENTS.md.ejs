@@ -1,0 +1,32 @@
+# Agent Instructions
+
+## Validation
+
+- `make lint` — run often during development
+- `make check` — run before considering work done
+- `make quality` — run before marking work complete
+
+## Code Conventions
+
+- Reference `src/seed/` for file organization patterns
+- Prefer stdlib; consider well-established OSS libraries for complex problems
+- Every function that can fail must throw a typed exception
+- No dead code — if it's not called, delete it
+- Aim for high branch coverage (cover both sides of conditionals)
+
+## Testing
+
+- Every source file needs a test file
+- Test the error paths, not just happy paths
+- Tests must contain real assertions (no empty tests, no tautological checks)
+- Use descriptive test names: "should [do X] when [condition Y]"
+- Mock at boundaries (HTTP, DB, filesystem), not internal functions
+
+## What Lint Catches Automatically
+
+Don't worry about these — lint will catch them:
+- File organization (types, errors, constants, enums)
+- File/function length limits
+- Placeholder comments
+- Console.log / print / fmt.Println
+- Import ordering and formatting

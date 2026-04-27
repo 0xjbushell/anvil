@@ -31,7 +31,7 @@ mock.module("../manifest.ts", () => ({
   }),
 }));
 
-const { IncompleteLockfileError, scaffold } = await import("./engine.ts");
+const { IncompleteLockfileError, previewScaffold, scaffold } = await import("./engine.ts");
 
 const anvilRoot = path.resolve(import.meta.dir, "..", "..");
 
@@ -434,6 +434,34 @@ describe("scaffold engine", () => {
     expect(second.filesSkipped).toEqual([]);
     expect(second.lockfile).toEqual(first.lockfile);
     expect(await readTarget(LOCKFILE_NAME)).toBe(rawLockfile);
+  });
+
+  test("previewScaffold classifies changes without writing files or lockfiles", async () => {
+    await Promise.all([
+      writeSource("README.md", "# example\n"),
+      writeSource("Makefile", "new make\n"),
+      writeSource(".editorconfig", "root = true\n"),
+      writeTarget("Makefile", "old make\n"),
+      writeTarget(".editorconfig", "root = true\n"),
+    ]);
+    manifestEntries = [
+      staticEntry("README.md", "README.md"),
+      staticEntry("Makefile", "Makefile"),
+      staticEntry(".editorconfig", ".editorconfig"),
+      staticEntry("seed.txt", "README.md", (ctx) => !ctx.skipSeed),
+    ];
+
+    const preview = await previewScaffold(makeContext({ nonInteractive: true, skipSeed: true }));
+
+    expect(preview.changes).toEqual([
+      { path: "README.md", action: "create" },
+      { path: "Makefile", action: "update" },
+      { path: ".editorconfig", action: "unchanged" },
+    ]);
+    expect(preview.filesSkipped).toEqual(["seed.txt"]);
+    expect(await readTarget("README.md")).toBeNull();
+    expect(await readTarget("Makefile")).toBe("old make\n");
+    expect(await readTarget(LOCKFILE_NAME)).toBeNull();
   });
 
   test("generator manifest entries fail clearly without writing a lockfile", async () => {

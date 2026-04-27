@@ -1,9 +1,18 @@
-import { describe, test, expect } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
+import type { InitOptions, InitResult } from './commands/init.ts';
 import { createProgram } from './cli.ts';
 import pkg from '../package.json' with { type: 'json' };
 
+const initCalls: InitOptions[] = [];
+
 function makeProgram() {
-  const program = createProgram();
+  const program = createProgram({
+    init: async (options): Promise<InitResult> => {
+      initCalls.push(options);
+      return { exitCode: 0 };
+    },
+    doctor: async () => {},
+  });
   const silent = { writeOut: () => {}, writeErr: () => {} };
   program.exitOverride();
   program.configureOutput(silent);
@@ -21,10 +30,15 @@ function getInitOpts(program: ReturnType<typeof makeProgram>) {
 }
 
 describe('anvil CLI parsing', () => {
+  afterEach(() => {
+    initCalls.length = 0;
+  });
+
   test('init --lang typescript extracts lang option', async () => {
     const program = makeProgram();
     await program.parseAsync(['init', '--lang', 'typescript'], { from: 'user' });
     expect(getInitOpts(program).lang).toBe('typescript');
+    expect(initCalls).toEqual([{ lang: 'typescript', nonInteractive: false, dryRun: false }]);
   });
 
   test('init --lang golang works', async () => {

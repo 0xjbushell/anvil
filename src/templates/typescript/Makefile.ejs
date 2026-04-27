@@ -1,0 +1,54 @@
+<%
+const pm = packageManager ?? "npm";
+const pkgExecByManager = {
+  bun: "bunx",
+  npm: "npx",
+  pnpm: "pnpm exec",
+  yarn: "yarn exec",
+};
+const auditCommand = pm === "bun" ? "$(PKG_EXEC) better-npm-audit audit" : `${pm} audit`;
+%>PKG_EXEC ?= <%= pkgExecByManager[pm] ?? "npx" %>
+
+.PHONY: lint format typecheck security test coverage deadcode crap audit mutate quality check fix
+
+# Tier 1 — pre-commit hook
+lint: ## Run all linters (built-in + custom)
+	$(PKG_EXEC) eslint .
+
+format: ## Check formatting
+	$(PKG_EXEC) prettier --check .
+
+typecheck: ## Run type checker
+	$(PKG_EXEC) tsc --noEmit
+
+security: ## Run gitleaks secret scan
+	gitleaks detect --source . --no-git
+
+# Tier 2 — pre-push hook
+test: ## Run tests
+	$(PKG_EXEC) vitest run
+
+coverage: ## Run tests + enforce coverage thresholds
+	$(PKG_EXEC) vitest run --coverage
+
+deadcode: ## Detect unused code
+	$(PKG_EXEC) knip
+
+crap: ## Compute CRAP scores
+	$(PKG_EXEC) tsx tools/crap-score.ts
+
+audit: ## Audit dependencies for vulnerabilities
+	<%= auditCommand %>
+
+# Tier 3 — on-demand
+mutate: ## Run mutation testing
+	$(PKG_EXEC) stryker run
+
+quality: check mutate ## Run ALL checks (tier 1 + 2 + 3)
+
+# Convenience
+check: lint format typecheck security test deadcode crap audit ## Run tier 1 + tier 2
+
+fix: ## Auto-fix lint + format issues
+	$(PKG_EXEC) eslint . --fix
+	$(PKG_EXEC) prettier --write .
