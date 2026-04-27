@@ -1,10 +1,8 @@
 import { Command, Option } from 'commander';
-import { createRequire } from 'node:module';
 import init, { type InitOptions, type InitResult } from './commands/init.ts';
 import doctor from './commands/doctor.ts';
+import pkg from '../package.json' with { type: 'json' };
 
-const require = createRequire(import.meta.url);
-const pkg = require('../package.json') as { version: string };
 const initLangChoices = ['golang', 'typescript', 'python'] satisfies InitOptions['lang'][];
 
 export interface ProgramHandlers {

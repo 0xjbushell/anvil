@@ -1,17 +1,8 @@
 import { createHash } from "node:crypto";
-import { createRequire } from "node:module";
 import path from "node:path";
+import writeFileAtomic from "write-file-atomic";
 
 import type { AnvilLockfile, LockfileEntry, LockfileReadResult, ScaffoldContext } from "../types.ts";
-
-type AtomicWrite = (
-  filename: string,
-  data: string | Buffer,
-  options?: string | { encoding?: BufferEncoding; mode?: number },
-) => Promise<void>;
-
-const require = createRequire(import.meta.url);
-const writeFileAtomic: AtomicWrite = require("write-file-atomic");
 
 export const LOCKFILE_NAME = ".anvil.lock";
 

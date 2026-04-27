@@ -7,8 +7,16 @@
   "bin": {
     "anvil": "./bin/anvil.ts"
   },
+  "files": [
+    "bin",
+    "src",
+    "static",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
-    "build": "bun build ./bin/anvil.ts --outdir ./dist --target bun",
+    "build": "bun run scripts/build.ts",
+    "prepublishOnly": "bun test && bun run build",
     "dev": "bun src/dev/cli.ts",
     "fixtures": "bun src/dev/cli.ts fixtures",
     "agent:check": "bun src/dev/cli.ts agent:check",

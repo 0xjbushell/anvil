@@ -1,7 +1,7 @@
 import chalk from "chalk";
-import { createRequire } from "node:module";
 import path from "node:path";
 import { readFile } from "node:fs/promises";
+import writeFileAtomic from "write-file-atomic";
 import { parse as parseYaml } from "yaml";
 
 import pkg from "../../package.json" with { type: "json" };
@@ -15,15 +15,6 @@ import {
 import type { AnvilLockfile, Lang, LockfileReadResult, PackageManager } from "../types.ts";
 import { commandText, describeError, writeLine } from "./init-utils.ts";
 import { runCommand, type CommandRunner } from "./init-post.ts";
-
-type AtomicWrite = (
-  filename: string,
-  data: string | Buffer,
-  options?: string | { encoding?: BufferEncoding; mode?: number },
-) => Promise<void>;
-
-const require = createRequire(import.meta.url);
-const writeFileAtomic: AtomicWrite = require("write-file-atomic");
 
 export interface DoctorCheck {
   name: string;

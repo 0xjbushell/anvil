@@ -225,9 +225,36 @@ describe("anvil doctor command", () => {
     );
 
     expect(byName(checks, "typescript dependency: eslint").status).toBe("fail");
+    expect(byName(checks, "typescript dependency: eslint").message).toContain("is missing");
+    expect(byName(checks, "typescript dependency: eslint").instruction).toBe(
+      "Run bun install to restore project dependencies.",
+    );
     expect(byName(checks, "typescript dependency: typescript").status).toBe("fail");
     expect(byName(checks, "typescript dependency: better-npm-audit").status).toBe("fail");
     expect(byName(checks, "typescript dependency: prettier").status).toBe("pass");
+    expect(byName(checks, "typescript dependency: prettier").message).toContain("is installed");
+  });
+
+  test("TypeScript dependency checks fail when package listing exits non-zero", async () => {
+    const checks = await checkTools(
+      "typescript",
+      scratch,
+      okDoctorDeps({
+        runCommand: async (command, args) => {
+          if (command === "bun" && args[0] === "pm" && args[1] === "ls") {
+            return commandResult({
+              exitCode: 1,
+              stdout: tsProjectDeps.join("\n"),
+            });
+          }
+
+          return commandResult();
+        },
+      }),
+      "bun",
+    );
+
+    expect(byName(checks, "typescript dependency: eslint").status).toBe("fail");
   });
 
   test("Python tool check accepts python fallback when python3 is missing", async () => {
@@ -295,6 +322,18 @@ describe("anvil doctor command", () => {
     expect(check.message).toContain("modified");
   });
 
+  test("complete lockfile reports parseable provenance without checkpoint warning", async () => {
+    await writeText("README.md", "readme\n");
+    await writeLockfile(scratch, makeLockfile());
+
+    const checks = await checkLockfile(scratch, okDoctorDeps());
+    const lockfile = byName(checks, ".anvil.lock");
+
+    expect(lockfile.status).toBe("pass");
+    expect(lockfile.message).toContain("parseable");
+    expect(checks.some((check) => check.name === ".anvil.lock checkpoint")).toBe(false);
+  });
+
   test("in-progress lockfile reports pending checkpoint entries as warnings", async () => {
     await writeText("README.md", "readme\n");
     await writeText("pending.txt", "pending\n");
@@ -323,7 +362,24 @@ describe("anvil doctor command", () => {
     expect(checkpoint.status).toBe("warn");
     expect(checkpoint.message).toContain("interrupted");
     expect(checkpoint.instruction).toContain("pending.txt");
+    expect(checkpoint.instruction).not.toContain("README.md");
     expect(checks.some((check) => check.status === "fail")).toBe(false);
+  });
+
+  test("in-progress lockfile without pending entries reports finalize guidance", async () => {
+    await writeText("README.md", "readme\n");
+    await writeLockfile(
+      scratch,
+      makeLockfile({
+        flushStatus: "in-progress",
+      }),
+    );
+
+    const checks = await checkLockfile(scratch, okDoctorDeps());
+    const checkpoint = byName(checks, ".anvil.lock checkpoint");
+
+    expect(checkpoint.status).toBe("warn");
+    expect(checkpoint.instruction).toBe("No pending entries remain. Re-run anvil init interactively to finalize.");
   });
 
   test("corrupt lockfile fails with delete and init guidance", async () => {
@@ -346,9 +402,22 @@ describe("anvil doctor command", () => {
     const gitignore = await readFile(path.join(scratch, ".gitignore"), "utf8");
 
     expect(byName(checks, ".gitignore entries").status).toBe("fixed");
+    expect(byName(checks, ".gitignore entries").message).toContain("missing safe ignore entries");
+    expect(byName(checks, ".gitignore entries").fix).toContain("dist/");
     expect(gitignore).toContain("custom.log\n");
     expect(gitignore).toContain("dist/\n");
     expect(gitignore).toContain(".env\n");
+  });
+
+  test("gitignore auto-fix passes when expected entries already exist", async () => {
+    const contents = "node_modules/\ndist/\ncoverage/\n.stryker-tmp/\n.env\n.DS_Store\n";
+    await writeText(".gitignore", contents);
+
+    const checks = await checkAndFix("typescript", scratch);
+
+    expect(byName(checks, ".gitignore entries").status).toBe("pass");
+    expect(byName(checks, ".gitignore entries").message).toContain("contains expected entries");
+    expect(await readFile(path.join(scratch, ".gitignore"), "utf8")).toBe(contents);
   });
 
   test("auto-fix appends trailing newlines to config files without changing content", async () => {
@@ -359,12 +428,15 @@ describe("anvil doctor command", () => {
     const checks = await checkAndFix("typescript", scratch);
 
     expect(byName(checks, "trailing newline: Makefile").status).toBe("fixed");
+    expect(byName(checks, "trailing newline: Makefile").message).toContain("missing a trailing newline");
+    expect(byName(checks, "trailing newline: Makefile").fix).toBe("Appended trailing newline to Makefile");
     expect(byName(checks, "trailing newline: eslint.config.mjs").status).toBe("fixed");
     expect(await readFile(path.join(scratch, "Makefile"), "utf8")).toBe("lint:\n");
     expect(await readFile(path.join(scratch, "eslint.config.mjs"), "utf8")).toBe("export default [];\n");
 
     const secondPass = await checkAndFix("typescript", scratch);
     expect(byName(secondPass, "trailing newline: Makefile").status).toBe("pass");
+    expect(byName(secondPass, "trailing newline: Makefile").message).toContain("ends with a newline");
     expect(await readFile(path.join(scratch, "Makefile"), "utf8")).toBe("lint:\n");
   });
 
@@ -447,6 +519,46 @@ describe("anvil doctor command", () => {
 
     expect(calls).toEqual([{ command: "bunx", args: ["better-npm-audit", "audit"] }]);
     expect(byName(checks, "dependency audit").status).toBe("pass");
+    expect(byName(checks, "dependency audit").message).toBe("dependency audit passed");
+  });
+
+  test("audit failures include command, exit code, and stderr guidance", async () => {
+    const calls: Array<{ command: string; args: string[]; cwd: string | undefined }> = [];
+    const checks = await checkAudit(
+      "typescript",
+      scratch,
+      okDoctorDeps({
+        runCommand: async (command, args, options) => {
+          calls.push({ command, args, cwd: options?.cwd });
+          return commandResult({
+            exitCode: 7,
+            stderr: "vulnerable package found\n",
+          });
+        },
+      }),
+      "bun",
+    );
+
+    expect(calls).toEqual([{ command: "bunx", args: ["better-npm-audit", "audit"], cwd: scratch }]);
+    const audit = byName(checks, "dependency audit");
+    expect(audit.status).toBe("fail");
+    expect(audit.message).toContain("bunx better-npm-audit audit exited 7");
+    expect(audit.instruction).toBe("vulnerable package found");
+  });
+
+  test("audit failures fall back to rerun guidance when stderr is blank", async () => {
+    const checks = await checkAudit(
+      "typescript",
+      scratch,
+      okDoctorDeps({
+        runCommand: async () => commandResult({ exitCode: 7, stderr: " \n" }),
+      }),
+      "bun",
+    );
+
+    const audit = byName(checks, "dependency audit");
+    expect(audit.status).toBe("fail");
+    expect(audit.instruction).toBe("Run bunx better-npm-audit audit for details.");
   });
 
   test("language-specific project dependency checks cover Go and Python", async () => {

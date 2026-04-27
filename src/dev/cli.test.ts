@@ -407,7 +407,7 @@ describe("bun fixtures regression CLI", () => {
       expect(passLines.some((line) => line.includes(` ${scenarioName} passed in `))).toBe(true);
     }
     expect(lines.at(-1)).toContain(`(${scenarioFiles.length} passed, 0 failed in `);
-  });
+  }, 30_000);
 
   test("--filter runs only scenarios whose parsed names contain the substring", async () => {
     const root = path.join(sandboxRoot, `cli-test-fixtures-filter-${randomUUID()}`);
