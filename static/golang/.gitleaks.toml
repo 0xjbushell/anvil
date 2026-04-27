@@ -1,0 +1,8 @@
+[allowlist]
+description = "anvil default allowlist"
+paths = [
+  "go.sum",
+  "vendor/",
+  ".git/",
+  "coverage/",
+]

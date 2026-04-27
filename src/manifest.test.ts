@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rm, stat } from "node:fs/promises";
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import ejs from "ejs";
@@ -12,6 +12,8 @@ const languages: Lang[] = ["typescript", "golang", "python"];
 const validSources = new Set(["static", "template", "generator"]);
 const typescriptStaticRoot = new URL("../static/typescript/", import.meta.url);
 const typescriptTemplateRoot = new URL("./templates/typescript/", import.meta.url);
+const golangStaticRoot = new URL("../static/golang/", import.meta.url);
+const golangTemplateRoot = new URL("./templates/golang/", import.meta.url);
 const projectRoot = path.resolve(import.meta.dir, "..");
 const expectedTypescriptStaticFiles = [
   "src/seed/seed.ts",
@@ -41,7 +43,7 @@ const expectedTypescriptTemplateFiles = [
 ];
 const expectedRanges: Record<Lang, { min: number; max: number }> = {
   typescript: { min: 23, max: 30 },
-  golang: { min: 18, max: 27 },
+  golang: { min: 19, max: 28 },
   python: { min: 18, max: 24 },
 };
 const expectedSeedDests: Record<Lang, string[]> = {
@@ -122,6 +124,14 @@ function typescriptTemplateFile(relativePath: string): Bun.BunFile {
   return Bun.file(new URL(relativePath, typescriptTemplateRoot));
 }
 
+function golangStaticFile(relativePath: string): Bun.BunFile {
+  return Bun.file(new URL(relativePath, golangStaticRoot));
+}
+
+function golangTemplateFile(relativePath: string): Bun.BunFile {
+  return Bun.file(new URL(relativePath, golangTemplateRoot));
+}
+
 async function sourcePathExists(sourcePath: string): Promise<boolean> {
   const sourceBase = sourcePath.endsWith("/**/*")
     ? sourcePath.slice(0, -"/**/*".length)
@@ -146,6 +156,41 @@ async function renderTypescriptTemplate(
   const template = await typescriptTemplateFile(relativePath).text();
 
   return ejs.render(template, makeContext("typescript", overrides));
+}
+
+async function renderGolangTemplate(
+  relativePath: string,
+  overrides: Partial<ScaffoldContext> = {},
+): Promise<string> {
+  const template = await golangTemplateFile(relativePath).text();
+
+  return ejs.render(template, makeContext("golang", overrides));
+}
+
+async function assertGofmtAccepts(source: string): Promise<void> {
+  const targetDir = path.join(projectRoot, ".sandbox", `gofmt-template-${randomUUID()}`);
+  await rm(targetDir, { recursive: true, force: true });
+  await mkdir(targetDir, { recursive: true });
+
+  try {
+    await writeFile(path.join(targetDir, "main.go"), source, "utf8");
+    const child = Bun.spawn(["gofmt", "-l", "main.go"], {
+      cwd: targetDir,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const [exitCode, stdout, stderr] = await Promise.all([
+      child.exited,
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+    ]);
+
+    expect(stderr).toBe("");
+    expect(exitCode).toBe(0);
+    expect(stdout).toBe("");
+  } finally {
+    await rm(targetDir, { recursive: true, force: true });
+  }
 }
 
 describe("scaffold manifests", () => {
@@ -264,6 +309,7 @@ describe("scaffold manifests", () => {
       golang: [
         "tools/go-analyzers/anti_slop/**/*",
         "tools/go-analyzers/cmd/anvil-lint/**/*",
+        "tools/go-analyzers/cmd/crap-report/**/*",
         "tools/go-analyzers/structural/**/*",
         "tools/go-analyzers/test_quality/**/*",
         "tools/go-analyzers/testdata/**/*",
@@ -320,6 +366,61 @@ describe("scaffold manifests", () => {
   test("TypeScript template scaffold files exist", async () => {
     for (const file of expectedTypescriptTemplateFiles) {
       expect(await typescriptTemplateFile(file).exists()).toBe(true);
+    }
+  });
+
+  test("Go static scaffold files for the seed and tool additions exist", async () => {
+    const files = [
+      "internal/seed/seed.go",
+      "internal/seed/seed_test.go",
+      "internal/seed/types.go",
+      "internal/seed/errors.go",
+      "internal/seed/constants.go",
+      "internal/seed/enums.go",
+      "tools/tools.go",
+      "tools/go-analyzers/cmd/crap-report/main.go",
+      "tools/go-analyzers/cmd/crap-report/main_test.go",
+      ".editorconfig",
+      ".gitleaks.toml",
+      ".gitattributes",
+    ];
+
+    for (const file of files) {
+      expect(await golangStaticFile(file).exists()).toBe(true);
+    }
+  });
+
+  test("Go app entrypoint is rendered from a template source", async () => {
+    const entry = getManifest("golang").entries.find((candidate) => candidate.dest === "cmd/app/main.go");
+
+    expect(entry).toMatchObject({
+      dest: "cmd/app/main.go",
+      src: "src/templates/golang/cmd/app/main.go.ejs",
+      source: "template",
+    });
+    expect(await golangTemplateFile("cmd/app/main.go.ejs").exists()).toBe(true);
+  });
+
+  test("Go app entrypoint template renders a valid import path for scoped project names", async () => {
+    const rendered = await renderGolangTemplate("cmd/app/main.go.ejs", {
+      projectName: "@scope/app",
+    });
+
+    expect(rendered).toContain('"scope/app/internal/seed"');
+    expect(rendered).not.toContain('"@scope/app/internal/seed"');
+  });
+
+  test("Go app entrypoint template renders gofmt-canonical source", async () => {
+    const rendered = await renderGolangTemplate("cmd/app/main.go.ejs", {
+      projectName: "example.com/service",
+    });
+
+    await assertGofmtAccepts(rendered);
+  });
+
+  test("Go static manifest source paths exist", async () => {
+    for (const entry of getManifest("golang").entries.filter((candidate) => candidate.source === "static")) {
+      expect(await sourcePathExists(entry.src)).toBe(true);
     }
   });
 
@@ -449,10 +550,11 @@ describe("scaffold manifests", () => {
     expect(await typescriptStaticFile(".gitattributes").text()).toContain("* text=auto eol=lf");
   });
 
-  test("Go analyzer manifest defers CRAP report until its scaffold exists", () => {
+  test("Go analyzer manifest includes CRAP report at the spec path", () => {
     const dests = getManifest("golang").entries.map((entry) => entry.dest);
 
-    expect(dests).not.toContain("tools/go-analyzers/cmd/crap-report/**/*");
+    expect(dests).toContain("tools/go-analyzers/cmd/crap-report/**/*");
+    expect(dests).not.toContain("tools/crap-score.go");
   });
 
   test("invalid languages throw", () => {

@@ -1,0 +1,4 @@
+mode: set
+testdata/sample/sample.go:3.34,5.3 1 1
+testdata/sample/sample.go:9.33,10.15 1 0
+testdata/sample/sample.go:10.15,12.3 1 0
