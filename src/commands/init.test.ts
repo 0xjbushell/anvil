@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import type { AnvilLockfile, Lang, ScaffoldContext } from "../types.ts";
 import { loadToolchainDefaults } from "../internal/toolchain-defaults.ts";
 import { ScaffoldConflictError } from "../scaffold/engine.ts";
-import { LOCKFILE_NAME, computeChecksum, writeLockfile } from "../scaffold/lockfile.ts";
+import { LOCKFILE_NAME, computeChecksum, readLockfile, writeLockfile } from "../scaffold/lockfile.ts";
 import init, { type InitDependencies, type InitResult, type RunCommandResult } from "./init.ts";
 
 class StringWriter {
@@ -216,6 +216,75 @@ describe("anvil init command", () => {
     expect(harness.acquired).toEqual([missingTarget]);
     expect(harness.released).toEqual([missingTarget]);
     expect(await readFile(path.join(missingTarget, "generated.txt"), "utf8")).toBe("generated\n");
+  });
+
+  test("golang post-scaffold checksum refresh preserves skipped conflict entries", async () => {
+    const harness = makeHarness({
+      resolveToolchain: async () => ({
+        toolchain: {
+          bun: "1.3.13",
+          go: "1.23.4",
+        },
+        warnings: [],
+      }),
+      scaffold: async (ctx) => {
+        await writeFile(path.join(ctx.targetDir, "go.mod"), "module before\n", "utf8");
+        await writeFile(path.join(ctx.targetDir, "README.md"), "user modified content\n", "utf8");
+        return {
+          filesCreated: ["go.mod"],
+          filesSkipped: ["README.md"],
+          lockfile: makeLockfile({
+            lang: "golang",
+            context: {
+              projectName: ctx.projectName,
+              defaultBranch: ctx.defaultBranch,
+              skipSeed: ctx.skipSeed,
+              year: ctx.year ?? 2026,
+            },
+            toolchain: ctx.toolchain,
+            files: [
+              {
+                path: "go.mod",
+                checksum: computeChecksum("module before\n"),
+                status: "written",
+              },
+              {
+                path: "README.md",
+                checksum: computeChecksum("preserved old content\n"),
+                status: "written",
+              },
+            ],
+          }),
+        };
+      },
+      runCommand: async (command, args, options) => {
+        if (command === "go" && args.join(" ") === "mod tidy") {
+          await writeFile(path.join(options.cwd, "go.mod"), "module after\n", "utf8");
+        }
+        return okCommand();
+      },
+    });
+
+    const result = await runInit({ lang: "golang", nonInteractive: true }, harness);
+    const lockfileResult = await readLockfile(scratch);
+
+    expect(result.exitCode).toBe(0);
+    expect(lockfileResult.status).toBe("complete");
+    if (lockfileResult.status !== "complete") {
+      throw new Error("expected complete lockfile");
+    }
+    expect(lockfileResult.lockfile.files).toEqual([
+      {
+        path: "go.mod",
+        checksum: computeChecksum("module after\n"),
+        status: "written",
+      },
+      {
+        path: "README.md",
+        checksum: computeChecksum("preserved old content\n"),
+        status: "written",
+      },
+    ]);
   });
 
   test("pipe without --non-interactive is a clean error with no prompts or writes", async () => {

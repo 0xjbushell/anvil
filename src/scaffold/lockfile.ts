@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import writeFileAtomic from "write-file-atomic";
 
@@ -385,4 +386,44 @@ export async function finalizeLockfile(dir: string, lock: AnvilLockfile): Promis
 
   await writeLockfile(dir, finalized);
   return finalized;
+}
+
+export async function refreshLockfileChecksums(
+  dir: string,
+  lock: AnvilLockfile,
+  pathsToRefresh: Iterable<string>,
+): Promise<AnvilLockfile> {
+  const requestedPaths = new Set(pathsToRefresh);
+  if (requestedPaths.size === 0) {
+    return lock;
+  }
+
+  const trackedPaths = new Set(lock.files.map((entry) => entry.path));
+  const untrackedPaths = [...requestedPaths].filter((entryPath) => !trackedPaths.has(entryPath));
+  if (untrackedPaths.length > 0) {
+    throw new Error(`Cannot refresh untracked lockfile entries: ${untrackedPaths.join(", ")}`);
+  }
+
+  const refreshed: AnvilLockfile = {
+    ...cloneLockfile(lock),
+    files: await Promise.all(
+      lock.files.map(async (entry) => {
+        if (!requestedPaths.has(entry.path)) {
+          return { ...entry };
+        }
+
+        return {
+          ...entry,
+          checksum: checksumForFile({
+            path: entry.path,
+            content: await readFile(path.join(dir, entry.path)),
+          }),
+        };
+      }),
+    ),
+    updatedAt: new Date().toISOString(),
+  };
+
+  await writeLockfile(dir, refreshed);
+  return refreshed;
 }

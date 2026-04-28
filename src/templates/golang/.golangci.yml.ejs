@@ -25,3 +25,9 @@ linters:
     govet:
       enable:
         - shadow
+    revive:
+      rules:
+        - name: package-comments
+          disabled: true
+        - name: exported
+          disabled: true

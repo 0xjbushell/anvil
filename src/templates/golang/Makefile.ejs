@@ -5,7 +5,7 @@ GO_FILES := $(shell find . -name '*.go' -not -path './vendor/*')
 
 lint: tools/go-analyzers/bin/anvil-lint ## Run golangci-lint and custom anvil analyzers
 	golangci-lint run ./...
-	go vet -vettool=tools/go-analyzers/bin/anvil-lint ./...
+	@custom_output="$$(go vet -vettool=tools/go-analyzers/bin/anvil-lint ./... 2>&1)"; vet_status=$$?; if [ $$vet_status -ne 0 ] || printf "%s\n" "$$custom_output" | grep -q '"message":'; then printf "%s\n" "$$custom_output"; exit 1; fi
 
 tools/go-analyzers/bin/anvil-lint:
 	$(MAKE) -C tools/go-analyzers build
