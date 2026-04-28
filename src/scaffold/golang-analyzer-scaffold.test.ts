@@ -30,6 +30,8 @@ describe("Go analyzer scaffold", () => {
   test("ships the multichecker harness and analyzer package directories", async () => {
     const expectedFiles = [
       "cmd/anvil-lint/main.go",
+      "cmd/crap-report/main.go",
+      "cmd/crap-report/main_test.go",
       "testdata/.gitkeep",
       "go.mod.ejs",
       "Makefile",
@@ -76,7 +78,7 @@ describe("Go analyzer scaffold", () => {
 
   test("Makefile builds and cleans the analyzer binary", async () => {
     expect(await analyzerFile("Makefile").text()).toBe(
-      ".PHONY: build clean\n\nbuild:\n\tmkdir -p bin\n\tgo build -o bin/anvil-lint ./cmd/anvil-lint\n\nclean:\n\trm -f bin/anvil-lint\n",
+      ".PHONY: build clean\n\nbuild:\n\tmkdir -p bin\n\tgo build -o bin/anvil-lint ./cmd/anvil-lint\n\tgo build -o bin/crap-report ./cmd/crap-report\n\nclean:\n\trm -f bin/anvil-lint bin/crap-report\n",
     );
   });
 });

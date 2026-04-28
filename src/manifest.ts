@@ -13,11 +13,12 @@ function staticEntry(lang: Lang, dest: string, when?: ManifestEntry["when"]): Ma
   };
 }
 
-function templateEntry(lang: Lang, dest: string): ManifestEntry {
+function templateEntry(lang: Lang, dest: string, when?: ManifestEntry["when"]): ManifestEntry {
   return {
     dest,
     src: `src/templates/${lang}/${dest}.ejs`,
     source: "template",
+    ...(when ? { when } : {}),
   };
 }
 
@@ -67,9 +68,10 @@ const golangEntries: ManifestEntry[] = [
   staticEntry("golang", "internal/seed/errors.go", includeSeed),
   staticEntry("golang", "internal/seed/constants.go", includeSeed),
   staticEntry("golang", "internal/seed/enums.go", includeSeed),
-  staticEntry("golang", "cmd/app/main.go", includeSeed),
+  templateEntry("golang", "cmd/app/main.go", includeSeed),
   staticEntry("golang", "tools/tools.go"),
   staticEntry("golang", "tools/go-analyzers/cmd/anvil-lint/**/*"),
+  staticEntry("golang", "tools/go-analyzers/cmd/crap-report/**/*"),
   staticEntry("golang", "tools/go-analyzers/anti_slop/**/*"),
   staticEntry("golang", "tools/go-analyzers/structural/**/*"),
   staticEntry("golang", "tools/go-analyzers/test_quality/**/*"),

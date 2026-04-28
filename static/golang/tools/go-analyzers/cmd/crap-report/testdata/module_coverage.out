@@ -1,0 +1,4 @@
+mode: set
+tools/go-analyzers/cmd/crap-report/testdata/sample/sample.go:3.34,5.3 1 1
+tools/go-analyzers/cmd/crap-report/testdata/sample/sample.go:9.33,10.15 1 0
+tools/go-analyzers/cmd/crap-report/testdata/sample/sample.go:10.15,12.3 1 0
