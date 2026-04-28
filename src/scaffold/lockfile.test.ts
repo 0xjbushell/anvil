@@ -17,6 +17,7 @@ import {
   readLockfile,
   writeLockfile,
   writeLockfileCheckpoint,
+  refreshLockfileChecksums,
 } from "./lockfile.ts";
 
 type TestScaffoldContext = ScaffoldContext & { year?: number };
@@ -191,6 +192,30 @@ describe("scaffold lockfile", () => {
     for (const binaryPath of ["logo.png", "photo.jpg", "anim.gif", "favicon.ico", "font.woff", "font.woff2"]) {
       expect(isTextFile(binaryPath)).toBe(false);
     }
+  });
+
+  test("refreshLockfileChecksums only updates requested tracked entries", async () => {
+    const lock = makeLockfile({
+      files: [
+        entry("go.mod", computeChecksum("module before\n")),
+        entry("README.md", computeChecksum("preserved old content\n")),
+      ],
+    });
+    await writeFile(path.join(scratch, "go.mod"), "module after\n", "utf8");
+    await writeFile(path.join(scratch, "README.md"), "user modified content\n", "utf8");
+
+    const refreshed = await refreshLockfileChecksums(scratch, lock, ["go.mod"]);
+
+    expect(refreshed.files).toEqual([
+      entry("go.mod", computeChecksum("module after\n")),
+      entry("README.md", computeChecksum("preserved old content\n")),
+    ]);
+  });
+
+  test("refreshLockfileChecksums rejects untracked paths", async () => {
+    await expect(refreshLockfileChecksums(scratch, makeLockfile(), ["go.mod"])).rejects.toThrow(
+      'Cannot refresh untracked lockfile entries: go.mod',
+    );
   });
 
   test("diffLockfiles detects added files", () => {

@@ -60,7 +60,7 @@ describe("Go analyzer scaffold", () => {
     expect(template).toContain("go <%= toolchain.go %>");
     expect(template).not.toMatch(/^go\s+1\.\d+/m);
     expect(rendered).toBe(
-      "module tools/go-analyzers\n\ngo 1.23\n\nrequire golang.org/x/tools v0.33.0\n",
+      "module tools/go-analyzers\n\ngo 1.23\n\nrequire golang.org/x/tools v0.33.0\n\nrequire (\n\tgolang.org/x/mod v0.24.0 // indirect\n\tgolang.org/x/sync v0.14.0 // indirect\n)\n",
     );
   });
 

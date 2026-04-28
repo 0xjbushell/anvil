@@ -34,7 +34,7 @@ import {
   type ScaffoldPreviewResult,
   type ScaffoldResult,
 } from "../scaffold/engine.ts";
-import { readLockfile } from "../scaffold/lockfile.ts";
+import { readLockfile, refreshLockfileChecksums } from "../scaffold/lockfile.ts";
 import type { AnvilLockfile, Lang, ScaffoldContext } from "../types.ts";
 
 export type { CommandRunner, RunCommandOptions, RunCommandResult, ToolchainResolution };
@@ -268,6 +268,9 @@ async function executeScaffold(ctx: ScaffoldContext, deps: ResolvedInitDependenc
   try {
     const result = await deps.scaffold(ctx, scaffoldOptions(ctx, deps));
     await runPostScaffold(ctx, deps);
+    if (ctx.lang === "golang" && result.filesCreated.includes("go.mod")) {
+      await refreshLockfileChecksums(ctx.targetDir, result.lockfile, ["go.mod"]);
+    }
     printSummary(ctx, result, deps.stdout);
     return success();
   } catch (error) {
