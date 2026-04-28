@@ -34,7 +34,11 @@ describe('TIX-000069 AGENTS.md', () => {
     expect(txt).toContain('reproduce in the sandbox');
     expect(txt).toContain('fix the cause');
     expect(txt).toContain('rerun');
-    expect(txt).toContain('pre-push hook and CI run the full `bun fixtures` and `bun mutation` gates');
+    expect(txt).toContain('After every change, run `bun agent:check`');
+    expect(txt).toContain('Before handoff or push, run `bun fixtures`');
+    expect(txt).toContain('Run `bun mutation` once at the final quality/delivery boundary');
+    expect(txt).toContain('Do not run mutation during every iteration or from pre-push');
+    expect(txt).toContain('rely on CI for PR verification');
     expect(txt).toContain('[D-69]');
     expect(txt).toContain('match reference idioms unless an anvil decision explicitly overrides them');
     expect(txt).toContain('specs/decisions/anvil-decisions.md');
@@ -120,13 +124,13 @@ describe('TIX-000070 governance', () => {
     30_000,
   );
 
-  test('8. pre-push hook runs fixtures and mutation and is executable', () => {
+  test('8. pre-push hook runs fixtures only and is executable', () => {
     const path = join(repoRoot, '.husky/pre-push');
     const txt = readFileSync(path, 'utf8');
     expect(txt.startsWith('#!/usr/bin/env sh')).toBe(true);
     expect(txt.split(/\r?\n/).some((line) => line.trim() === 'set -e')).toBe(true);
     expect(txt.split(/\r?\n/).some((line) => line.trim() === 'bun fixtures')).toBe(true);
-    expect(txt.split(/\r?\n/).some((line) => line.trim() === 'bun mutation')).toBe(true);
+    expect(txt).not.toContain('mutation');
     const mode = statSync(path).mode;
     expect(mode & 0o111).toBeTruthy();
   });
@@ -160,16 +164,19 @@ describe('TIX-000070 governance', () => {
     expect(mutationIndex).toBeGreaterThan(fixturesIndex);
   });
 
-  test('11. README §Contributing documents local and CI fixture checks', () => {
+  test('11. README §Contributing documents local and CI quality gates', () => {
     const txt = read('README.md');
+    const normalized = txt.replace(/\s+/g, ' ');
     expect(txt).toContain('## Contributing');
     expect(txt).toContain('Conventional Commits');
     expect(txt).toContain('release-please');
     expect(txt).toContain('Run `scripts/install-hooks.sh`');
     expect(txt).toContain('scripts/install-hooks.sh');
     expect(txt).toContain('pre-push');
-    expect(txt).toContain('bun fixtures');
-    expect(txt).toContain('bun mutation');
+    expect(txt).toContain('pre-push` hook runs `bun fixtures` only');
+    expect(txt).toContain('`bun quality`');
+    expect(txt).toContain('`bun mutation`');
+    expect(normalized).toContain('CI reruns `bun fixtures` and `bun mutation`');
     expect(txt).toContain('git push --no-verify');
     expect(txt).toContain('pull requests and pushes to `main`');
   });

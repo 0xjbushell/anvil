@@ -33,9 +33,11 @@ configure Git to use the `.husky/` hooks. The `commit-msg` hook validates this l
 
 ### Quality checks
 
-The `pre-push` hook runs `bun fixtures` and `bun mutation` before code leaves your machine and
-blocks the push if either gate fails. `git push --no-verify` skips the local `pre-push` hook when you
-need an emergency bypass, but CI reruns `bun fixtures` and `bun mutation` for pull requests and pushes to `main`.
+The `pre-push` hook runs `bun fixtures` only before code leaves your machine and blocks the push if
+fixtures fail. `git push --no-verify` skips the local `pre-push` hook when you need an emergency
+bypass. Mutation remains the manual final quality gate: run `bun quality` or `bun mutation` at the
+quality/delivery boundary, or rely on CI for PR verification. CI reruns `bun fixtures` and
+`bun mutation` for pull requests and pushes to `main`.
 
 ### Release process
 
