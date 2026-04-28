@@ -1,11 +1,13 @@
-'use strict';
+"use strict";
 
-const path = require('path');
+const path = require("path");
 
-const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']);
+const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
 
 function getFilename(context) {
-  return context.filename || (typeof context.getFilename === 'function' ? context.getFilename() : '');
+  return (
+    context.filename || (typeof context.getFilename === "function" ? context.getFilename() : "")
+  );
 }
 
 function getBasename(context) {
@@ -17,7 +19,7 @@ function isNamedFile(context, names) {
 }
 
 function isSupportedSourceFilename(filename) {
-  if (!filename || filename === '<input>') {
+  if (!filename || filename === "<input>") {
     return false;
   }
 
@@ -29,11 +31,11 @@ function getIdentifierName(node) {
     return null;
   }
 
-  if (node.type === 'Identifier' || node.type === 'PrivateIdentifier') {
+  if (node.type === "Identifier" || node.type === "PrivateIdentifier") {
     return node.name;
   }
 
-  if (node.type === 'Literal') {
+  if (node.type === "Literal") {
     return String(node.value);
   }
 
@@ -46,11 +48,11 @@ function addDeclarationToMap(declarationMap, declaration) {
   }
 
   if (
-    declaration.type === 'FunctionDeclaration' ||
-    declaration.type === 'ClassDeclaration' ||
-    declaration.type === 'TSTypeAliasDeclaration' ||
-    declaration.type === 'TSInterfaceDeclaration' ||
-    declaration.type === 'TSEnumDeclaration'
+    declaration.type === "FunctionDeclaration" ||
+    declaration.type === "ClassDeclaration" ||
+    declaration.type === "TSTypeAliasDeclaration" ||
+    declaration.type === "TSInterfaceDeclaration" ||
+    declaration.type === "TSEnumDeclaration"
   ) {
     const name = getIdentifierName(declaration.id);
     if (name) {
@@ -64,7 +66,7 @@ function addDeclarationToMap(declarationMap, declaration) {
     return;
   }
 
-  if (declaration.type === 'VariableDeclaration') {
+  if (declaration.type === "VariableDeclaration") {
     for (const declarator of declaration.declarations) {
       const name = getIdentifierName(declarator.id);
       if (name) {
@@ -83,9 +85,8 @@ function createTopLevelDeclarationMap(programNode) {
   const declarationMap = new Map();
 
   for (const statement of programNode.body) {
-    const declaration = statement.type === 'ExportNamedDeclaration'
-      ? statement.declaration
-      : statement;
+    const declaration =
+      statement.type === "ExportNamedDeclaration" ? statement.declaration : statement;
     addDeclarationToMap(declarationMap, declaration);
   }
 
@@ -98,11 +99,11 @@ function addDefinitionsFromDeclaration(definitions, declaration, exportNode, see
   }
 
   if (
-    declaration.type === 'FunctionDeclaration' ||
-    declaration.type === 'ClassDeclaration' ||
-    declaration.type === 'TSTypeAliasDeclaration' ||
-    declaration.type === 'TSInterfaceDeclaration' ||
-    declaration.type === 'TSEnumDeclaration'
+    declaration.type === "FunctionDeclaration" ||
+    declaration.type === "ClassDeclaration" ||
+    declaration.type === "TSTypeAliasDeclaration" ||
+    declaration.type === "TSInterfaceDeclaration" ||
+    declaration.type === "TSEnumDeclaration"
   ) {
     const name = getIdentifierName(declaration.id);
     if (name && !seen.has(name)) {
@@ -118,7 +119,7 @@ function addDefinitionsFromDeclaration(definitions, declaration, exportNode, see
     return;
   }
 
-  if (declaration.type === 'VariableDeclaration') {
+  if (declaration.type === "VariableDeclaration") {
     for (const declarator of declaration.declarations) {
       const name = getIdentifierName(declarator.id);
       if (name && !seen.has(name)) {
@@ -157,7 +158,7 @@ function getExportedDefinitions(programNode) {
   const seen = new Set();
 
   for (const statement of programNode.body) {
-    if (statement.type === 'ExportNamedDeclaration') {
+    if (statement.type === "ExportNamedDeclaration") {
       if (statement.source) {
         continue;
       }
@@ -185,13 +186,13 @@ function getExportedDefinitions(programNode) {
       continue;
     }
 
-    if (statement.type === 'ExportDefaultDeclaration') {
+    if (statement.type === "ExportDefaultDeclaration") {
       const declaration = statement.declaration;
       if (!declaration) {
         continue;
       }
 
-      if (declaration.type === 'Identifier') {
+      if (declaration.type === "Identifier") {
         const localDefinition = declarationMap.get(declaration.name);
         if (localDefinition && !seen.has(localDefinition.name)) {
           seen.add(localDefinition.name);
@@ -208,8 +209,8 @@ function getExportedDefinitions(programNode) {
 }
 
 function normalizeSymbolName(name) {
-  const rawName = name === null || name === undefined ? '' : String(name);
-  return rawName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+  const rawName = name === null || name === undefined ? "" : String(name);
+  return rawName.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
 }
 
 function unwrapExpression(node) {
@@ -217,12 +218,10 @@ function unwrapExpression(node) {
 
   while (
     current &&
-    (
-      current.type === 'TSAsExpression' ||
-      current.type === 'TSTypeAssertion' ||
-      current.type === 'TSNonNullExpression' ||
-      current.type === 'TSSatisfiesExpression'
-    )
+    (current.type === "TSAsExpression" ||
+      current.type === "TSTypeAssertion" ||
+      current.type === "TSNonNullExpression" ||
+      current.type === "TSSatisfiesExpression")
   ) {
     current = current.expression;
   }
@@ -233,10 +232,10 @@ function unwrapExpression(node) {
 function isConstAssertion(node) {
   return Boolean(
     node &&
-    node.type === 'TSAsExpression' &&
+    node.type === "TSAsExpression" &&
     node.typeAnnotation &&
-    node.typeAnnotation.type === 'TSTypeReference' &&
-    getIdentifierName(node.typeAnnotation.typeName) === 'const'
+    node.typeAnnotation.type === "TSTypeReference" &&
+    getIdentifierName(node.typeAnnotation.typeName) === "const",
   );
 }
 

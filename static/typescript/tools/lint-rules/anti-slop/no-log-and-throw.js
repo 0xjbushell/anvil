@@ -1,14 +1,14 @@
-'use strict';
+"use strict";
 
-const { isLoggingStatement, unwrapExpression } = require('./ast-utils.js');
+const { isLoggingStatement, unwrapExpression } = require("./ast-utils.js");
 
-const IGNORED_AST_KEYS = new Set(['parent', 'loc', 'range', 'tokens', 'comments']);
+const IGNORED_AST_KEYS = new Set(["parent", "loc", "range", "tokens", "comments"]);
 const NESTED_SCOPE_TYPES = new Set([
-  'ArrowFunctionExpression',
-  'ClassDeclaration',
-  'ClassExpression',
-  'FunctionDeclaration',
-  'FunctionExpression',
+  "ArrowFunctionExpression",
+  "ClassDeclaration",
+  "ClassExpression",
+  "FunctionDeclaration",
+  "FunctionExpression",
 ]);
 
 function getCalleeName(callee) {
@@ -18,21 +18,21 @@ function getCalleeName(callee) {
     return null;
   }
 
-  if (expression.type === 'Identifier') {
+  if (expression.type === "Identifier") {
     return expression.name;
   }
 
-  if (expression.type !== 'MemberExpression') {
+  if (expression.type !== "MemberExpression") {
     return null;
   }
 
   const property = expression.property;
 
-  if (property.type === 'Identifier' && !expression.computed) {
+  if (property.type === "Identifier" && !expression.computed) {
     return property.name;
   }
 
-  if (property.type === 'Literal' && typeof property.value === 'string') {
+  if (property.type === "Literal" && typeof property.value === "string") {
     return property.value;
   }
 
@@ -40,15 +40,11 @@ function getCalleeName(callee) {
 }
 
 function isErrorLikeName(name) {
-  return (
-    name === 'Error' ||
-    /Error$/.test(name) ||
-    /^(err|error)$/i.test(name)
-  );
+  return name === "Error" || /Error$/.test(name) || /^(err|error)$/i.test(name);
 }
 
 function isReturnedError(statement) {
-  if (statement.type !== 'ReturnStatement') {
+  if (statement.type !== "ReturnStatement") {
     return false;
   }
 
@@ -58,11 +54,11 @@ function isReturnedError(statement) {
     return false;
   }
 
-  if (argument.type === 'Identifier') {
+  if (argument.type === "Identifier") {
     return isErrorLikeName(argument.name);
   }
 
-  if (argument.type === 'NewExpression' || argument.type === 'CallExpression') {
+  if (argument.type === "NewExpression" || argument.type === "CallExpression") {
     const calleeName = getCalleeName(argument.callee);
     return Boolean(calleeName && isErrorLikeName(calleeName));
   }
@@ -71,13 +67,13 @@ function isReturnedError(statement) {
 }
 
 function hasDirectErrorExit(blockNode) {
-  return blockNode.body.some((statement) => (
-    statement.type === 'ThrowStatement' || isReturnedError(statement)
-  ));
+  return blockNode.body.some(
+    (statement) => statement.type === "ThrowStatement" || isReturnedError(statement),
+  );
 }
 
 function collectLogCalls(node, logCalls = []) {
-  if (!node || typeof node !== 'object') {
+  if (!node || typeof node !== "object") {
     return logCalls;
   }
 
@@ -85,7 +81,7 @@ function collectLogCalls(node, logCalls = []) {
     return logCalls;
   }
 
-  if (node.type === 'ExpressionStatement' && isLoggingStatement(node)) {
+  if (node.type === "ExpressionStatement" && isLoggingStatement(node)) {
     logCalls.push(node.expression);
     return logCalls;
   }
@@ -102,7 +98,7 @@ function collectLogCalls(node, logCalls = []) {
       continue;
     }
 
-    if (value && typeof value.type === 'string') {
+    if (value && typeof value.type === "string") {
       collectLogCalls(value, logCalls);
     }
   }
@@ -118,20 +114,21 @@ function reportBlockLogAndThrow(context, blockNode) {
   for (const logCall of collectLogCalls(blockNode)) {
     context.report({
       node: logCall,
-      messageId: 'logAndThrow',
+      messageId: "logAndThrow",
     });
   }
 }
 
 module.exports = {
   meta: {
-    type: 'problem',
+    type: "problem",
     docs: {
-      description: 'Disallow logging and throwing in the same block.',
+      description: "Disallow logging and throwing in the same block.",
       recommended: true,
     },
     messages: {
-      logAndThrow: 'Logging and throwing in the same block creates duplicate error reports. Choose one.',
+      logAndThrow:
+        "Logging and throwing in the same block creates duplicate error reports. Choose one.",
     },
     schema: [],
   },
@@ -141,11 +138,11 @@ module.exports = {
         reportBlockLogAndThrow(context, node.body);
       },
       IfStatement(node) {
-        if (node.consequent.type === 'BlockStatement') {
+        if (node.consequent.type === "BlockStatement") {
           reportBlockLogAndThrow(context, node.consequent);
         }
 
-        if (node.alternate && node.alternate.type === 'BlockStatement') {
+        if (node.alternate && node.alternate.type === "BlockStatement") {
           reportBlockLogAndThrow(context, node.alternate);
         }
       },

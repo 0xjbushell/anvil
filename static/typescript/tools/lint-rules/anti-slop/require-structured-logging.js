@@ -1,35 +1,27 @@
-'use strict';
+"use strict";
 
-const { unwrapExpression } = require('./ast-utils.js');
+const { unwrapExpression } = require("./ast-utils.js");
 
 const DEFAULT_STRUCTURED_LOGGERS = new Set([
-  'logger',
-  'log',
-  'pino',
-  'winston',
-  'bunyan',
-  'log4js',
-  'roarr',
+  "logger",
+  "log",
+  "pino",
+  "winston",
+  "bunyan",
+  "log4js",
+  "roarr",
 ]);
 
-const LOG_METHODS = new Set([
-  'trace',
-  'debug',
-  'info',
-  'warn',
-  'warning',
-  'error',
-  'fatal',
-]);
+const LOG_METHODS = new Set(["trace", "debug", "info", "warn", "warning", "error", "fatal"]);
 
 function getStaticPropertyName(memberExpression) {
   const property = memberExpression.property;
 
-  if (property.type === 'Identifier' && !memberExpression.computed) {
+  if (property.type === "Identifier" && !memberExpression.computed) {
     return property.name;
   }
 
-  if (property.type === 'Literal' && typeof property.value === 'string') {
+  if (property.type === "Literal" && typeof property.value === "string") {
     return property.value;
   }
 
@@ -39,13 +31,13 @@ function getStaticPropertyName(memberExpression) {
 function getLoggerCall(node, structuredLoggers) {
   const callee = unwrapExpression(node.callee);
 
-  if (!callee || callee.type !== 'MemberExpression') {
+  if (!callee || callee.type !== "MemberExpression") {
     return null;
   }
 
   const object = unwrapExpression(callee.object);
 
-  if (!object || object.type !== 'Identifier' || object.name === 'console') {
+  if (!object || object.type !== "Identifier" || object.name === "console") {
     return null;
   }
 
@@ -63,10 +55,8 @@ function isStringLiteral(node) {
 
   return (
     expression &&
-    (
-      (expression.type === 'Literal' && typeof expression.value === 'string') ||
-      (expression.type === 'TemplateLiteral' && expression.expressions.length === 0)
-    )
+    ((expression.type === "Literal" && typeof expression.value === "string") ||
+      (expression.type === "TemplateLiteral" && expression.expressions.length === 0))
   );
 }
 
@@ -77,11 +67,11 @@ function containsUnstructuredString(node) {
     return false;
   }
 
-  if (expression.type === 'TemplateLiteral') {
+  if (expression.type === "TemplateLiteral") {
     return expression.expressions.length > 0;
   }
 
-  if (expression.type === 'BinaryExpression' && expression.operator === '+') {
+  if (expression.type === "BinaryExpression" && expression.operator === "+") {
     return (
       isStringLiteral(expression.left) ||
       isStringLiteral(expression.right) ||
@@ -104,21 +94,22 @@ function getStructuredLoggerNames(context) {
 
 module.exports = {
   meta: {
-    type: 'problem',
+    type: "problem",
     docs: {
-      description: 'Require structured arguments for known structured logger calls.',
+      description: "Require structured arguments for known structured logger calls.",
       recommended: true,
     },
     messages: {
-      unstructuredLog: 'Use structured key-value arguments instead of string interpolation in log calls.',
+      unstructuredLog:
+        "Use structured key-value arguments instead of string interpolation in log calls.",
     },
     schema: [
       {
-        type: 'object',
+        type: "object",
         properties: {
           structuredLoggers: {
-            type: 'array',
-            items: { type: 'string' },
+            type: "array",
+            items: { type: "string" },
           },
         },
         additionalProperties: false,
@@ -140,7 +131,7 @@ module.exports = {
 
         context.report({
           node,
-          messageId: 'unstructuredLog',
+          messageId: "unstructuredLog",
         });
       },
     };

@@ -1,23 +1,24 @@
-'use strict';
+"use strict";
 
-const { getExportedDefinitions, isNamedFile } = require('./utils.js');
+const { getExportedDefinitions, isNamedFile } = require("./utils.js");
 
-const ENUMS_FILES = new Set(['enums.ts', 'enums.tsx']);
+const ENUMS_FILES = new Set(["enums.ts", "enums.tsx"]);
 
 function isEnumDefinition(definition) {
-  return definition.declaration.type === 'TSEnumDeclaration';
+  return definition.declaration.type === "TSEnumDeclaration";
 }
 
 module.exports = {
   meta: {
-    type: 'suggestion',
+    type: "suggestion",
     docs: {
-      description: 'Require exported TypeScript enums to live in enums.ts.',
+      description: "Require exported TypeScript enums to live in enums.ts.",
       recommended: true,
     },
     messages: {
       enumOutsideEnumsFile: "Exported enum '{{ name }}' should be in enums.ts.",
-      nonEnumInEnumsFile: "Non-enum declaration '{{ name }}' should not be in enums.ts. Move it to the appropriate file.",
+      nonEnumInEnumsFile:
+        "Non-enum declaration '{{ name }}' should not be in enums.ts. Move it to the appropriate file.",
     },
     schema: [],
   },
@@ -32,7 +33,7 @@ module.exports = {
           if (!inEnumsFile && isEnum) {
             context.report({
               node: definition.nameNode,
-              messageId: 'enumOutsideEnumsFile',
+              messageId: "enumOutsideEnumsFile",
               data: { name: definition.name },
             });
             continue;
@@ -41,7 +42,7 @@ module.exports = {
           if (inEnumsFile && !isEnum) {
             context.report({
               node: definition.nameNode,
-              messageId: 'nonEnumInEnumsFile',
+              messageId: "nonEnumInEnumsFile",
               data: { name: definition.name },
             });
           }

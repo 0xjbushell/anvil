@@ -1,4 +1,4 @@
-'use strict';
+"use strict";
 
 const {
   getFilename,
@@ -9,7 +9,7 @@ const {
   isTestFilename,
   unwrapExpression,
   visitNode,
-} = require('./utils.js');
+} = require("./utils.js");
 
 function hasAssertions(callback) {
   let foundAssertion = false;
@@ -29,9 +29,9 @@ function hasAssertions(callback) {
 
 module.exports = {
   meta: {
-    type: 'problem',
+    type: "problem",
     docs: {
-      description: 'Disallow test cases without assertions.',
+      description: "Disallow test cases without assertions.",
       recommended: true,
     },
     messages: {
@@ -53,7 +53,7 @@ module.exports = {
 
         context.report({
           node,
-          messageId: 'emptyTest',
+          messageId: "emptyTest",
           data: { testName: getFirstStringArgument(node.arguments) },
         });
       },

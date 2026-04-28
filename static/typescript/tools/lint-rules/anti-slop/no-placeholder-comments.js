@@ -1,4 +1,4 @@
-'use strict';
+"use strict";
 
 const ACTIONABLE_REFERENCE = /\b[A-Z][A-Z0-9]+-\d+\b/;
 const TODO_OR_FIXME = /\b(?:TODO|FIXME)\b/i;
@@ -26,13 +26,13 @@ function isPlaceholderComment(commentText) {
 
 module.exports = {
   meta: {
-    type: 'problem',
+    type: "problem",
     docs: {
-      description: 'Disallow vague placeholder comments without actionable context.',
+      description: "Disallow vague placeholder comments without actionable context.",
       recommended: true,
     },
     messages: {
-      placeholderComment: 'Placeholder comment detected. Either implement the TODO or remove it.',
+      placeholderComment: "Placeholder comment detected. Either implement the TODO or remove it.",
     },
     schema: [],
   },
@@ -46,7 +46,7 @@ module.exports = {
 
           context.report({
             node: comment,
-            messageId: 'placeholderComment',
+            messageId: "placeholderComment",
           });
         }
       },

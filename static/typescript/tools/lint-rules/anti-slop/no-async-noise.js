@@ -1,17 +1,17 @@
-'use strict';
+"use strict";
 
-const { unwrapExpression } = require('./ast-utils.js');
+const { unwrapExpression } = require("./ast-utils.js");
 
 const FUNCTION_TYPES = new Set([
-  'ArrowFunctionExpression',
-  'FunctionDeclaration',
-  'FunctionExpression',
+  "ArrowFunctionExpression",
+  "FunctionDeclaration",
+  "FunctionExpression",
 ]);
 
-const IGNORED_AST_KEYS = new Set(['parent', 'loc', 'range', 'tokens', 'comments']);
+const IGNORED_AST_KEYS = new Set(["parent", "loc", "range", "tokens", "comments"]);
 
 function visitNode(node, state, visitor, rootNode = node) {
-  if (!node || typeof node !== 'object') {
+  if (!node || typeof node !== "object") {
     return;
   }
 
@@ -19,9 +19,17 @@ function visitNode(node, state, visitor, rootNode = node) {
     return;
   }
 
-  if (node.type === 'TryStatement') {
+  if (node.type === "TryStatement") {
     visitor(node, state);
-    visitNode(node.block, { ...state, tryWithCatchDepth: state.tryWithCatchDepth + (node.handler ? 1 : 0) }, visitor, rootNode);
+    visitNode(
+      node.block,
+      {
+        ...state,
+        tryWithCatchDepth: state.tryWithCatchDepth + (node.handler ? 1 : 0),
+      },
+      visitor,
+      rootNode,
+    );
     visitNode(node.handler, state, visitor, rootNode);
     visitNode(node.finalizer, state, visitor, rootNode);
     return;
@@ -41,7 +49,7 @@ function visitNode(node, state, visitor, rootNode = node) {
       continue;
     }
 
-    if (value && typeof value.type === 'string') {
+    if (value && typeof value.type === "string") {
       visitNode(value, state, visitor, rootNode);
     }
   }
@@ -53,27 +61,23 @@ function analyzeAsyncFunction(node) {
     redundantReturnAwaitStatements: [],
   };
 
-  visitNode(
-    node.body,
-    { tryWithCatchDepth: 0 },
-    (current, state) => {
-      if (current.type === 'AwaitExpression') {
-        analysis.hasAwait = true;
-      }
+  visitNode(node.body, { tryWithCatchDepth: 0 }, (current, state) => {
+    if (current.type === "AwaitExpression") {
+      analysis.hasAwait = true;
+    }
 
-      if (current.type === 'ForOfStatement' && current.await) {
-        analysis.hasAwait = true;
-      }
+    if (current.type === "ForOfStatement" && current.await) {
+      analysis.hasAwait = true;
+    }
 
-      if (
-        current.type === 'ReturnStatement' &&
-        state.tryWithCatchDepth === 0 &&
-        unwrapExpression(current.argument)?.type === 'AwaitExpression'
-      ) {
-        analysis.redundantReturnAwaitStatements.push(current);
-      }
-    },
-  );
+    if (
+      current.type === "ReturnStatement" &&
+      state.tryWithCatchDepth === 0 &&
+      unwrapExpression(current.argument)?.type === "AwaitExpression"
+    ) {
+      analysis.redundantReturnAwaitStatements.push(current);
+    }
+  });
 
   return analysis;
 }
@@ -88,28 +92,30 @@ function reportAsyncNoise(context, node) {
   for (const statement of analysis.redundantReturnAwaitStatements) {
     context.report({
       node: statement,
-      messageId: 'redundantReturnAwait',
+      messageId: "redundantReturnAwait",
     });
   }
 
   if (!analysis.hasAwait) {
     context.report({
       node,
-      messageId: 'asyncWithoutAwait',
+      messageId: "asyncWithoutAwait",
     });
   }
 }
 
 module.exports = {
   meta: {
-    type: 'suggestion',
+    type: "suggestion",
     docs: {
-      description: 'Disallow redundant async and await patterns.',
+      description: "Disallow redundant async and await patterns.",
       recommended: true,
     },
     messages: {
-      redundantReturnAwait: "Redundant 'return await'. The async function already wraps the return in a Promise. Remove the await keyword.",
-      asyncWithoutAwait: 'Async function never uses await. Remove the async keyword or add an await expression.',
+      redundantReturnAwait:
+        "Redundant 'return await'. The async function already wraps the return in a Promise. Remove the await keyword.",
+      asyncWithoutAwait:
+        "Async function never uses await. Remove the async keyword or add an await expression.",
     },
     schema: [],
   },

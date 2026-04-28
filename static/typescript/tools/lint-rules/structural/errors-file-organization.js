@@ -1,11 +1,11 @@
-'use strict';
+"use strict";
 
-const { getExportedDefinitions, getIdentifierName, isNamedFile } = require('./utils.js');
+const { getExportedDefinitions, getIdentifierName, isNamedFile } = require("./utils.js");
 
-const ERRORS_FILES = new Set(['errors.ts', 'errors.tsx']);
+const ERRORS_FILES = new Set(["errors.ts", "errors.tsx"]);
 
 function isErrorLikeName(name) {
-  return /Error$/.test(name || '');
+  return /Error$/.test(name || "");
 }
 
 function isErrorSuperClass(superClass) {
@@ -13,11 +13,11 @@ function isErrorSuperClass(superClass) {
     return false;
   }
 
-  if (superClass.type === 'Identifier') {
+  if (superClass.type === "Identifier") {
     return isErrorLikeName(superClass.name);
   }
 
-  if (superClass.type === 'MemberExpression') {
+  if (superClass.type === "MemberExpression") {
     return isErrorLikeName(getIdentifierName(superClass.property));
   }
 
@@ -26,18 +26,16 @@ function isErrorSuperClass(superClass) {
 
 function isErrorDefinition(definition) {
   const declaration = definition.declaration;
-  const hasErrorLikeName = (
-    isErrorLikeName(definition.name) ||
-    isErrorLikeName(definition.localName)
-  );
+  const hasErrorLikeName =
+    isErrorLikeName(definition.name) || isErrorLikeName(definition.localName);
 
-  if (declaration.type === 'ClassDeclaration') {
+  if (declaration.type === "ClassDeclaration") {
     return hasErrorLikeName || isErrorSuperClass(declaration.superClass);
   }
 
   if (
-    declaration.type === 'TSTypeAliasDeclaration' ||
-    declaration.type === 'TSInterfaceDeclaration'
+    declaration.type === "TSTypeAliasDeclaration" ||
+    declaration.type === "TSInterfaceDeclaration"
   ) {
     return hasErrorLikeName;
   }
@@ -47,14 +45,15 @@ function isErrorDefinition(definition) {
 
 module.exports = {
   meta: {
-    type: 'suggestion',
+    type: "suggestion",
     docs: {
-      description: 'Require exported error declarations to live in errors.ts.',
+      description: "Require exported error declarations to live in errors.ts.",
       recommended: true,
     },
     messages: {
       errorOutsideErrorsFile: "Exported error class '{{ name }}' should be in errors.ts.",
-      nonErrorInErrorsFile: "Non-error declaration '{{ name }}' should not be in errors.ts. Move it to the appropriate file.",
+      nonErrorInErrorsFile:
+        "Non-error declaration '{{ name }}' should not be in errors.ts. Move it to the appropriate file.",
     },
     schema: [],
   },
@@ -69,7 +68,7 @@ module.exports = {
           if (!inErrorsFile && isError) {
             context.report({
               node: definition.nameNode,
-              messageId: 'errorOutsideErrorsFile',
+              messageId: "errorOutsideErrorsFile",
               data: { name: definition.name },
             });
             continue;
@@ -78,7 +77,7 @@ module.exports = {
           if (inErrorsFile && !isError) {
             context.report({
               node: definition.nameNode,
-              messageId: 'nonErrorInErrorsFile',
+              messageId: "nonErrorInErrorsFile",
               data: { name: definition.name },
             });
           }

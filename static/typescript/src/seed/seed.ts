@@ -7,7 +7,7 @@ import type { GreetingOptions, GreetingResult } from "./types";
 
 const logger = pino({
   name: "seed",
-  level: process.env.NODE_ENV === "test" ? "silent" : "info",
+  level: process.env["NODE_ENV"] === "test" ? "silent" : "info",
 });
 const supportedLanguages = new Set<string>(Object.values(Language));
 
@@ -30,16 +30,15 @@ function validateName(name: string): void {
 }
 
 function resolveGreeting(language: Language): string {
-  if (!isSupportedLanguage(language)) {
-    throw new GreetingError(`Unsupported language: ${language}`, "UNSUPPORTED_LANGUAGE");
+  switch (language) {
+    case Language.English:
+    case Language.Spanish:
+    case Language.French:
+    case Language.German:
+      return GREETINGS[language];
+    default:
+      throw new GreetingError(`Unsupported language: ${String(language)}`, "UNSUPPORTED_LANGUAGE");
   }
-
-  const greeting = GREETINGS[language];
-  if (!greeting) {
-    throw new GreetingError(`Unsupported language: ${language}`, "UNSUPPORTED_LANGUAGE");
-  }
-
-  return greeting;
 }
 
 export function seed(name: string, options: GreetingOptions = {}): GreetingResult {

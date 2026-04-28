@@ -1,26 +1,27 @@
-'use strict';
+"use strict";
 
-const { getExportedDefinitions, isNamedFile } = require('./utils.js');
+const { getExportedDefinitions, isNamedFile } = require("./utils.js");
 
-const TYPES_FILES = new Set(['types.ts', 'types.tsx']);
+const TYPES_FILES = new Set(["types.ts", "types.tsx"]);
 
 function isTypeDefinition(definition) {
   return (
-    definition.declaration.type === 'TSTypeAliasDeclaration' ||
-    definition.declaration.type === 'TSInterfaceDeclaration'
+    definition.declaration.type === "TSTypeAliasDeclaration" ||
+    definition.declaration.type === "TSInterfaceDeclaration"
   );
 }
 
 module.exports = {
   meta: {
-    type: 'suggestion',
+    type: "suggestion",
     docs: {
-      description: 'Require exported TypeScript types and interfaces to live in types.ts.',
+      description: "Require exported TypeScript types and interfaces to live in types.ts.",
       recommended: true,
     },
     messages: {
       typeOutsideTypesFile: "Exported type '{{ name }}' should be in types.ts.",
-      nonTypeInTypesFile: "Non-type declaration '{{ name }}' should not be in types.ts. Move it to the appropriate file.",
+      nonTypeInTypesFile:
+        "Non-type declaration '{{ name }}' should not be in types.ts. Move it to the appropriate file.",
     },
     schema: [],
   },
@@ -33,7 +34,7 @@ module.exports = {
           if (!inTypesFile && isTypeDefinition(definition)) {
             context.report({
               node: definition.nameNode,
-              messageId: 'typeOutsideTypesFile',
+              messageId: "typeOutsideTypesFile",
               data: { name: definition.name },
             });
             continue;
@@ -42,7 +43,7 @@ module.exports = {
           if (inTypesFile && !isTypeDefinition(definition)) {
             context.report({
               node: definition.nameNode,
-              messageId: 'nonTypeInTypesFile',
+              messageId: "nonTypeInTypesFile",
               data: { name: definition.name },
             });
           }

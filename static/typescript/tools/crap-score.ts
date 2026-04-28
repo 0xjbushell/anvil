@@ -292,7 +292,10 @@ export function runCrapScore(args = process.argv.slice(2), runOptions: RunOption
     return 1;
   }
 
-  const coverageReport = JSON.parse(readFileSync(coverageFile, "utf8")) as Record<string, FileCoverage>;
+  const coverageReport = JSON.parse(readFileSync(coverageFile, "utf8")) as Record<
+    string,
+    FileCoverage
+  >;
   const reports = computeFunctionReports(coverageReport, cwd);
 
   stdout("File | Function | Complexity | Coverage | CRAP | Status");
