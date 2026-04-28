@@ -1,0 +1,48 @@
+GO_PACKAGES ?= ./...
+GO_FILES := $(shell find . -name '*.go' -not -path './vendor/*')
+
+.PHONY: lint format typecheck security test coverage deadcode crap audit mutate quality check fix
+
+lint: tools/go-analyzers/bin/anvil-lint ## Run golangci-lint and custom anvil analyzers
+	golangci-lint run ./...
+	go vet -vettool=tools/go-analyzers/bin/anvil-lint ./...
+
+tools/go-analyzers/bin/anvil-lint:
+	$(MAKE) -C tools/go-analyzers build
+
+format: ## Check Go formatting
+	test -z "$$(gofmt -l $(GO_FILES))"
+
+typecheck: ## Run Go type and static analysis checks
+	go vet ./...
+	staticcheck ./...
+
+security: ## Run gitleaks secret scan
+	gitleaks detect --source . --no-git
+
+test: ## Run tests
+	go test $(GO_PACKAGES)
+
+coverage: ## Run tests and enforce 80% line coverage
+	go test -coverprofile=coverage.out -covermode=atomic $(GO_PACKAGES)
+	go tool cover -func=coverage.out | awk '/^total:/ { sub(/%/, "", $$3); if ($$3 + 0 < 80) { printf "coverage %.1f%% is below 80%%\n", $$3; exit 1 } }'
+
+deadcode: ## Detect unreachable or unused code
+	deadcode $(GO_PACKAGES)
+
+crap: coverage ## Compute CRAP scores from coverage.out
+	go run ./tools/go-analyzers/cmd/crap-report
+
+audit: ## Audit Go dependencies for known vulnerabilities
+	govulncheck $(GO_PACKAGES)
+
+mutate: ## Run Go mutation testing
+	go-mutesting $(GO_PACKAGES)
+
+quality: check mutate ## Run all checks including mutation testing
+
+check: lint format typecheck security test coverage deadcode crap audit ## Run tier 1 and tier 2 checks
+
+fix: ## Auto-format Go source files
+	gofmt -w $(GO_FILES)
+	goimports -w $(GO_FILES)

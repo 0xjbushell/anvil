@@ -1,0 +1,27 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  enable:
+    - errcheck
+    - err113
+    - gocognit
+    - exhaustive
+    - gosec
+    - govet
+    - unused
+    - gochecknoinits
+    - gochecknoglobals
+    - revive
+    - staticcheck
+    - funlen
+  settings:
+    funlen:
+      lines: 80
+    gocognit:
+      min-complexity: 15
+    govet:
+      enable:
+        - shadow

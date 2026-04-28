@@ -103,4 +103,13 @@ describe("Go static scaffold", () => {
     expect(source).toContain('Float64("warn-threshold", 30');
     expect(source).toContain('Float64("error-threshold", 45');
   });
+
+  test("static gitattributes preserves LF defaults and binary classifications", async () => {
+    const source = await staticFile(".gitattributes").text();
+
+    expect(source.startsWith("* text=auto eol=lf\n")).toBe(true);
+    for (const binaryPattern of ["*.png binary", "*.jpg binary", "*.gif binary", "*.ico binary"]) {
+      expect(source).toContain(binaryPattern);
+    }
+  });
 });
