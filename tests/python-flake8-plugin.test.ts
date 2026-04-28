@@ -18,7 +18,6 @@ const scaffoldFiles = [
   'tests/test_plugin.py',
 ] as const;
 const stubModules = [
-  ['anti_slop.py', 'check_anti_slop', 'TIX-000045'],
   ['error_handling.py', 'check_error_handling', 'TIX-000048'],
   ['structural.py', 'check_structural', 'TIX-000046'],
   ['test_quality.py', 'check_test_quality', 'TIX-000047'],
@@ -69,21 +68,24 @@ describe('TIX-000044 Python Flake8 plugin scaffold', () => {
     expect(destinations).toContain('tools/flake8-plugin/setup.cfg');
   });
 
-  test('AnvilChecker exposes the Flake8 checker protocol and delegates to stub modules', () => {
+  test('AnvilChecker exposes the Flake8 checker protocol and delegates to rule modules', () => {
     const plugin = readPluginFile('anvil_lint/__init__.py');
 
     expect(plugin).toContain('class AnvilChecker:');
     expect(plugin).toContain('name = "anvil-lint"');
     expect(plugin).toContain('version = "0.1.0"');
+    expect(plugin).toContain('def add_options(cls, option_manager):');
+    expect(plugin).toContain('"--anvil-source-dir"');
+    expect(plugin).toContain('def parse_options(cls, options) -> None:');
     expect(plugin).toContain('def __init__(self, tree: ast.AST, filename: str) -> None:');
     expect(plugin).toContain('def run(self) -> Generator[tuple[int, int, str, type], None, None]:');
-    expect(plugin).toContain('yield from check_anti_slop(self.tree, self.filename)');
+    expect(plugin).toContain('yield from check_anti_slop(self.tree, self.filename, self._source_dirs)');
     expect(plugin).toContain('yield from check_error_handling(self.tree, self.filename)');
     expect(plugin).toContain('yield from check_structural(self.tree, self.filename)');
     expect(plugin).toContain('yield from check_test_quality(self.tree, self.filename)');
   });
 
-  test('stub modules expose documented empty generator functions', () => {
+  test('remaining stub modules expose documented empty generator functions', () => {
     for (const [path, functionName, ticket] of stubModules) {
       const source = readPluginFile(`anvil_lint/${path}`);
 

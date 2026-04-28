@@ -28,6 +28,47 @@ class TestPluginLoads:
         assert AnvilChecker.name == "anvil-lint"
         assert AnvilChecker.version == "0.1.0"
 
+    def test_checker_registers_configurable_source_dir_option(self) -> None:
+        """RULE-07 source directories are configurable through Flake8 options."""
+        option_calls = []
+
+        class OptionManager:
+            def add_option(self, *args, **kwargs):
+                option_calls.append((args, kwargs))
+
+        AnvilChecker.add_options(OptionManager())
+
+        assert option_calls == [
+            (
+                ("--anvil-source-dir",),
+                {
+                    "default": "src",
+                    "parse_from_config": True,
+                    "comma_separated_list": True,
+                    "help": "Source directories checked by ANV007 require-test-files.",
+                },
+            )
+        ]
+
+    def test_checker_uses_configured_source_dir_option(self, tmp_path: Path) -> None:
+        """AnvilChecker passes parsed source dirs to anti-slop checks."""
+        original_source_dirs = AnvilChecker._source_dirs
+
+        class Options:
+            anvil_source_dir = ["app"]
+
+        try:
+            AnvilChecker.parse_options(Options())
+            findings = run_checker(
+                AnvilChecker,
+                "def foo():\n    return 1\n",
+                filename=str(tmp_path / "app" / "foo.py"),
+            )
+        finally:
+            AnvilChecker._source_dirs = original_source_dirs
+
+        assert any(message.startswith("ANV007") for _, _, message in findings)
+
     def test_checker_instantiates(self) -> None:
         """Checker can be instantiated with tree and filename."""
         tree = ast.parse("x = 1")
@@ -39,9 +80,13 @@ class TestPluginLoads:
         """With only empty sub-checkers wired, no findings are produced."""
         assert run_checker(AnvilChecker, "x = 1\ny = 2\n") == []
 
+    def test_anti_slop_produces_no_findings_for_clean_source(self) -> None:
+        """Anti-slop checks do not flag ordinary clean code."""
+        assert run_check_function(check_anti_slop, "x = 1\n") == []
+
     @pytest.mark.parametrize(
         "check_fn",
-        [check_anti_slop, check_error_handling, check_structural, check_test_quality],
+        [check_error_handling, check_structural, check_test_quality],
     )
     def test_stub_check_functions_produce_no_findings(self, check_fn) -> None:
         """Stub check functions are valid empty generators."""
