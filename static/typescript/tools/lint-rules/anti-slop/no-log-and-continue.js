@@ -1,9 +1,9 @@
-'use strict';
+"use strict";
 
-const { isLoggingStatement } = require('./ast-utils.js');
+const { isLoggingStatement } = require("./ast-utils.js");
 
 function analyzeStatement(statement) {
-  if (statement.type === 'EmptyStatement') {
+  if (statement.type === "EmptyStatement") {
     return { hasLog: false, onlyLogLike: true };
   }
 
@@ -11,11 +11,11 @@ function analyzeStatement(statement) {
     return { hasLog: true, onlyLogLike: true };
   }
 
-  if (statement.type === 'BlockStatement') {
+  if (statement.type === "BlockStatement") {
     return analyzeStatements(statement.body);
   }
 
-  if (statement.type === 'IfStatement') {
+  if (statement.type === "IfStatement") {
     const consequent = analyzeStatement(statement.consequent);
     const alternate = statement.alternate
       ? analyzeStatement(statement.alternate)
@@ -46,13 +46,14 @@ function analyzeStatements(statements) {
 
 module.exports = {
   meta: {
-    type: 'problem',
+    type: "problem",
     docs: {
-      description: 'Disallow catch blocks that only log an error and continue.',
+      description: "Disallow catch blocks that only log an error and continue.",
       recommended: true,
     },
     messages: {
-      logAndContinue: 'Catch block only logs the error without handling it. Re-throw, return an error, or add recovery logic.',
+      logAndContinue:
+        "Catch block only logs the error without handling it. Re-throw, return an error, or add recovery logic.",
     },
     schema: [],
   },
@@ -67,7 +68,7 @@ module.exports = {
 
         context.report({
           node,
-          messageId: 'logAndContinue',
+          messageId: "logAndContinue",
         });
       },
     };

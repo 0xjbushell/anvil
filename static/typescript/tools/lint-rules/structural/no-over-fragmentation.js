@@ -1,14 +1,14 @@
-'use strict';
+"use strict";
 
-const fs = require('fs');
-const path = require('path');
+const fs = require("fs");
+const path = require("path");
 
-const { getFilename } = require('./utils.js');
+const { getFilename } = require("./utils.js");
 
 const SOURCE_FILE_PATTERN = /\.(?:ts|tsx|js|mjs)$/;
 const TEST_FILE_PATTERN = /\.(?:test|spec)\./;
 const INDEX_FILE_PATTERN = /^index\.(?:ts|tsx|js|mjs)$/;
-const DEFAULT_IGNORE_DIRECTORIES = ['icons', 'assets', '__generated__', 'migrations'];
+const DEFAULT_IGNORE_DIRECTORIES = ["icons", "assets", "__generated__", "migrations"];
 
 function getOptions(context) {
   const [options = {}] = context.options;
@@ -41,16 +41,15 @@ function isCandidateSourceFile(filename) {
 }
 
 function listSiblingSourceFiles(dir) {
-  return fs.readdirSync(dir, { withFileTypes: true })
+  return fs
+    .readdirSync(dir, { withFileTypes: true })
     .filter((entry) => entry.isFile() && isCandidateSourceFile(entry.name))
     .map((entry) => entry.name)
     .sort((left, right) => left.localeCompare(right));
 }
 
 function stripComments(source) {
-  return source
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/^\s*\/\/.*$/gm, '');
+  return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 }
 
 function countLogicalLines(source) {
@@ -67,35 +66,48 @@ function countMatches(source, pattern) {
 function countExportSites(source) {
   const stripped = stripComments(source);
   return (
-    countMatches(stripped, /^\s*export\s+(?:const|let|var|function|class|interface|type|enum|default|async\s+function)\b/gm) +
+    countMatches(
+      stripped,
+      /^\s*export\s+(?:const|let|var|function|class|interface|type|enum|default|async\s+function)\b/gm,
+    ) +
     countMatches(stripped, /^\s*export\s*\{/gm) +
     countMatches(stripped, /^\s*export\s*\*/gm)
   );
 }
 
 function isTinySingleExport(filePath, tinyLineThreshold) {
-  const source = fs.readFileSync(filePath, 'utf8');
+  const source = fs.readFileSync(filePath, "utf8");
   return countLogicalLines(source) < tinyLineThreshold && countExportSites(source) <= 1;
 }
 
 module.exports = {
   meta: {
-    type: 'suggestion',
+    type: "suggestion",
     docs: {
-      description: 'Disallow directories dominated by tiny single-purpose source files.',
+      description: "Disallow directories dominated by tiny single-purpose source files.",
       recommended: true,
     },
     messages: {
-      overFragmentation: "Directory '{{ dir }}' is over-fragmented ({{ tinyCount }}/{{ siblingCount }} files are tiny single-purpose wrappers). Consider consolidating related logic into fewer cohesive modules.",
+      overFragmentation:
+        "Directory '{{ dir }}' is over-fragmented ({{ tinyCount }}/{{ siblingCount }} files are tiny single-purpose wrappers). Consider consolidating related logic into fewer cohesive modules.",
     },
     schema: [
       {
-        type: 'object',
+        type: "object",
         properties: {
-          ignoreDirectories: { type: 'array', items: { type: 'string' }, default: DEFAULT_IGNORE_DIRECTORIES },
-          minSiblings: { type: 'integer', minimum: 2, default: 4 },
-          tinyLineThreshold: { type: 'integer', minimum: 1, default: 30 },
-          tinyFractionThreshold: { type: 'number', minimum: 0, maximum: 1, default: 0.6 },
+          ignoreDirectories: {
+            type: "array",
+            items: { type: "string" },
+            default: DEFAULT_IGNORE_DIRECTORIES,
+          },
+          minSiblings: { type: "integer", minimum: 2, default: 4 },
+          tinyLineThreshold: { type: "integer", minimum: 1, default: 30 },
+          tinyFractionThreshold: {
+            type: "number",
+            minimum: 0,
+            maximum: 1,
+            default: 0.6,
+          },
         },
         additionalProperties: false,
       },
@@ -108,7 +120,7 @@ module.exports = {
     return {
       Program(node) {
         const rawFilename = getFilename(context);
-        if (!rawFilename || rawFilename === '<input>') {
+        if (!rawFilename || rawFilename === "<input>") {
           return;
         }
 
@@ -139,7 +151,7 @@ module.exports = {
         ) {
           context.report({
             node,
-            messageId: 'overFragmentation',
+            messageId: "overFragmentation",
             data: {
               dir,
               tinyCount,

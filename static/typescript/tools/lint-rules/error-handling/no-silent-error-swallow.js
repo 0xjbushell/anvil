@@ -1,4 +1,4 @@
-'use strict';
+"use strict";
 
 const SUPPRESSION_COMMENT_PATTERNS = [
   /\bintentionally\s+(?:ignored|ignoring|suppressed|suppressing|swallowed|swallowing)\b/i,
@@ -8,7 +8,7 @@ const SUPPRESSION_COMMENT_PATTERNS = [
 ];
 
 function isOnlyEmptyStatements(catchNode) {
-  return catchNode.body.body.every((statement) => statement.type === 'EmptyStatement');
+  return catchNode.body.body.every((statement) => statement.type === "EmptyStatement");
 }
 
 function isInsideBodyRange(comment, body) {
@@ -23,20 +23,19 @@ function hasSuppressionComment(sourceCode, catchNode) {
   return sourceCode
     .getAllComments()
     .filter((comment) => isInsideBodyRange(comment, catchNode.body))
-    .some((comment) => (
-      SUPPRESSION_COMMENT_PATTERNS.some((pattern) => pattern.test(comment.value))
-    ));
+    .some((comment) => SUPPRESSION_COMMENT_PATTERNS.some((pattern) => pattern.test(comment.value)));
 }
 
 module.exports = {
   meta: {
-    type: 'problem',
+    type: "problem",
     docs: {
-      description: 'Disallow empty catch blocks that silently swallow errors.',
+      description: "Disallow empty catch blocks that silently swallow errors.",
       recommended: true,
     },
     messages: {
-      silentErrorSwallow: 'Empty catch block silently swallows errors. Add handling or document intentional suppression.',
+      silentErrorSwallow:
+        "Empty catch block silently swallows errors. Add handling or document intentional suppression.",
     },
     schema: [],
   },
@@ -53,7 +52,7 @@ module.exports = {
 
         context.report({
           node,
-          messageId: 'silentErrorSwallow',
+          messageId: "silentErrorSwallow",
         });
       },
     };

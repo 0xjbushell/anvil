@@ -1,15 +1,15 @@
-'use strict';
+"use strict";
 
-const path = require('path');
+const path = require("path");
 
 const {
   getExportedDefinitions,
   getFilename,
   isSupportedSourceFilename,
   normalizeSymbolName,
-} = require('./utils.js');
+} = require("./utils.js");
 
-const EXEMPT_BASENAMES = new Set(['index', 'types', 'errors', 'constants', 'enums']);
+const EXEMPT_BASENAMES = new Set(["index", "types", "errors", "constants", "enums"]);
 
 function getFileStem(filename) {
   return path.parse(filename).name;
@@ -17,13 +17,14 @@ function getFileStem(filename) {
 
 module.exports = {
   meta: {
-    type: 'suggestion',
+    type: "suggestion",
     docs: {
-      description: 'Require a single primary export to match its filename.',
+      description: "Require a single primary export to match its filename.",
       recommended: true,
     },
     messages: {
-      filenameMismatch: "Primary export '{{ exportName }}' does not match filename '{{ filename }}'. Rename the file or the export.",
+      filenameMismatch:
+        "Primary export '{{ exportName }}' does not match filename '{{ filename }}'. Rename the file or the export.",
     },
     schema: [],
   },
@@ -49,7 +50,7 @@ module.exports = {
         if (normalizeSymbolName(primaryExport.name) !== normalizeSymbolName(fileStem)) {
           context.report({
             node: primaryExport.nameNode,
-            messageId: 'filenameMismatch',
+            messageId: "filenameMismatch",
             data: {
               exportName: primaryExport.name,
               filename: fileStem,

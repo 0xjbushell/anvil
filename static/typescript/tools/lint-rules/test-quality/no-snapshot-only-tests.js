@@ -1,4 +1,4 @@
-'use strict';
+"use strict";
 
 const {
   getExpectMatcherName,
@@ -6,9 +6,9 @@ const {
   isAssertCall,
   isTestFilename,
   visitNode,
-} = require('./utils.js');
+} = require("./utils.js");
 
-const SNAPSHOT_MATCHERS = new Set(['toMatchSnapshot', 'toMatchInlineSnapshot']);
+const SNAPSHOT_MATCHERS = new Set(["toMatchSnapshot", "toMatchInlineSnapshot"]);
 
 function analyzeAssertions(programNode) {
   const analysis = {
@@ -17,7 +17,7 @@ function analyzeAssertions(programNode) {
   };
 
   visitNode(programNode, (node) => {
-    if (node.type !== 'CallExpression') {
+    if (node.type !== "CallExpression") {
       return;
     }
 
@@ -40,19 +40,20 @@ function analyzeAssertions(programNode) {
 
 module.exports = {
   meta: {
-    type: 'suggestion',
+    type: "suggestion",
     docs: {
-      description: 'Require behavioral assertions alongside snapshot assertions.',
+      description: "Require behavioral assertions alongside snapshot assertions.",
       recommended: true,
     },
     messages: {
-      snapshotOnlyTests: 'Test file uses only snapshot assertions. Add behavioral assertions (toBe, toEqual, toThrow, etc.) alongside snapshots.',
+      snapshotOnlyTests:
+        "Test file uses only snapshot assertions. Add behavioral assertions (toBe, toEqual, toThrow, etc.) alongside snapshots.",
     },
     schema: [],
   },
   create(context) {
     return {
-      'Program:exit'(node) {
+      "Program:exit"(node) {
         if (!isTestFilename(getFilename(context))) {
           return;
         }
@@ -61,7 +62,7 @@ module.exports = {
         if (analysis.hasSnapshotAssertion && !analysis.hasBehavioralAssertion) {
           context.report({
             node,
-            messageId: 'snapshotOnlyTests',
+            messageId: "snapshotOnlyTests",
           });
         }
       },

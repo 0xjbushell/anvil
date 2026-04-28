@@ -47,7 +47,7 @@ mutate: ## Run mutation testing
 quality: check mutate ## Run ALL checks (tier 1 + 2 + 3)
 
 # Convenience
-check: lint format typecheck security test deadcode crap audit ## Run tier 1 + tier 2
+check: lint format typecheck security test coverage deadcode crap audit ## Run tier 1 + tier 2
 
 fix: ## Auto-fix lint + format issues
 	$(PKG_EXEC) eslint . --fix

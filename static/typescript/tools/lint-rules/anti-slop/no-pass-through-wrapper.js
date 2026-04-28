@@ -1,6 +1,6 @@
-'use strict';
+"use strict";
 
-const { unwrapExpression } = require('./ast-utils.js');
+const { unwrapExpression } = require("./ast-utils.js");
 
 function getIdentifierParameterNames(params) {
   const names = [];
@@ -8,7 +8,7 @@ function getIdentifierParameterNames(params) {
   for (const param of params) {
     const expression = unwrapExpression(param);
 
-    if (!expression || expression.type !== 'Identifier') {
+    if (!expression || expression.type !== "Identifier") {
       return null;
     }
 
@@ -19,27 +19,27 @@ function getIdentifierParameterNames(params) {
 }
 
 function getReturnedCall(node) {
-  if (node.type === 'ArrowFunctionExpression') {
+  if (node.type === "ArrowFunctionExpression") {
     const expression = unwrapExpression(node.body);
 
-    if (expression && expression.type === 'CallExpression') {
+    if (expression && expression.type === "CallExpression") {
       return expression;
     }
   }
 
-  if (!node.body || node.body.type !== 'BlockStatement' || node.body.body.length !== 1) {
+  if (!node.body || node.body.type !== "BlockStatement" || node.body.body.length !== 1) {
     return null;
   }
 
   const [statement] = node.body.body;
 
-  if (statement.type !== 'ReturnStatement') {
+  if (statement.type !== "ReturnStatement") {
     return null;
   }
 
   const argument = unwrapExpression(statement.argument);
 
-  return argument && argument.type === 'CallExpression' ? argument : null;
+  return argument && argument.type === "CallExpression" ? argument : null;
 }
 
 function isSameIdentifierArgumentList(args, parameterNames) {
@@ -48,9 +48,7 @@ function isSameIdentifierArgumentList(args, parameterNames) {
     args.every((argument, index) => {
       const expression = unwrapExpression(argument);
       return (
-        expression &&
-        expression.type === 'Identifier' &&
-        expression.name === parameterNames[index]
+        expression && expression.type === "Identifier" && expression.name === parameterNames[index]
       );
     })
   );
@@ -71,19 +69,20 @@ function reportPassThroughWrapper(context, node) {
 
   context.report({
     node,
-    messageId: 'passThroughWrapper',
+    messageId: "passThroughWrapper",
   });
 }
 
 module.exports = {
   meta: {
-    type: 'suggestion',
+    type: "suggestion",
     docs: {
-      description: 'Disallow functions that only pass their arguments to another function.',
+      description: "Disallow functions that only pass their arguments to another function.",
       recommended: true,
     },
     messages: {
-      passThroughWrapper: 'Function is a pass-through wrapper. Call the inner function directly or add meaningful logic.',
+      passThroughWrapper:
+        "Function is a pass-through wrapper. Call the inner function directly or add meaningful logic.",
     },
     schema: [],
   },

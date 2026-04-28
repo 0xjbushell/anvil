@@ -1,36 +1,27 @@
-'use strict';
+"use strict";
 
-const fs = require('fs');
-const path = require('path');
+const fs = require("fs");
+const path = require("path");
 
-const DECLARATION_ONLY_FILES = new Set(['types', 'errors', 'constants', 'enums']);
-const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']);
+const DECLARATION_ONLY_FILES = new Set(["types", "errors", "constants", "enums"]);
+const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
 const TEST_FILE_PATTERN = /\.(test|spec)\.[cm]?[jt]sx?$/;
-const TEST_SUFFIXES = [
-  '.test.ts',
-  '.test.js',
-  '.spec.ts',
-  '.spec.js',
-];
+const TEST_SUFFIXES = [".test.ts", ".test.js", ".spec.ts", ".spec.js"];
 
 function resolvePath(cwd, filePath) {
   return path.normalize(path.isAbsolute(filePath) ? filePath : path.resolve(cwd, filePath));
 }
 
 function resolveSourceDir(cwd, sourceDir) {
-  return resolvePath(cwd, sourceDir || 'src');
+  return resolvePath(cwd, sourceDir || "src");
 }
 
 function isInsideSourceDir(filename, sourceDir) {
   const relativePath = path.relative(sourceDir, filename);
 
   return (
-    relativePath === '' ||
-    (
-      relativePath.length > 0 &&
-      !relativePath.startsWith('..') &&
-      !path.isAbsolute(relativePath)
-    )
+    relativePath === "" ||
+    (relativePath.length > 0 && !relativePath.startsWith("..") && !path.isAbsolute(relativePath))
   );
 }
 
@@ -46,25 +37,23 @@ function isDeclarationOnlyFile(filename) {
 function isBarrelIndex(filename, programNode) {
   const parsed = path.parse(filename);
 
-  if (parsed.name !== 'index' || programNode.body.length === 0) {
+  if (parsed.name !== "index" || programNode.body.length === 0) {
     return false;
   }
 
-  return programNode.body.every((statement) => (
-    statement.type === 'ExportAllDeclaration' ||
-    (
-      statement.type === 'ExportNamedDeclaration' &&
-      Boolean(statement.source)
-    )
-  ));
+  return programNode.body.every(
+    (statement) =>
+      statement.type === "ExportAllDeclaration" ||
+      (statement.type === "ExportNamedDeclaration" && Boolean(statement.source)),
+  );
 }
 
 function getCandidateTestPaths(filename) {
   const parsed = path.parse(filename);
   const colocated = TEST_SUFFIXES.map((suffix) => path.join(parsed.dir, `${parsed.name}${suffix}`));
-  const nested = TEST_SUFFIXES.map((suffix) => (
-    path.join(parsed.dir, '__tests__', `${parsed.name}${suffix}`)
-  ));
+  const nested = TEST_SUFFIXES.map((suffix) =>
+    path.join(parsed.dir, "__tests__", `${parsed.name}${suffix}`),
+  );
 
   return [...colocated, ...nested];
 }
@@ -76,25 +65,25 @@ function hasCorrespondingTestFile(filename) {
 function getOptions(context) {
   const [options = {}] = context.options;
   return {
-    sourceDir: options.sourceDir || 'src',
+    sourceDir: options.sourceDir || "src",
   };
 }
 
 module.exports = {
   meta: {
-    type: 'problem',
+    type: "problem",
     docs: {
-      description: 'Require source files to have corresponding test files.',
+      description: "Require source files to have corresponding test files.",
       recommended: true,
     },
     messages: {
-      missingTestFile: 'Source file has no corresponding test file. Create {{ expectedPath }}.',
+      missingTestFile: "Source file has no corresponding test file. Create {{ expectedPath }}.",
     },
     schema: [
       {
-        type: 'object',
+        type: "object",
         properties: {
-          sourceDir: { type: 'string' },
+          sourceDir: { type: "string" },
         },
         additionalProperties: false,
       },
@@ -109,7 +98,7 @@ module.exports = {
       Program(node) {
         const rawFilename = context.filename;
 
-        if (!rawFilename || rawFilename === '<input>') {
+        if (!rawFilename || rawFilename === "<input>") {
           return;
         }
 
@@ -129,7 +118,7 @@ module.exports = {
 
         context.report({
           node,
-          messageId: 'missingTestFile',
+          messageId: "missingTestFile",
           data: { expectedPath: getCandidateTestPaths(filename)[0] },
         });
       },

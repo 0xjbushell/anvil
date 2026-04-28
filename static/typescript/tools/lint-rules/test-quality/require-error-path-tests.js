@@ -1,6 +1,6 @@
-'use strict';
+"use strict";
 
-const fs = require('fs');
+const fs = require("fs");
 
 const {
   getExpectMatcherName,
@@ -13,16 +13,16 @@ const {
   isTestFilename,
   unwrapExpression,
   visitNode,
-} = require('./utils.js');
+} = require("./utils.js");
 
-const ERROR_ASSERTION_MATCHERS = new Set(['toThrow', 'toThrowError']);
+const ERROR_ASSERTION_MATCHERS = new Set(["toThrow", "toThrowError"]);
 const ERROR_HANDLING_PATTERN = /\btry\s*\{|\bcatch\b|\.catch\s*\(|\bthrow\b/;
 
 function stripCommentsAndStrings(source) {
   return source
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/\/\/[^\r\n]*/g, '')
-    .replace(/(["'`])(?:\\[\s\S]|(?!\1)[^\\])*\1/g, '');
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\/\/[^\r\n]*/g, "")
+    .replace(/(["'`])(?:\\[\s\S]|(?!\1)[^\\])*\1/g, "");
 }
 
 function findExistingSourceFile(filename) {
@@ -30,7 +30,7 @@ function findExistingSourceFile(filename) {
 }
 
 function sourceHasErrorHandling(filename) {
-  return ERROR_HANDLING_PATTERN.test(stripCommentsAndStrings(fs.readFileSync(filename, 'utf8')));
+  return ERROR_HANDLING_PATTERN.test(stripCommentsAndStrings(fs.readFileSync(filename, "utf8")));
 }
 
 function isAssertErrorCall(node) {
@@ -39,8 +39,8 @@ function isAssertErrorCall(node) {
 
   return (
     isAssertCall(expression) &&
-    callee?.type === 'MemberExpression' &&
-    ['throws', 'rejects'].includes(getMemberPropertyName(callee))
+    callee?.type === "MemberExpression" &&
+    ["throws", "rejects"].includes(getMemberPropertyName(callee))
   );
 }
 
@@ -49,7 +49,7 @@ function containsAssertion(node) {
 
   visitNode(node, (current) => {
     if (
-      current.type === 'CallExpression' &&
+      current.type === "CallExpression" &&
       (getExpectMatcherName(current) || isAssertCall(current))
     ) {
       found = true;
@@ -62,10 +62,7 @@ function containsAssertion(node) {
 function isPromiseCatchWithAssertion(node) {
   const callee = unwrapExpression(node.callee);
 
-  if (
-    callee?.type !== 'MemberExpression' ||
-    getMemberPropertyName(callee) !== 'catch'
-  ) {
+  if (callee?.type !== "MemberExpression" || getMemberPropertyName(callee) !== "catch") {
     return false;
   }
 
@@ -77,17 +74,17 @@ function hasErrorPathAssertion(programNode) {
   let found = false;
 
   visitNode(programNode, (node) => {
-    if (node.type === 'CatchClause') {
+    if (node.type === "CatchClause") {
       found = true;
     }
 
-    if (node.type !== 'CallExpression') {
+    if (node.type !== "CallExpression") {
       return;
     }
 
     if (
       ERROR_ASSERTION_MATCHERS.has(getExpectMatcherName(node)) ||
-      hasExpectChainProperty(node.callee, 'rejects') ||
+      hasExpectChainProperty(node.callee, "rejects") ||
       isAssertErrorCall(node) ||
       isPromiseCatchWithAssertion(node)
     ) {
@@ -100,13 +97,14 @@ function hasErrorPathAssertion(programNode) {
 
 module.exports = {
   meta: {
-    type: 'problem',
+    type: "problem",
     docs: {
-      description: 'Require tests for error paths when source code handles errors.',
+      description: "Require tests for error paths when source code handles errors.",
       recommended: true,
     },
     messages: {
-      missingErrorPathTests: 'Source file has error handling but this test file has no error-path assertions. Add tests for error cases using expect().toThrow() or expect().rejects.',
+      missingErrorPathTests:
+        "Source file has error handling but this test file has no error-path assertions. Add tests for error cases using expect().toThrow() or expect().rejects.",
     },
     schema: [],
   },
@@ -125,7 +123,7 @@ module.exports = {
 
         context.report({
           node,
-          messageId: 'missingErrorPathTests',
+          messageId: "missingErrorPathTests",
         });
       },
     };

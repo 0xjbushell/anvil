@@ -2,6 +2,10 @@
   "$schema": "https://unpkg.com/knip@latest/schema.json",
   "entry": ["src/**/*.ts", "!src/**/*.test.ts", "!src/**/*.spec.ts"],
   "project": ["src/**/*.ts"],
-  "ignore": ["coverage/**", "dist/**", "tools/**"],
-  "ignoreDependencies": ["@stryker-mutator/*"]
+  "ignoreDependencies": [
+    "@stryker-mutator/*",
+    "@typescript-eslint/eslint-plugin",
+    "@typescript-eslint/parser",
+    "tsx"
+  ]
 }
