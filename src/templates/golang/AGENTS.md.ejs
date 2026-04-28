@@ -1,0 +1,31 @@
+# Agent Instructions
+
+## Validation
+
+- `make lint` — run often during development
+- `make check` — run before considering work done
+- `make quality` — run before marking work complete
+
+## Code Conventions
+
+- Reference `internal/seed/` for package layout and idiomatic examples
+- Prefer the standard library unless a focused dependency clearly helps
+- Return wrapped errors with context; avoid sentinel strings
+- Use structured logging (`log/slog` or equivalent), not print logging
+- No dead code, unchecked errors, package globals, or `init()` functions
+
+## Testing
+
+- Keep tests table-driven where cases share behavior
+- Cover happy paths, error paths, and boundary values
+- Use real assertions; avoid tautologies and empty tests
+- Mock at process boundaries, not internal helper functions
+- Run coverage before CRAP analysis so `coverage.out` is fresh
+
+## What Lint Catches Automatically
+
+Don't worry about these — lint will catch them:
+- File and function length limits
+- Exported declaration organization
+- Placeholder comments and print logging
+- Security issues, unchecked errors, and non-exhaustive switches

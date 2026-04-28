@@ -46,7 +46,7 @@ See `REQUIREMENTS.md` for the full categorized list.
 | Seed code as real src/, not examples/ | Agents learn from existing code, not docs | `seed` module in src/ demonstrates all conventions; no markers signaling disposability (D-37) |
 | AGENTS.md complements lint, doesn't duplicate | Lint catches violations automatically | AGENTS.md covers judgment calls, validation commands, reference pointers |
 | pre-commit over husky | Multi-language project needs language-agnostic hooks | pre-commit framework with per-language hooks |
-| Three feedback tiers | Mutation testing too slow for pre-commit | pre-commit (<30s) → pre-push (<5min) → on-demand (make quality) |
+| Three feedback tiers | Mutation testing too slow for pre-commit | pre-commit fast local checks → pre-push safety net → on-demand (make quality) |
 | filename-match-export: TS/Py only (D-30) | Go packages export multiple symbols; "primary export" is undefined | STRUCT-07 dropped for Go, keeps TS/Python |
 | Python env: uv (D-28) | PEP 668 blocks pip outside venvs; uv manages virtualenvs transparently | Makefile uses `uv run` / `uv pip install` |
 | Package manager detection (D-29) | TS/JS ecosystem has 4 package managers | Detect from lockfile; prompt if not found |

@@ -4,6 +4,7 @@ import path from "node:path";
 
 import ejs from "ejs";
 import { describe, expect, test } from "bun:test";
+import { parse as parseYaml } from "yaml";
 
 import { getManifest, type Lang, type ManifestEntry, type ScaffoldContext } from "./manifest.ts";
 import { previewScaffold, scaffold } from "./scaffold/engine.ts";
@@ -35,6 +36,15 @@ const expectedTypescriptTemplateFiles = [
   ".prettierrc.ejs",
   "package.json.ejs",
   "vitest.config.ts.ejs",
+  "Makefile.ejs",
+  ".pre-commit-config.yaml.ejs",
+  ".gitignore.ejs",
+  "AGENTS.md.ejs",
+  "README.md.ejs",
+];
+const expectedGolangTemplateFiles = [
+  ".golangci.yml.ejs",
+  "go.mod.ejs",
   "Makefile.ejs",
   ".pre-commit-config.yaml.ejs",
   ".gitignore.ejs",
@@ -165,6 +175,26 @@ async function renderGolangTemplate(
   const template = await golangTemplateFile(relativePath).text();
 
   return ejs.render(template, makeContext("golang", overrides));
+}
+
+async function renderGolangRootTemplate(
+  relativePath: string,
+  overrides: Partial<ScaffoldContext> = {},
+): Promise<string> {
+  const rendered = await renderGolangTemplate(relativePath, {
+    ...overrides,
+    toolchain: { bun: "1.1.34", go: "1.99.0" },
+  });
+
+  expect(rendered).not.toContain("1.23");
+  return rendered;
+}
+
+function makefileTargetRecipe(source: string, target: string): string {
+  const match = source.match(new RegExp(`^${target}:[^\\n]*(?:\\n\\t[^\\n]*)*`, "m"));
+
+  expect(match).not.toBeNull();
+  return match?.[0] ?? "";
 }
 
 async function assertGofmtAccepts(source: string): Promise<void> {
@@ -357,6 +387,19 @@ describe("scaffold manifests", () => {
     }
   });
 
+  test("Go manifest includes all TIX-000042 dynamic root template outputs", () => {
+    const entries = new Map(getManifest("golang").entries.map((entry) => [entry.dest, entry]));
+
+    for (const file of expectedGolangTemplateFiles) {
+      const dest = file.slice(0, -".ejs".length);
+      expect(entries.get(dest)).toMatchObject({
+        dest,
+        src: `src/templates/golang/${file}`,
+        source: "template",
+      });
+    }
+  });
+
   test("TypeScript static scaffold files exist", async () => {
     for (const file of expectedTypescriptStaticFiles) {
       expect(await typescriptStaticFile(file).exists()).toBe(true);
@@ -399,6 +442,138 @@ describe("scaffold manifests", () => {
       source: "template",
     });
     expect(await golangTemplateFile("cmd/app/main.go.ejs").exists()).toBe(true);
+  });
+
+  test("Go dynamic root template files exist at their manifest source paths", async () => {
+    for (const file of expectedGolangTemplateFiles) {
+      expect(await golangTemplateFile(file).exists()).toBe(true);
+    }
+  });
+
+  test("Go golangci template renders the required CONFIG-02 linter set", async () => {
+    const rendered = await renderGolangRootTemplate(".golangci.yml.ejs");
+    const requiredLinters = [
+      "errcheck",
+      "err113",
+      "gocognit",
+      "exhaustive",
+      "gosec",
+      "govet",
+      "unused",
+      "gochecknoinits",
+      "gochecknoglobals",
+      "revive",
+      "staticcheck",
+      "funlen",
+    ];
+    const config = parseYaml(rendered) as {
+      linters?: { enable?: string[]; settings?: { funlen?: { lines?: number; statements?: unknown } } };
+      "linters-settings"?: { funlen?: { lines?: number; statements?: unknown } };
+    };
+    const enabledLinters = config.linters?.enable ?? [];
+    const funlen = config["linters-settings"]?.funlen ?? config.linters?.settings?.funlen;
+
+    expect(enabledLinters).toEqual(expect.arrayContaining(requiredLinters));
+    expect(funlen?.lines).toBe(80);
+    expect(funlen).not.toHaveProperty("statements");
+  });
+
+  test("Go module template renders the project module and resolved Go toolchain", async () => {
+    const rendered = await renderGolangRootTemplate("go.mod.ejs", {
+      projectName: "github.com/acme/my-service",
+    });
+
+    expect(rendered).toContain("module github.com/acme/my-service");
+    expect(rendered).toMatch(/^go 1\.99\.0$/m);
+  });
+
+  test("Go root Makefile template renders the required quality targets and commands", async () => {
+    const rendered = await renderGolangRootTemplate("Makefile.ejs");
+    const targets = [
+      "lint",
+      "format",
+      "typecheck",
+      "security",
+      "test",
+      "coverage",
+      "deadcode",
+      "crap",
+      "audit",
+      "mutate",
+      "quality",
+      "check",
+      "fix",
+    ];
+
+    for (const target of targets) {
+      expect(rendered).toMatch(new RegExp(`^${target}:`, "m"));
+    }
+
+    const lintRecipe = makefileTargetRecipe(rendered, "lint");
+    const typecheckRecipe = makefileTargetRecipe(rendered, "typecheck");
+
+    expect(rendered).toMatch(/^tools\/go-analyzers\/bin\/anvil-lint:\n\t(?:\$\(MAKE\)|make) -C tools\/go-analyzers build$/m);
+    expect(lintRecipe).toContain("go vet -vettool=tools/go-analyzers/bin/anvil-lint ./...");
+    expect(typecheckRecipe).toContain("go vet ./...");
+    expect(typecheckRecipe).toContain("staticcheck ./...");
+  });
+
+  test("Go pre-commit template wires tier-1 hooks to pre-commit and check to pre-push", async () => {
+    const rendered = await renderGolangRootTemplate(".pre-commit-config.yaml.ejs");
+    const config = parseYaml(rendered) as {
+      default_install_hook_types?: string[];
+      repos?: Array<{ hooks?: Array<{ id?: string; stages?: string[] }> }>;
+    };
+    const hooks = new Map(
+      (config.repos ?? [])
+        .flatMap((repo) => repo.hooks ?? [])
+        .filter((hook): hook is { id: string; stages?: string[] } => typeof hook.id === "string")
+        .map((hook) => [hook.id, hook]),
+    );
+
+    expect(config.default_install_hook_types).toEqual(["pre-commit", "pre-push"]);
+    for (const hook of ["lint", "format", "typecheck", "gitleaks"]) {
+      expect(hooks.get(hook)?.stages).toContain("pre-commit");
+    }
+    expect(hooks.get("check")?.stages).toContain("pre-push");
+  });
+
+  test("Go AGENTS template is concise, project-specific, and non-disposable", async () => {
+    const rendered = await renderGolangRootTemplate("AGENTS.md.ejs");
+
+    expect(rendered.trimEnd().split("\n").length).toBeLessThanOrEqual(40);
+    expect(rendered).toContain("internal/seed/");
+    for (const section of ["Validation", "Code Conventions", "Testing"]) {
+      expect(rendered).toMatch(new RegExp(`^## ${section}$`, "m"));
+    }
+    expect(rendered).not.toMatch(/\b(disposable|starter)\b/i);
+  });
+
+  test("Go README template renders the project name and resolved Go version", async () => {
+    const rendered = await renderGolangRootTemplate("README.md.ejs", {
+      projectName: "my-service",
+    });
+
+    expect(rendered).toContain("my-service");
+    expect(rendered).toContain("Go 1.99.0+");
+    expect(rendered).not.toContain("Go 1.23");
+  });
+
+  test("Go gitignore template covers analyzer, test, build, IDE, and OS artifacts", async () => {
+    const rendered = await renderGolangRootTemplate(".gitignore.ejs");
+
+    for (const ignored of [
+      "tools/go-analyzers/bin/",
+      "coverage.out",
+      "*.test",
+      "bin/",
+      "dist/",
+      ".idea/",
+      ".vscode/",
+      ".DS_Store",
+    ]) {
+      expect(rendered).toContain(ignored);
+    }
   });
 
   test("Go app entrypoint template renders a valid import path for scoped project names", async () => {

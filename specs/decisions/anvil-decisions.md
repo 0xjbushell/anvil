@@ -458,8 +458,8 @@ AGENTS.md references the seed path for file organization patterns but does not d
 
 **Choice:** anvil does not generate CI/CD workflows. All quality enforcement is local:
 
-- **Pre-commit hook (Tier 1, <30s):** lint, format, typecheck, secrets — fires on `git commit`
-- **Pre-push hook (Tier 2, <5min):** tests, coverage, deadcode, CRAP, audit — fires on `git push`
+- **Pre-commit hook (Tier 1, fast local checks):** lint, format, typecheck, secrets — fires on `git commit`
+- **Pre-push hook (Tier 2, slower safety net):** tests, coverage, deadcode, CRAP, audit — fires on `git push`
 - **On-demand (Tier 3, `make quality`):** mutation testing — AGENTS.md instructs "run before marking work complete"
 - **`make` targets** are the primary interface for agents. AGENTS.md instructs: "run `make lint` often during development, run `make check` before considering work done, run `make quality` before marking work complete" (D-55).
 - **Git hooks** are safety nets that catch anything that slipped through, for both agents and humans. Agents trigger hooks naturally via `git commit` / `git push`.

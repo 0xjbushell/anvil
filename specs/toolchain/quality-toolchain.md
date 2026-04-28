@@ -19,7 +19,7 @@ Custom lint rules catch slop patterns, but they're not enough. Agents also need:
 - Type checking to catch type errors before runtime
 - Dependency auditing to flag known vulnerabilities
 
-These tools must be pre-configured and wired into a unified Makefile interface with three feedback tiers: pre-commit hook (<30s), pre-push hook (<5min), and on-demand quality gate.
+These tools must be pre-configured and wired into a unified Makefile interface with three feedback tiers: pre-commit hook (fast local checks), pre-push hook (slower safety net), and on-demand quality gate.
 
 ## Scope
 
@@ -78,7 +78,7 @@ These tools must be pre-configured and wired into a unified Makefile interface w
 
 ```
 ┌────────────────────────────────────────────────────────┐
-│                  Tier 1: pre-commit hook (<30s)         │
+│                  Tier 1: pre-commit hook                │
 │                  Safety net — fires on git commit       │
 │                                                         │
 │  • Lint (built-in + custom rules)                      │
@@ -88,7 +88,7 @@ These tools must be pre-configured and wired into a unified Makefile interface w
 └────────────────────────┬───────────────────────────────┘
                          │
 ┌────────────────────────▼───────────────────────────────┐
-│                  Tier 2: pre-push hook (<5min)          │
+│                  Tier 2: pre-push hook                  │
 │                  Safety net — fires on git push         │
 │                                                         │
 │  • All Tier 1 checks                                   │
@@ -183,9 +183,11 @@ fix:       $(PKG_EXEC) eslint . --fix && $(PKG_EXEC) prettier --write .
 **Go:**
 ```bash
 # Tier 1
-lint:      golangci-lint run ./... && \
-           make -C tools/go-analyzers build && \
+lint:      tools/go-analyzers/bin/anvil-lint
+           golangci-lint run ./... && \
            go vet -vettool=tools/go-analyzers/bin/anvil-lint ./...
+tools/go-analyzers/bin/anvil-lint:
+           make -C tools/go-analyzers build
 format:    gofmt -l . | (! grep .)
 typecheck: go vet ./... && staticcheck ./...
 # Tier 2
@@ -248,7 +250,7 @@ ESLint config enables:
 
 golangci-lint config enables:
 - `errcheck` — unchecked errors
-- `goerr113` — error wrapping
+- `err113` — error wrapping
 - `gocognit` — cognitive complexity (max 15)
 - `exhaustive` — exhaustive switch/select
 - `gosec` — security rules
@@ -307,14 +309,14 @@ CRAP(fn) = complexity² × (1 - coverage)³ + complexity
 
 ### Pre-commit Configuration
 
-**Note:** Type checking (`tsc --noEmit`, `mypy`) can take 10-30+ seconds on medium-to-large projects, which may exceed the <30s inner loop target. If type checking is slow, users can remove the `typecheck` hook from pre-commit and rely on `make check` instead. The generated `.pre-commit-config.yaml` includes a comment documenting this trade-off.
+**Note:** Tier 1 checks are intended to stay fast, but type checking (`tsc --noEmit`, `mypy`) and first-run Go analyzer builds can take 10-30+ seconds on medium-to-large projects. If type checking is slow, users can remove the `typecheck` hook from pre-commit and rely on `make check` instead. The generated `.pre-commit-config.yaml` includes a comment documenting this trade-off.
 
 ```yaml
 default_install_hook_types: [pre-commit, pre-push]
 repos:
   - repo: local
     hooks:
-      # Tier 1 — pre-commit (<30s)
+      # Tier 1 — pre-commit local checks
       - id: lint
         name: lint
         entry: make lint
@@ -333,7 +335,7 @@ repos:
         language: system
         pass_filenames: false
         stages: [pre-commit]
-      # Tier 2 — pre-push (<5min)
+      # Tier 2 — pre-push safety net
       - id: check
         name: check (tests + coverage + deadcode + CRAP + audit)
         entry: make check

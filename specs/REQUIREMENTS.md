@@ -63,7 +63,7 @@ All commands operate on the current working directory. There is no `--target-dir
 ### Aggressive Lint Config (CONFIG-xx)
 
 - **CONFIG-01**: TS/JS — ESLint config with no-any, no-floating-promises, no-console, import-order, prefer-const, no-restricted-syntax, strict-boolean-expressions, security rules (`eslint-plugin-security`). Barrel files (`index.ts`/`index.js` re-export files) are allowed as organizational convention (D-52/D-57); `eslint-plugin-barrel-files` removed (D-57) to avoid contradicting RULE-07's exemption.
-- **CONFIG-02**: Go — golangci-lint config with errcheck, goerr113, gocognit, exhaustive, gosec, govet shadow, unused, gochecknoinits, gochecknoglobals, revive, staticcheck.
+- **CONFIG-02**: Go — golangci-lint config with errcheck, err113, gocognit, exhaustive, gosec, govet shadow, unused, gochecknoinits, gochecknoglobals, revive, staticcheck.
 - **CONFIG-03**: Python — Ruff config with E, W, F, I, N, UP, BLE, S, C90, SIM, PIE, PT, PTH, RUF, D rule sets.
 
 ### Quality Toolchain (QUAL-xx)
