@@ -224,14 +224,17 @@ def _check_require_test_files(
     root = Path(*root_parts) if root_parts else Path(".")
     source_relative = Path(*relative_parts)
     test_relative = source_relative.with_name(f"test_{source_relative.name}")
-    expected_test = root / "tests" / test_relative
+    expected_tests = [root / "tests" / test_relative]
+    if source_relative.parent.name == path.stem:
+        expected_tests.append(root / "tests" / f"test_{path.name}")
 
-    if not expected_test.is_file():
+    if not any(expected_test.is_file() for expected_test in expected_tests):
+        expected_paths = " or ".join(test.as_posix() for test in expected_tests)
         yield _line_finding(
             1,
             0,
             "ANV007",
-            f"source file under configured source directory needs mirrored test file at {expected_test.as_posix()}",
+            f"source file under configured source directory needs test file at {expected_paths}",
         )
 
 

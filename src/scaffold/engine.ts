@@ -116,6 +116,14 @@ function toPosixPath(filePath: string): string {
   return filePath.split(path.sep).join(path.posix.sep);
 }
 
+function isIgnoredScaffoldSource(entry: Dirent): boolean {
+  if (entry.isDirectory()) {
+    return entry.name === "__pycache__" || entry.name.endsWith(".egg-info");
+  }
+
+  return entry.isFile() && /\.(?:pyc|pyo)$/.test(entry.name);
+}
+
 function validateOptions(ctx: ScaffoldContext, options: ScaffoldOptions): void {
   const hasConflictHandler = options.onConflict !== undefined;
   const hasReporter = options.onReport !== undefined;
@@ -201,6 +209,10 @@ async function listFilesRecursive(directoryPath: string): Promise<Array<{ absolu
     );
 
     for (const entry of entries) {
+      if (isIgnoredScaffoldSource(entry)) {
+        continue;
+      }
+
       const entryPath = path.join(currentPath, entry.name);
 
       if (entry.isDirectory()) {

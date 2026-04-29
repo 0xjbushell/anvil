@@ -92,7 +92,10 @@ describe("Python dynamic scaffold templates", () => {
         coverage?: { report?: { fail_under?: number }; run?: { branch?: boolean; source?: string[] } };
         mypy?: { python_version?: string; strict?: boolean; warn_return_any?: boolean; warn_unused_configs?: boolean };
         pytest?: { ini_options?: { addopts?: string; pythonpath?: string[]; testpaths?: string[] } };
-        ruff?: { lint?: { select?: string[]; mccabe?: { "max-complexity"?: number }; pydocstyle?: { convention?: string } } };
+        ruff?: {
+          exclude?: string[];
+          lint?: { select?: string[]; mccabe?: { "max-complexity"?: number }; pydocstyle?: { convention?: string } };
+        };
       };
     };
 
@@ -101,6 +104,7 @@ describe("Python dynamic scaffold templates", () => {
       expect(pyproject.project?.["optional-dependencies"]?.dev?.some((entry) => entry.startsWith(`${dependency}>`))).toBe(true);
     }
     expect(pyproject.tool?.ruff?.lint?.select).toEqual(expect.arrayContaining(ruffRuleSets));
+    expect(pyproject.tool?.ruff?.exclude).toEqual(["tools/flake8-plugin"]);
     expect(pyproject.tool?.ruff?.lint?.mccabe?.["max-complexity"]).toBe(10);
     expect(pyproject.tool?.ruff?.lint?.pydocstyle?.convention).toBe("numpy");
     expect(pyproject.tool?.mypy).toMatchObject({
@@ -136,7 +140,8 @@ describe("Python dynamic scaffold templates", () => {
     expect(makefileTargetRecipe(rendered, "coverage")).toContain("uv run pytest --cov=src --cov-fail-under=$(COVERAGE_THRESHOLD)");
     expect(makefileTargetRecipe(rendered, "deadcode")).toContain("uv run vulture src");
     expect(makefileTargetRecipe(rendered, "crap")).toContain("uv run pytest --crap");
-    expect(makefileTargetRecipe(rendered, "audit")).toContain("uv run pip-audit");
+    expect(makefileTargetRecipe(rendered, "audit")).toContain("uv export --extra dev --format requirements-txt --no-hashes");
+    expect(makefileTargetRecipe(rendered, "audit")).toContain("uv run pip-audit --progress-spinner off --skip-editable -r /dev/stdin");
     expect(makefileTargetRecipe(rendered, "mutate")).toContain("uv run mutmut run");
     expect(makefileTargetLine(rendered, "quality")).toContain("check mutate");
     expect(makefileTargetLine(rendered, "check")).toContain("lint format typecheck security test coverage deadcode crap audit");

@@ -600,6 +600,25 @@ class TestANV007RequireTestFiles:
 
         assert_lacks_code(findings, "ANV007")
 
+    def test_valid_package_main_source_accepts_flat_module_test(
+        self, tmp_path: Path
+    ) -> None:
+        (tmp_path / "tests").mkdir()
+        (tmp_path / "tests" / "test_seed.py").write_text(
+            "def test_seed():\n    assert True\n",
+            encoding="utf-8",
+        )
+
+        findings = run_anti_slop_file(
+            tmp_path / "src" / "seed" / "seed.py",
+            """
+            def greet():
+                return "hello"
+            """,
+        )
+
+        assert_lacks_code(findings, "ANV007")
+
     def test_invalid_configured_source_dir_without_test_is_flagged(
         self, tmp_path: Path
     ) -> None:
