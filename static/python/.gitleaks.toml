@@ -1,0 +1,8 @@
+[allowlist]
+description = "anvil default allowlist"
+paths = [
+  ".git/",
+  ".venv/",
+  "coverage/",
+  "htmlcov/",
+]

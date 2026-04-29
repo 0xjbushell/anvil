@@ -15,6 +15,7 @@ const typescriptStaticRoot = new URL("../static/typescript/", import.meta.url);
 const typescriptTemplateRoot = new URL("./templates/typescript/", import.meta.url);
 const golangStaticRoot = new URL("../static/golang/", import.meta.url);
 const golangTemplateRoot = new URL("./templates/golang/", import.meta.url);
+const pythonStaticRoot = new URL("../static/python/", import.meta.url);
 const projectRoot = path.resolve(import.meta.dir, "..");
 const expectedTypescriptStaticFiles = [
   "src/seed/seed.ts",
@@ -50,6 +51,19 @@ const expectedGolangTemplateFiles = [
   ".gitignore.ejs",
   "AGENTS.md.ejs",
   "README.md.ejs",
+];
+const expectedPythonStaticFiles = [
+  "src/seed/__init__.py",
+  "src/seed/seed.py",
+  "src/seed/types.py",
+  "src/seed/errors.py",
+  "src/seed/constants.py",
+  "src/seed/enums.py",
+  "tests/conftest.py",
+  "tests/test_seed.py",
+  ".gitattributes",
+  ".editorconfig",
+  ".gitleaks.toml",
 ];
 const expectedRanges: Record<Lang, { min: number; max: number }> = {
   typescript: { min: 23, max: 30 },
@@ -140,6 +154,10 @@ function golangStaticFile(relativePath: string): Bun.BunFile {
 
 function golangTemplateFile(relativePath: string): Bun.BunFile {
   return Bun.file(new URL(relativePath, golangTemplateRoot));
+}
+
+function pythonStaticFile(relativePath: string): Bun.BunFile {
+  return Bun.file(new URL(relativePath, pythonStaticRoot));
 }
 
 async function sourcePathExists(sourcePath: string): Promise<boolean> {
@@ -400,6 +418,18 @@ describe("scaffold manifests", () => {
     }
   });
 
+  test("Python manifest includes all static seed and hygiene scaffold outputs", () => {
+    const entries = new Map(getManifest("python").entries.map((entry) => [entry.dest, entry]));
+
+    for (const file of expectedPythonStaticFiles) {
+      expect(entries.get(file)).toMatchObject({
+        dest: file,
+        src: `static/python/${file}`,
+        source: "static",
+      });
+    }
+  });
+
   test("TypeScript static scaffold files exist", async () => {
     for (const file of expectedTypescriptStaticFiles) {
       expect(await typescriptStaticFile(file).exists()).toBe(true);
@@ -430,6 +460,12 @@ describe("scaffold manifests", () => {
 
     for (const file of files) {
       expect(await golangStaticFile(file).exists()).toBe(true);
+    }
+  });
+
+  test("Python static scaffold files for the seed and hygiene additions exist", async () => {
+    for (const file of expectedPythonStaticFiles) {
+      expect(await pythonStaticFile(file).exists()).toBe(true);
     }
   });
 
