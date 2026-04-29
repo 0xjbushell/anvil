@@ -17,10 +17,10 @@ const scaffoldFiles = [
   'tests/conftest.py',
   'tests/test_plugin.py',
   'tests/test_structural.py',
+  'tests/test_test_quality.py',
 ] as const;
 const stubModules = [
   ['error_handling.py', 'check_error_handling', 'TIX-000048'],
-  ['test_quality.py', 'check_test_quality', 'TIX-000047'],
 ] as const;
 
 function readPluginFile(path: string): string {
@@ -114,6 +114,21 @@ describe('TIX-000044 Python Flake8 plugin scaffold', () => {
       expect(source).toContain('Generator[tuple[int, int, str, type], None, None]');
       expect(source).toContain(ticket);
       expect(source).toContain('yield from ()');
+    }
+  });
+
+  test('test-quality checker covers Python TEST-01 through TEST-04 only', () => {
+    const checker = readPluginFile('anvil_lint/test_quality.py');
+    const tests = readPluginFile('tests/test_test_quality.py');
+
+    for (const code of ['ANV201', 'ANV202', 'ANV203', 'ANV204']) {
+      expect(checker).toContain(code);
+      expect(tests).toContain(code);
+    }
+
+    for (const stale of ['ANV018', 'ANV019', 'ANV020', 'ANV021', 'ANV205', 'TEST-05']) {
+      expect(checker).not.toContain(stale);
+      expect(tests).not.toContain(stale);
     }
   });
 
