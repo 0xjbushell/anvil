@@ -1,0 +1,35 @@
+# <%= projectName %>
+
+## Setup
+
+```bash
+uv venv
+uv pip install -e ".[dev]"
+uv pip install -e tools/flake8-plugin/
+pre-commit install
+make check
+```
+
+## Development
+
+| Command | Description |
+| --- | --- |
+| `make lint` | Run Ruff and custom ANV lint rules |
+| `make test` | Run Python tests |
+| `make coverage` | Run tests with coverage thresholds |
+| `make check` | Run tier 1 and tier 2 validation |
+| `make quality` | Run all validation, including mutation testing |
+| `make fix` | Auto-fix lint and formatting issues |
+
+## Project Structure
+
+```text
+src/            Source code
+tests/          Test suite
+tools/          Custom lint rules
+```
+
+## Required External Tools
+
+Install `uv`, `gitleaks`, and `pre-commit` so setup, security checks, and
+scaffolded git hooks work locally.
