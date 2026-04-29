@@ -35,6 +35,8 @@ class AnvilChecker:
     name = "anvil-lint"
     version = "0.1.0"
     _source_dirs = _DEFAULT_SOURCE_DIRS
+    _max_file_length = 350
+    _max_function_length = 80
 
     @classmethod
     def add_options(cls, option_manager):
@@ -45,12 +47,28 @@ class AnvilChecker:
             comma_separated_list=True,
             help="Source directories checked by ANV007 require-test-files.",
         )
+        option_manager.add_option(
+            "--max-file-length",
+            default=350,
+            parse_from_config=True,
+            type=int,
+            help="Maximum Python file length checked by ANV101.",
+        )
+        option_manager.add_option(
+            "--max-function-length",
+            default=80,
+            parse_from_config=True,
+            type=int,
+            help="Maximum Python function body length checked by ANV102.",
+        )
 
     @classmethod
     def parse_options(cls, options) -> None:
         cls._source_dirs = _coerce_source_dirs(
             getattr(options, "anvil_source_dir", _DEFAULT_SOURCE_DIRS)
         )
+        cls._max_file_length = int(getattr(options, "max_file_length", 350))
+        cls._max_function_length = int(getattr(options, "max_function_length", 80))
 
     def __init__(self, tree: ast.AST, filename: str) -> None:
         self.tree = tree
@@ -59,5 +77,10 @@ class AnvilChecker:
     def run(self) -> Generator[tuple[int, int, str, type], None, None]:
         yield from check_anti_slop(self.tree, self.filename, self._source_dirs)
         yield from check_error_handling(self.tree, self.filename)
-        yield from check_structural(self.tree, self.filename)
+        yield from check_structural(
+            self.tree,
+            self.filename,
+            max_file_length=self._max_file_length,
+            max_function_length=self._max_function_length,
+        )
         yield from check_test_quality(self.tree, self.filename)

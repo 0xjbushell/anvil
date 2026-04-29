@@ -13,7 +13,6 @@ import pytest
 from anvil_lint import AnvilChecker
 from anvil_lint.anti_slop import check_anti_slop
 from anvil_lint.error_handling import check_error_handling
-from anvil_lint.structural import check_structural
 from anvil_lint.test_quality import check_test_quality
 from conftest import run_check_function, run_checker
 
@@ -47,7 +46,25 @@ class TestPluginLoads:
                     "comma_separated_list": True,
                     "help": "Source directories checked by ANV007 require-test-files.",
                 },
-            )
+            ),
+            (
+                ("--max-file-length",),
+                {
+                    "default": 350,
+                    "parse_from_config": True,
+                    "type": int,
+                    "help": "Maximum Python file length checked by ANV101.",
+                },
+            ),
+            (
+                ("--max-function-length",),
+                {
+                    "default": 80,
+                    "parse_from_config": True,
+                    "type": int,
+                    "help": "Maximum Python function body length checked by ANV102.",
+                },
+            ),
         ]
 
     def test_checker_uses_configured_source_dir_option(self, tmp_path: Path) -> None:
@@ -69,6 +86,36 @@ class TestPluginLoads:
 
         assert any(message.startswith("ANV007") for _, _, message in findings)
 
+    def test_checker_uses_configured_structural_threshold_options(
+        self, tmp_path: Path
+    ) -> None:
+        """AnvilChecker passes parsed structural thresholds to ANV101/ANV102."""
+        original_source_dirs = AnvilChecker._source_dirs
+        original_max_file_length = getattr(AnvilChecker, "_max_file_length", 350)
+        original_max_function_length = getattr(AnvilChecker, "_max_function_length", 80)
+
+        class Options:
+            anvil_source_dir = ["src"]
+            max_file_length = 2
+            max_function_length = 1
+
+        source = "def process():\n    value = 1\n    return value\n"
+        path = tmp_path / "scratch" / "process.py"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(source, encoding="utf-8")
+
+        try:
+            AnvilChecker.parse_options(Options())
+            findings = run_checker(AnvilChecker, source, filename=str(path))
+        finally:
+            AnvilChecker._source_dirs = original_source_dirs
+            AnvilChecker._max_file_length = original_max_file_length
+            AnvilChecker._max_function_length = original_max_function_length
+
+        messages = [message for _, _, message in findings]
+        assert any(message.startswith("ANV101") for message in messages)
+        assert any(message.startswith("ANV102") for message in messages)
+
     def test_checker_instantiates(self) -> None:
         """Checker can be instantiated with tree and filename."""
         tree = ast.parse("x = 1")
@@ -86,7 +133,7 @@ class TestPluginLoads:
 
     @pytest.mark.parametrize(
         "check_fn",
-        [check_error_handling, check_structural, check_test_quality],
+        [check_error_handling, check_test_quality],
     )
     def test_stub_check_functions_produce_no_findings(self, check_fn) -> None:
         """Stub check functions are valid empty generators."""
