@@ -16,10 +16,10 @@ const scaffoldFiles = [
   'setup.cfg',
   'tests/conftest.py',
   'tests/test_plugin.py',
+  'tests/test_structural.py',
 ] as const;
 const stubModules = [
   ['error_handling.py', 'check_error_handling', 'TIX-000048'],
-  ['structural.py', 'check_structural', 'TIX-000046'],
   ['test_quality.py', 'check_test_quality', 'TIX-000047'],
 ] as const;
 
@@ -76,13 +76,32 @@ describe('TIX-000044 Python Flake8 plugin scaffold', () => {
     expect(plugin).toContain('version = "0.1.0"');
     expect(plugin).toContain('def add_options(cls, option_manager):');
     expect(plugin).toContain('"--anvil-source-dir"');
+    expect(plugin).toContain('"--max-file-length"');
+    expect(plugin).toContain('"--max-function-length"');
     expect(plugin).toContain('def parse_options(cls, options) -> None:');
     expect(plugin).toContain('def __init__(self, tree: ast.AST, filename: str) -> None:');
     expect(plugin).toContain('def run(self) -> Generator[tuple[int, int, str, type], None, None]:');
     expect(plugin).toContain('yield from check_anti_slop(self.tree, self.filename, self._source_dirs)');
     expect(plugin).toContain('yield from check_error_handling(self.tree, self.filename)');
-    expect(plugin).toContain('yield from check_structural(self.tree, self.filename)');
+    expect(plugin).toContain('yield from check_structural(');
+    expect(plugin).toContain('max_file_length=self._max_file_length');
+    expect(plugin).toContain('max_function_length=self._max_function_length');
     expect(plugin).toContain('yield from check_test_quality(self.tree, self.filename)');
+  });
+
+  test('structural checker scaffold exposes ANV101-ANV108 contract and options', () => {
+    const structural = readPluginFile('anvil_lint/structural.py');
+    const tests = readPluginFile('tests/test_structural.py');
+
+    for (const code of ['ANV101', 'ANV102', 'ANV103', 'ANV104', 'ANV105', 'ANV106', 'ANV107', 'ANV108']) {
+      expect(structural).toContain(code);
+      expect(tests).toContain(code);
+    }
+
+    expect(structural).toContain('max_file_length');
+    expect(structural).toContain('max_function_length');
+    expect(structural).not.toContain('ANV109');
+    expect(structural).not.toContain('ANV110');
   });
 
   test('remaining stub modules expose documented empty generator functions', () => {
