@@ -515,9 +515,9 @@ describe("bun agent:check regression CLI", () => {
     );
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toBe("✓ 3 scenarios passed\n");
+    expect(result.stdout).toBe("✓ 4 scenarios passed\n");
     expect(result.stderr).toBe("");
-  });
+  }, 30_000);
 
   test("agent:check reads git diff HEAD, runs only selected passing scenarios, and stays quiet on green", async () => {
     const root = path.join(sandboxRoot, `cli-test-agent-check-git-${randomUUID()}`);

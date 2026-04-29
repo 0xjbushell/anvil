@@ -5,6 +5,7 @@ import path from "node:path";
 import { parse as parseYaml } from "yaml";
 
 import { evaluateAssertions } from "./assertions.ts";
+import { runPtyScript, type RunPtyScriptRequest } from "./pty-runner.ts";
 import { ScenarioSchema, type Scenario } from "./schema.ts";
 
 export interface RunResult {
@@ -22,6 +23,10 @@ interface ProcessResult {
   exit_code: number;
   stdout: string;
   stderr: string;
+}
+
+interface RunScenarioDeps {
+  runPtyScript?: (request: RunPtyScriptRequest) => Promise<ProcessResult>;
 }
 
 const repoRoot = path.resolve(import.meta.dir, "..", "..");
@@ -108,13 +113,9 @@ function runAnvil(args: string[], env: Scenario["env"], workdir: string): Promis
   });
 }
 
-export async function runScenario(yamlPath: string): Promise<RunResult> {
+export async function runScenario(yamlPath: string, deps: RunScenarioDeps = {}): Promise<RunResult> {
   const started = performance.now();
   const scenario = await loadScenario(yamlPath);
-
-  if (scenario.pty !== undefined) {
-    throw new Error(`pty scenarios are unsupported by the TIX-000060 harness core: ${scenario.name}`);
-  }
 
   const inputDir = await resolveInputDir(scenario.input);
   const workdir = await copyInputToWorkdir(inputDir);
@@ -122,7 +123,18 @@ export async function runScenario(yamlPath: string): Promise<RunResult> {
   let processResult: ProcessResult;
   let failures: string[];
   try {
-    processResult = await runAnvil(scenario.args ?? [], scenario.env, workdir);
+    if (scenario.pty !== undefined) {
+      processResult = await (deps.runPtyScript ?? runPtyScript)({
+        command: bunExecutable(),
+        args: [anvilEntrypoint, ...scenario.pty.command],
+        cwd: workdir,
+        env: { ...process.env, ...scenario.env },
+        script: scenario.pty.script,
+      });
+    } else {
+      processResult = await runAnvil(scenario.args ?? [], scenario.env, workdir);
+    }
+
     failures = await evaluateAssertions(scenario.expect, {
       workdir,
       inputDir,

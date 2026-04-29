@@ -197,6 +197,21 @@ describe("ScenarioSchema", () => {
     expect(errors).toContain("pty.script");
   });
 
+  test("rejects pty scripts that do not end with expect_exit", () => {
+    const errors = expectInvalid({
+      name: "unfinished-pty",
+      input: "greenfield",
+      pty: {
+        command: ["init"],
+        script: [{ expect: "Project name", send: "demo\r" }],
+      },
+      expect: {},
+    });
+
+    expect(errors).toContain("pty.script");
+    expect(errors).toContain("must end with expect_exit");
+  });
+
   test("rejects misspelled assertion keys instead of stripping them", () => {
     const errors = expectInvalid({
       name: "misspelled-assertion",

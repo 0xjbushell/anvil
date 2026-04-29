@@ -3,7 +3,7 @@ import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { afterAll, afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
 import type {
   AnvilLockfile,
@@ -14,6 +14,7 @@ import type {
   ManifestEntry,
   ScaffoldContext,
 } from "../types.ts";
+import { IncompleteLockfileError, previewScaffold, scaffold, type ScaffoldOptions } from "./engine.ts";
 import {
   LOCKFILE_NAME,
   computeChecksum,
@@ -24,14 +25,24 @@ import {
 
 let manifestEntries: ManifestEntry[] = [];
 
-mock.module("../manifest.ts", () => ({
-  getManifest: (lang: Lang): LanguageManifest => ({
+function getTestManifest(lang: Lang): LanguageManifest {
+  return {
     lang,
     entries: [...manifestEntries],
-  }),
-}));
+  };
+}
 
-const { IncompleteLockfileError, previewScaffold, scaffold } = await import("./engine.ts");
+function withTestManifest(options: ScaffoldOptions): ScaffoldOptions {
+  return { ...options, getManifest: getTestManifest };
+}
+
+function scaffoldWithTestManifest(ctx: ScaffoldContext, options: ScaffoldOptions) {
+  return scaffold(ctx, withTestManifest(options));
+}
+
+function previewScaffoldWithTestManifest(ctx: ScaffoldContext) {
+  return previewScaffold(ctx, { getManifest: getTestManifest });
+}
 
 const anvilRoot = path.resolve(import.meta.dir, "..", "..");
 
@@ -60,10 +71,6 @@ afterEach(async () => {
     rm(scratch, { recursive: true, force: true }),
     rm(sourceRoot, { recursive: true, force: true }),
   ]);
-});
-
-afterAll(() => {
-  mock.restore();
 });
 
 function makeContext(overrides: Partial<ScaffoldContext> = {}): ScaffoldContext {
@@ -168,16 +175,16 @@ async function createInterruptedScaffold(): Promise<void> {
   ];
 
   await expect(
-    scaffold(makeContext({ nonInteractive: true }), { onReport: async () => {} }),
+    scaffoldWithTestManifest(makeContext({ nonInteractive: true }), { onReport: async () => {} }),
   ).rejects.toThrow();
 }
 
 describe("scaffold engine", () => {
   test("requires exactly one conflict boundary callback", async () => {
-    await expect(scaffold(makeContext(), {})).rejects.toThrow(/exactly one/i);
+    await expect(scaffoldWithTestManifest(makeContext(), {})).rejects.toThrow(/exactly one/i);
 
     await expect(
-      scaffold(makeContext(), {
+      scaffoldWithTestManifest(makeContext(), {
         onConflict: async (filePath) => ({ path: filePath, action: "overwrite" }),
         onReport: async () => {},
       }),
@@ -195,7 +202,7 @@ describe("scaffold engine", () => {
     ];
     const reports: ConflictReport[] = [];
 
-    const result = await scaffold(makeContext({ nonInteractive: true }), {
+    const result = await scaffoldWithTestManifest(makeContext({ nonInteractive: true }), {
       onReport: async (report) => {
         reports.push(report);
       },
@@ -224,7 +231,7 @@ describe("scaffold engine", () => {
       staticEntry("seed.txt", "seed.txt", (ctx) => !ctx.hasExistingCode),
     ];
 
-    const skipped = await scaffold(makeContext({ hasExistingCode: true }), {
+    const skipped = await scaffoldWithTestManifest(makeContext({ hasExistingCode: true }), {
       onConflict: async (filePath) => ({ path: filePath, action: "overwrite" }),
     });
     expect(skipped.filesCreated).toEqual([]);
@@ -234,7 +241,7 @@ describe("scaffold engine", () => {
     await rm(scratch, { recursive: true, force: true });
     await mkdir(scratch, { recursive: true });
 
-    const included = await scaffold(makeContext({ hasExistingCode: false }), {
+    const included = await scaffoldWithTestManifest(makeContext({ hasExistingCode: false }), {
       onConflict: async (filePath) => ({ path: filePath, action: "overwrite" }),
     });
     expect(included.filesCreated).toEqual(["seed.txt"]);
@@ -266,7 +273,7 @@ describe("scaffold engine", () => {
       };
     };
 
-    const result = await scaffold(makeContext(), { onConflict });
+    const result = await scaffoldWithTestManifest(makeContext(), { onConflict });
 
     expect(calls).toEqual(["overwrite.txt", "skip.txt"]);
     expect(await readTarget("overwrite.txt")).toBe("new overwrite\n");
@@ -291,7 +298,7 @@ describe("scaffold engine", () => {
       staticEntry("created.txt", "created.txt"),
     ];
 
-    const result = await scaffold(makeContext(), {
+    const result = await scaffoldWithTestManifest(makeContext(), {
       onConflict: async (filePath) => ({ path: filePath, action: "skip" }),
     });
 
@@ -332,7 +339,7 @@ describe("scaffold engine", () => {
       };
     };
 
-    await expect(scaffold(makeContext(), { onConflict })).rejects.toThrow(/aborted/i);
+    await expect(scaffoldWithTestManifest(makeContext(), { onConflict })).rejects.toThrow(/aborted/i);
 
     expect(calls).toEqual(["a.txt", "b.txt", "c.txt"]);
     expect(await readTarget("a.txt")).toBe("old A\n");
@@ -358,7 +365,7 @@ describe("scaffold engine", () => {
     const reports: ConflictReport[] = [];
 
     await expect(
-      scaffold(makeContext({ nonInteractive: true }), {
+      scaffoldWithTestManifest(makeContext({ nonInteractive: true }), {
         onReport: async (report) => {
           reports.push(report);
         },
@@ -384,7 +391,7 @@ describe("scaffold engine", () => {
     manifestEntries = [staticEntry("missing.txt", "missing-source.txt")];
 
     await expect(
-      scaffold(makeContext(), {
+      scaffoldWithTestManifest(makeContext(), {
         onConflict: async (filePath) => ({ path: filePath, action: "overwrite" }),
       }),
     ).rejects.toThrow(/corrupt/i);
@@ -398,7 +405,7 @@ describe("scaffold engine", () => {
     await writeLockfile(scratch, crossLang);
 
     await expect(
-      scaffold(makeContext({ lang: "typescript" }), {
+      scaffoldWithTestManifest(makeContext({ lang: "typescript" }), {
         onConflict: async (filePath) => ({ path: filePath, action: "overwrite" }),
       }),
     ).rejects.toThrow(/cross-language/i);
@@ -412,7 +419,7 @@ describe("scaffold engine", () => {
     manifestEntries = [staticEntry("pending.txt", "missing-source.txt")];
 
     await expect(
-      scaffold(makeContext({ nonInteractive: true }), { onReport: async () => {} }),
+      scaffoldWithTestManifest(makeContext({ nonInteractive: true }), { onReport: async () => {} }),
     ).rejects.toBeInstanceOf(IncompleteLockfileError);
     expect(await readTarget("pending.txt")).toBeNull();
   });
@@ -421,12 +428,12 @@ describe("scaffold engine", () => {
     await writeSource("README.md", "# example\n");
     manifestEntries = [staticEntry("README.md", "README.md")];
 
-    const first = await scaffold(makeContext({ nonInteractive: true }), {
+    const first = await scaffoldWithTestManifest(makeContext({ nonInteractive: true }), {
       onReport: async () => {},
     });
     const rawLockfile = await readTarget(LOCKFILE_NAME);
 
-    const second = await scaffold(makeContext({ nonInteractive: true }), {
+    const second = await scaffoldWithTestManifest(makeContext({ nonInteractive: true }), {
       onReport: async () => {},
     });
 
@@ -451,7 +458,7 @@ describe("scaffold engine", () => {
       staticEntry("seed.txt", "README.md", (ctx) => !ctx.skipSeed),
     ];
 
-    const preview = await previewScaffold(makeContext({ nonInteractive: true, skipSeed: true }));
+    const preview = await previewScaffoldWithTestManifest(makeContext({ nonInteractive: true, skipSeed: true }));
 
     expect(preview.changes).toEqual([
       { path: "README.md", action: "create" },
@@ -474,7 +481,7 @@ describe("scaffold engine", () => {
     ];
 
     await expect(
-      scaffold(makeContext({ nonInteractive: true }), { onReport: async () => {} }),
+      scaffoldWithTestManifest(makeContext({ nonInteractive: true }), { onReport: async () => {} }),
     ).rejects.toThrow(/generator.*not implemented/i);
     expect(await readTarget(LOCKFILE_NAME)).toBeNull();
   });
@@ -487,7 +494,7 @@ describe("scaffold engine", () => {
     manifestEntries = [staticEntry("locked/blocked.txt", "blocked.txt")];
 
     await expect(
-      scaffold(makeContext({ nonInteractive: true }), { onReport: async () => {} }),
+      scaffoldWithTestManifest(makeContext({ nonInteractive: true }), { onReport: async () => {} }),
     ).rejects.toThrow();
 
     const lockfile = await readWrittenLockfile();
@@ -519,7 +526,7 @@ describe("scaffold engine", () => {
     await chmod(path.join(scratch, "locked"), 0o700);
 
     const conflicts: string[] = [];
-    const result = await scaffold(makeContext(), {
+    const result = await scaffoldWithTestManifest(makeContext(), {
       onConflict: async (filePath) => {
         conflicts.push(filePath);
         return { path: filePath, action: "overwrite" };
@@ -545,7 +552,7 @@ describe("scaffold engine", () => {
     const before = await readWrittenLockfile();
 
     await expect(
-      scaffold(makeContext({ nonInteractive: true }), { onReport: async () => {} }),
+      scaffoldWithTestManifest(makeContext({ nonInteractive: true }), { onReport: async () => {} }),
     ).rejects.toBeInstanceOf(IncompleteLockfileError);
 
     expect(await readTarget("locked/c.txt")).toBeNull();

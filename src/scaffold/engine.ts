@@ -4,7 +4,7 @@ import path from "node:path";
 
 import ejs from "ejs";
 
-import { getManifest } from "../manifest.ts";
+import { getManifest as getDefaultManifest } from "../manifest.ts";
 import type {
   AnvilLockfile,
   ConflictHandler,
@@ -13,6 +13,8 @@ import type {
   FileSource,
   FsTreeChange,
   FsTreeEntry,
+  Lang,
+  LanguageManifest,
   LockfileReadResult,
   ManifestEntry,
   ScaffoldContext,
@@ -42,6 +44,11 @@ export interface ScaffoldPreviewResult {
 export interface ScaffoldOptions {
   onConflict?: ConflictHandler;
   onReport?: (report: ConflictReport) => Promise<void>;
+  getManifest?: ManifestProvider;
+}
+
+export interface ScaffoldPreviewOptions {
+  getManifest?: ManifestProvider;
 }
 
 export class IncompleteLockfileError extends Error {
@@ -76,6 +83,8 @@ interface ConflictDecision {
   approvedChanges: FsTreeChange[];
   filesSkipped: string[];
 }
+
+type ManifestProvider = (lang: Lang) => LanguageManifest;
 
 function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -249,7 +258,7 @@ async function addManifestEntry(entry: ManifestEntry, ctx: ScaffoldContext, tree
   }
 }
 
-async function buildTree(ctx: ScaffoldContext): Promise<BuiltTree> {
+async function buildTree(ctx: ScaffoldContext, getManifest: ManifestProvider): Promise<BuiltTree> {
   const tree = new FsTree();
   const filesSkipped: string[] = [];
   const manifest = getManifest(ctx.lang);
@@ -548,7 +557,7 @@ export async function scaffold(ctx: ScaffoldContext, options: ScaffoldOptions): 
 
   const lockfileResult = await readLockfile(ctx.targetDir);
   const oldLockfile = validateLockfileStatus(ctx, lockfileResult);
-  const { tree, filesSkipped: conditionSkipped } = await buildTree(ctx);
+  const { tree, filesSkipped: conditionSkipped } = await buildTree(ctx, options.getManifest ?? getDefaultManifest);
   const changes = await tree.listChanges(ctx.targetDir);
   const entriesByPath = treeEntryMap(tree);
   const conflictDecision = await resolveConflicts(ctx, options, changes, entriesByPath);
@@ -568,10 +577,13 @@ export async function scaffold(ctx: ScaffoldContext, options: ScaffoldOptions): 
   };
 }
 
-export async function previewScaffold(ctx: ScaffoldContext): Promise<ScaffoldPreviewResult> {
+export async function previewScaffold(
+  ctx: ScaffoldContext,
+  options: ScaffoldPreviewOptions = {},
+): Promise<ScaffoldPreviewResult> {
   const lockfileResult = await readLockfile(ctx.targetDir);
   const oldLockfile = validateLockfileStatus(ctx, lockfileResult);
-  const { tree, filesSkipped } = await buildTree(ctx);
+  const { tree, filesSkipped } = await buildTree(ctx, options.getManifest ?? getDefaultManifest);
 
   return {
     changes: await tree.listChanges(ctx.targetDir),

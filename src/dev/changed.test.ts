@@ -96,7 +96,7 @@ describe("changed-file fixture selection", () => {
       .toEqual(["script"]);
   });
 
-  test("typescript template changes select current TypeScript fixture scenarios from lockfile metadata", async () => {
+  test("typescript template changes select current TypeScript fixture scenarios from metadata and scenario names", async () => {
     const catalog = await loadCommittedScenarioCatalog();
     const expectedTypescriptScenarios = catalog
       .filter((scenario) => scenario.inputLanguage === "typescript")
@@ -112,7 +112,7 @@ describe("changed-file fixture selection", () => {
       selectRelevantScenarios(catalog, ["templates/typescript/Makefile.ejs"])
         .map((scenario) => scenario.name)
         .sort(),
-    ).toEqual(expectedTypescriptScenarios);
+    ).toEqual(["greenfield-ts-interactive", ...expectedTypescriptScenarios]);
   });
 
   test("shared template changes select every scenario", () => {
