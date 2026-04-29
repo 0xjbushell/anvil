@@ -1,0 +1,47 @@
+COVERAGE_THRESHOLD ?= 80
+
+.PHONY: lint format typecheck security test coverage deadcode crap audit mutate quality check fix
+
+# Tier 1 — pre-commit hook
+lint: ## Run all linters (Ruff built-in + Flake8 custom ANV rules)
+	uv pip install -e tools/flake8-plugin/ --quiet
+	uv run ruff check .
+	uv run flake8 --select=ANV src tests
+
+format: ## Check formatting
+	uv run ruff format --check .
+
+typecheck: ## Run type checker
+	uv run mypy src
+
+security: ## Run gitleaks secret scan
+	gitleaks detect --source . --no-git
+
+# Tier 2 — pre-push hook
+test: ## Run tests
+	uv run pytest
+
+coverage: ## Run tests + enforce coverage thresholds
+	uv run pytest --cov=src --cov-fail-under=$(COVERAGE_THRESHOLD)
+
+deadcode: ## Detect unused code
+	uv run vulture src
+
+crap: ## Compute CRAP scores
+	uv run pytest --crap
+
+audit: ## Audit dependencies for vulnerabilities
+	uv run pip-audit
+
+# Tier 3 — on-demand
+mutate: ## Run mutation testing
+	uv run mutmut run
+
+quality: check mutate ## Run ALL checks (tier 1 + 2 + 3)
+
+# Convenience
+check: lint format typecheck security test coverage deadcode crap audit ## Run tier 1 + tier 2
+
+fix: ## Auto-fix lint + format issues
+	uv run ruff check --fix .
+	uv run ruff format .

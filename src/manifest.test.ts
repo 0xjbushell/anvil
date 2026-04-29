@@ -16,6 +16,7 @@ const typescriptTemplateRoot = new URL("./templates/typescript/", import.meta.ur
 const golangStaticRoot = new URL("../static/golang/", import.meta.url);
 const golangTemplateRoot = new URL("./templates/golang/", import.meta.url);
 const pythonStaticRoot = new URL("../static/python/", import.meta.url);
+const pythonTemplateRoot = new URL("./templates/python/", import.meta.url);
 const projectRoot = path.resolve(import.meta.dir, "..");
 const expectedTypescriptStaticFiles = [
   "src/seed/seed.ts",
@@ -64,6 +65,15 @@ const expectedPythonStaticFiles = [
   ".gitattributes",
   ".editorconfig",
   ".gitleaks.toml",
+];
+const expectedPythonTemplateFiles = [
+  "pyproject.toml.ejs",
+  ".flake8.ejs",
+  "Makefile.ejs",
+  ".pre-commit-config.yaml.ejs",
+  ".gitignore.ejs",
+  "AGENTS.md.ejs",
+  "README.md.ejs",
 ];
 const expectedRanges: Record<Lang, { min: number; max: number }> = {
   typescript: { min: 23, max: 30 },
@@ -158,6 +168,10 @@ function golangTemplateFile(relativePath: string): Bun.BunFile {
 
 function pythonStaticFile(relativePath: string): Bun.BunFile {
   return Bun.file(new URL(relativePath, pythonStaticRoot));
+}
+
+function pythonTemplateFile(relativePath: string): Bun.BunFile {
+  return Bun.file(new URL(relativePath, pythonTemplateRoot));
 }
 
 async function sourcePathExists(sourcePath: string): Promise<boolean> {
@@ -430,6 +444,19 @@ describe("scaffold manifests", () => {
     }
   });
 
+  test("Python manifest includes all dynamic template scaffold outputs", () => {
+    const entries = new Map(getManifest("python").entries.map((entry) => [entry.dest, entry]));
+
+    for (const file of expectedPythonTemplateFiles) {
+      const dest = file.slice(0, -".ejs".length);
+      expect(entries.get(dest)).toMatchObject({
+        dest,
+        src: `src/templates/python/${file}`,
+        source: "template",
+      });
+    }
+  });
+
   test("TypeScript static scaffold files exist", async () => {
     for (const file of expectedTypescriptStaticFiles) {
       expect(await typescriptStaticFile(file).exists()).toBe(true);
@@ -466,6 +493,12 @@ describe("scaffold manifests", () => {
   test("Python static scaffold files for the seed and hygiene additions exist", async () => {
     for (const file of expectedPythonStaticFiles) {
       expect(await pythonStaticFile(file).exists()).toBe(true);
+    }
+  });
+
+  test("Python template scaffold files for dynamic config outputs exist", async () => {
+    for (const file of expectedPythonTemplateFiles) {
+      expect(await pythonTemplateFile(file).exists()).toBe(true);
     }
   });
 
