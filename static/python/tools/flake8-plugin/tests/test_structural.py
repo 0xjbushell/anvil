@@ -533,6 +533,17 @@ class TestANV105ConstantsFileOrganization:
         assert_has_code(findings, "ANV105")
         assert any(name in message for _, _, message in findings)
 
+    def test_valid_test_support_constants_are_allowed(self) -> None:
+        findings = run_structural(
+            """
+            PROJECT_ROOT = "/repo"
+            SOURCE_ROOT = "/repo/src"
+            """,
+            filename="tests/conftest.py",
+        )
+
+        assert_lacks_code(findings, "ANV105")
+
 
 class TestANV106EnumsFileOrganization:
     @pytest.mark.parametrize(

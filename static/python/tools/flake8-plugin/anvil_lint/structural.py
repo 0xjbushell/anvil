@@ -33,12 +33,23 @@ def check_structural(
 
     yield from _check_max_file_length(filename, max_file_length)
     yield from _check_max_function_length(tree, max_function_length)
+    if _is_test_path(path):
+        return
+
     yield from _check_types_file_organization(path, declarations)
     yield from _check_errors_file_organization(path, declarations)
     yield from _check_constants_file_organization(path, declarations)
     yield from _check_enums_file_organization(path, declarations)
     yield from _check_filename_match_export(path, declarations)
     yield from _check_no_exported_lambda_assignments(tree, exported)
+
+
+def _is_test_path(path: Path) -> bool:
+    return (
+        path.name.startswith("test_")
+        or "tests" in path.parts
+        or path.name == "conftest.py"
+    )
 
 
 @dataclass(frozen=True)

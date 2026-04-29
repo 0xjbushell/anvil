@@ -225,6 +225,30 @@ describe("scaffold engine", () => {
     });
   });
 
+  test("ignores Python cache artifacts when expanding static source globs", async () => {
+    await Promise.all([
+      writeSource("python/pkg/module.py", "VALUE = 1\n"),
+      writeSource("python/pkg/__pycache__/module.cpython-312.pyc", "compiled\n"),
+      writeSource("python/pkg/anvil_lint.egg-info/PKG-INFO", "metadata\n"),
+    ]);
+    manifestEntries = [
+      {
+        dest: "tools/**/*",
+        src: `${sourceRootName}/python/**/*`,
+        source: "static",
+      },
+    ];
+
+    const result = await scaffoldWithTestManifest(makeContext(), {
+      onConflict: async (filePath) => ({ path: filePath, action: "overwrite" }),
+    });
+
+    expect(result.filesCreated).toEqual(["tools/pkg/module.py"]);
+    expect(await readTarget("tools/pkg/module.py")).toBe("VALUE = 1\n");
+    expect(await Bun.file(path.join(scratch, "tools/pkg/__pycache__/module.cpython-312.pyc")).exists()).toBe(false);
+    expect(await Bun.file(path.join(scratch, "tools/pkg/anvil_lint.egg-info/PKG-INFO")).exists()).toBe(false);
+  });
+
   test("evaluates conditional entries as skipped or included", async () => {
     await writeSource("seed.txt", "seed\n");
     manifestEntries = [

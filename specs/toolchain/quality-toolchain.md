@@ -217,7 +217,7 @@ test:      uv run pytest
 coverage:  uv run pytest --cov=src --cov-fail-under=$(COVERAGE_THRESHOLD)
 deadcode:  uv run vulture src
 crap:      uv run python scripts/crap_report.py
-audit:     uv run pip-audit  # hard-fail on any finding
+audit:     uv export --extra dev --format requirements-txt --no-hashes | uv run pip-audit --progress-spinner off --skip-editable -r /dev/stdin
 # Tier 3
 mutate:    uv run mutmut run
 # Convenience
