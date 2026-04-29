@@ -13,7 +13,6 @@ import pytest
 from anvil_lint import AnvilChecker
 from anvil_lint.anti_slop import check_anti_slop
 from anvil_lint.error_handling import check_error_handling
-from anvil_lint.test_quality import check_test_quality
 from conftest import run_check_function, run_checker
 
 
