@@ -133,11 +133,24 @@ class TestPluginLoads:
 
     @pytest.mark.parametrize(
         "check_fn",
-        [check_error_handling, check_test_quality],
+        [check_error_handling],
     )
     def test_stub_check_functions_produce_no_findings(self, check_fn) -> None:
         """Stub check functions are valid empty generators."""
         assert run_check_function(check_fn, "x = 1\n") == []
+
+    def test_checker_run_includes_test_quality_findings(self) -> None:
+        """AnvilChecker delegates to test-quality checks."""
+        findings = run_checker(
+            AnvilChecker,
+            """
+            def test_empty_function():
+                pass
+            """,
+            filename="tests/test_empty.py",
+        )
+
+        assert any(message.startswith("ANV201") for _, _, message in findings)
 
     def test_flake8_select_anv_runs_without_error(self) -> None:
         """flake8 --select=ANV runs successfully on clean code after editable install."""
