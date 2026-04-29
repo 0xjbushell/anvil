@@ -1,0 +1,38 @@
+name: greenfield-ts-interactive
+description: Interactive greenfield TypeScript init scenario driven through a PTY.
+input: greenfield
+pty:
+  command:
+    - init
+    - --lang
+    - typescript
+  script:
+    - expect: Project name
+      send: "interactive-greenfield\r"
+    - expect: Default branch
+      send: "main\r"
+    - expect: Which package manager do you use?
+      send: "\r"
+    - expect: Scaffold typescript project "interactive-greenfield"
+      send: "y\r"
+    - expect_exit: 0
+expect:
+  exit_code: 0
+  files_exist:
+    - package.json
+    - src/seed/seed.ts
+    - src/seed/seed.test.ts
+    - src/seed/types.ts
+    - src/seed/errors.ts
+    - src/seed/constants.ts
+    - src/seed/enums.ts
+  files_contain:
+    - file: package.json
+      matches: '"name": "interactive-greenfield"'
+    - file: src/seed/seed.ts
+      matches: GreetingError
+    - file: src/seed/seed.test.ts
+      matches: toThrow(GreetingError)
+  stdout_contains:
+    - Seed code created at src/seed/
+  stderr_empty: true

@@ -49,10 +49,17 @@ const ptyExitStepSchema = z
   })
   .strict();
 
+const ptyScriptSchema = z
+  .array(z.union([ptyExpectSendStepSchema, ptyExitStepSchema]))
+  .nonempty()
+  .refine((script) => "expect_exit" in script[script.length - 1], {
+    message: "pty script must end with expect_exit",
+  });
+
 const ScenarioPtySchema = z
   .object({
     command: z.array(z.string()),
-    script: z.array(z.union([ptyExpectSendStepSchema, ptyExitStepSchema])),
+    script: ptyScriptSchema,
   })
   .strict();
 

@@ -6,6 +6,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, test } from "bun:tes
 import { stringify as stringifyYaml } from "yaml";
 
 import { runScenario } from "./harness.ts";
+import type { Scenario } from "./schema.ts";
 
 const repoRoot = path.resolve(import.meta.dir, "..", "..");
 const fixtureInputRoot = path.join(repoRoot, "tests", "fixtures", "inputs");
@@ -14,6 +15,19 @@ const sandboxRoot = path.join(repoRoot, ".sandbox", "harness-tests");
 
 let scratch: string;
 let previousTmpDir: string | undefined;
+
+type PtyProcessResult = { exit_code: number; stdout: string; stderr: string };
+type PtyScriptRunner = (request: {
+  command: string;
+  args: string[];
+  script: NonNullable<Scenario["pty"]>["script"];
+  env?: Scenario["env"];
+  cwd: string;
+}) => Promise<PtyProcessResult>;
+type RunScenarioWithPty = (
+  yamlPath: string,
+  deps: { runPtyScript: PtyScriptRunner },
+) => Promise<Awaited<ReturnType<typeof runScenario>>>;
 
 async function pathExists(targetPath: string): Promise<boolean> {
   try {
@@ -220,20 +234,55 @@ describe("runScenario", () => {
     await expectRejects(() => runScenario(scenarioPath), /exactly one/i);
   });
 
-  test("throws a clear unsupported error for pty scenarios", async () => {
+  test("executes pty scenarios and passes combined PTY output through existing assertions", async () => {
     const scenarioPath = await writeScenarioFile("pty-input", {
       name: "pty-input",
       input: "greenfield",
       pty: {
         command: ["init", "--lang", "typescript"],
-        script: [{ expect_exit: 0 }],
+        script: [
+          { expect: "Project name", send: "pty-input\r" },
+          { expect_exit: 0 },
+        ],
       },
       expect: {
         exit_code: 0,
+        stdout_contains: ["Project name", "Scaffold complete"],
+        stderr_empty: true,
       },
     });
 
-    await expectRejects(() => runScenario(scenarioPath), /pty.*unsupported/i);
+    const runScenarioWithPty = runScenario as RunScenarioWithPty;
+    const ptyCalls: Array<Parameters<PtyScriptRunner>[0]> = [];
+    const result = await runScenarioWithPty(scenarioPath, {
+      runPtyScript: async (request) => {
+        ptyCalls.push(request);
+        const firstStep = request.script[0];
+        const firstExpect = firstStep !== undefined && "expect" in firstStep ? firstStep.expect : "";
+
+        return {
+          exit_code: 0,
+          stdout: `fake pty command: ${[request.command, ...request.args].join(" ")}\n${firstExpect}\nScaffold complete\n`,
+          stderr: "",
+        };
+      },
+    });
+
+    expect(ptyCalls).toHaveLength(1);
+    expect(ptyCalls[0]).toMatchObject({
+      command: expect.stringContaining("bun"),
+      args: [expect.stringContaining("bin/anvil.ts"), "init", "--lang", "typescript"],
+      script: [
+        { expect: "Project name", send: "pty-input\r" },
+        { expect_exit: 0 },
+      ],
+    });
+    expect(ptyCalls[0]?.cwd).toContain(`${path.sep}anvil-fixtures-`);
+    expect(result.passed).toBe(true);
+    expect(result.stdout).toContain("Project name");
+    expect(result.stdout).toContain("Scaffold complete");
+    expect(result.stderr).toBe("");
+    expect(await pathExists(result.workdir)).toBe(false);
   });
 
   test("runs every committed input scenario through the harness", async () => {
@@ -242,7 +291,7 @@ describe("runScenario", () => {
       .filter((name) => name.endsWith(".yaml"))
       .sort();
 
-    expect(scenarioFiles).toEqual(inputs.map((input) => `${input}.yaml`));
+    expect(scenarioFiles).toEqual([...inputs.map((input) => `${input}.yaml`), "greenfield-ts-interactive.yaml"].sort());
 
     for (const scenarioFile of scenarioFiles) {
       const result = await runScenario(path.join(committedScenarioRoot, scenarioFile));
