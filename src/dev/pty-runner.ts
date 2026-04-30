@@ -3,7 +3,8 @@ import { createRequire } from "node:module";
 import path from "node:path";
 
 export const defaultPtyTimeoutMs = 5_000;
-export const defaultPtyExitTimeoutMs = defaultPtyTimeoutMs;
+// Prompt waits should fail fast; exit waits must allow valid post-confirm scaffolding work.
+export const defaultPtyExitTimeoutMs = 30_000;
 
 export interface PtyProcessResult {
   exit_code: number;
