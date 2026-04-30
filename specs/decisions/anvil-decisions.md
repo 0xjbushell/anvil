@@ -1327,3 +1327,145 @@ Both failure modes are silent and platform-asymmetric — the kind of bug that s
 **Confidence:** High. Both fixes are standard practice in mature scaffolders (e.g., create-react-app templates ship `.gitattributes` with `* text=auto eol=lf`).
 
 ---
+
+## D-71: Required validation tools are hard failures, never skips
+
+**Status**: Accepted
+**Date**: 2026-04-30
+**Related**: D-35 (tool provisioning), D-55 (feedback tiers), D-68 (sandbox harness), D-72 (Nix environments)
+
+### Decision
+
+Anvil validation must hard-fail when required tools for supported-language validation are unavailable. Contributor validation, e2e validation, fixture validation, and release validation do not skip required TypeScript, Go, or Python checks because the host environment is incomplete.
+
+This applies to tools such as `uv`, `gitleaks`, `govulncheck`, `golangci-lint`, `staticcheck`, `deadcode`, Make, native build tooling needed by `node-pty`, and language runtimes required by supported scaffolds.
+
+Generated project Makefiles follow the same rule: `make check` and `make quality` fail clearly if required tools are missing; they never silently omit required targets.
+
+### Rationale
+
+Anvil is itself a scaffolder for agentic engineering environments. If required tools are absent, a contributor cannot validate whether Anvil generated a working environment. Skips created false confidence during readiness review: the test suite could report green-ish status while Python e2e/parity or generated project `make check` paths were not actually exercised.
+
+The right fix is to make the environment reproducible, not to weaken validation.
+
+### Alternatives rejected
+
+- **Contributor skips with release-only hard failures** — still lets day-to-day contributors merge changes without proving supported-language behavior.
+- **Manual setup instructions only** — too fragile and artisanal; contributors and agents should not assemble validation environments by hand.
+- **Generated Makefiles with conditional targets** — hides broken or incomplete toolchains from users.
+
+### Confidence
+
+High — user explicitly set this policy during release-readiness planning.
+
+---
+
+## D-72: Nix-provisioned contributor and e2e environments
+
+**Status**: Accepted
+**Date**: 2026-04-30
+**Related**: D-28 (Python uv), D-35 (tool provisioning), D-71 (no skips)
+
+### Decision
+
+The Anvil repository provides Nix-backed, idempotent development environments for contributors, e2e sandboxes, and release validation. Contributors and CI use the same environment definitions through documented wrapper commands or package scripts.
+
+Required flake outputs:
+
+| Output | Purpose |
+|---|---|
+| `default` | Normal Anvil development |
+| `release` | Full release-validation toolchain |
+| `typescript-e2e` | TypeScript generated-project e2e validation |
+| `golang-e2e` | Go generated-project e2e validation |
+| `python-e2e` | Python generated-project e2e validation |
+
+Generated projects also receive purpose-built, language-specific Nix environments. A TypeScript project gets TypeScript tooling, a Go project gets Go tooling, and a Python project gets Python tooling. Shared cross-language tools such as `gitleaks` are included only where the generated Makefile requires them.
+
+### Rationale
+
+Agents and contributors need a repeatable environment. Host-global installations create drift, stale tools, and skipped validation. Nix gives Anvil one source of truth for local validation, e2e sandboxes, and release CI.
+
+Purpose-built generated environments preserve Anvil's direct-scaffold philosophy: users get a real project starting point they can build on, not a cross-language kitchen-sink environment.
+
+### Alternatives rejected
+
+- **Documenting manual installs** — brittle and not idempotent.
+- **Docker-only environments** — useful for CI but weaker for local shell integration and generated project workflows.
+- **One global environment for all generated projects** — installs irrelevant tools and contradicts language-specific scaffolding.
+
+### Confidence
+
+High — user explicitly requested automatic, idempotent Nix environments for contributors and e2e sandboxes.
+
+---
+
+## D-73: E2E fixtures must exercise real scaffold behavior
+
+**Status**: Accepted
+**Date**: 2026-04-30
+**Related**: D-68 (sandbox harness), D-71 (no skips), D-72 (Nix environments)
+
+### Decision
+
+Committed fixture scenarios must prove real scaffold or re-scaffold behavior. A fixture scenario may run only `anvil --version` only when its explicit purpose is version behavior.
+
+Fixture inputs may include `setup.sh`; the harness executes it after copying the input into the sandbox and before invoking Anvil. Setup failures fail the scenario.
+
+E2E scenarios run inside the matching purpose-built Nix sandbox. Required-tool absence is an environment failure, not a skipped test.
+
+### Rationale
+
+Anvil's most important contract is that it can initialize and re-scaffold projects. Version-only fixtures gave false confidence because they did not exercise templates, lockfiles, generated Makefiles, dirty repos, hostile inputs, or language-specific tooling.
+
+Setup scripts are the right way to create starting states that cannot be represented as static files alone, such as dirty Git worktrees, stale locks, permissions, or generated dependency state.
+
+### Alternatives rejected
+
+- **Keep smoke fixtures and rely on separate e2e tests** — splits the agent inner loop from the real proof path.
+- **Directory snapshots for every fixture** — rejected by D-68; intent assertions provide clearer signal.
+- **Host-global e2e setup** — violates D-72 and causes skipped validation.
+
+### Confidence
+
+High — directly follows the readiness audit and user guidance.
+
+---
+
+## D-74: Release validation proves installable distribution
+
+**Status**: Accepted
+**Date**: 2026-04-30
+**Related**: D-45 (Bun-only + compiled binary), D-65 (release process), D-71 (no skips), D-72 (Nix environments)
+
+### Decision
+
+Release CI is the authoritative public-release gate. It runs inside the full Nix `release` environment, fails on required-tool absence, and proves that distribution artifacts are installable and functional.
+
+Release validation must prove:
+
+1. Full repo validation passes from a clean worktree.
+2. TypeScript, Go, and Python generated-project e2e paths run without supported-language skips.
+3. `bun run build` creates every installer-referenced binary asset.
+4. A compiled host binary can scaffold a project from outside the repository, where repo-relative `static/` and `src/templates/` paths are unavailable.
+5. `scripts/install.sh` resolves `latest` via `/releases/latest/download/<asset>` and pinned versions via `/releases/download/<version>/<asset>`.
+6. The release workflow uploads every asset the installer expects.
+7. Tix/spec hygiene for shipped scope is checked before release.
+
+### Rationale
+
+Passing `anvil --version` is not enough. Public users install Anvil to scaffold projects. The release process must prove the exact published binary can find scaffold assets and initialize real projects outside the source checkout.
+
+The readiness audit found the installer, release asset workflow, and standalone binary behavior were not sufficiently proven. Release CI must close that gap.
+
+### Alternatives rejected
+
+- **Trust `bun run build` only** — produces binaries but does not prove runtime asset resolution.
+- **Manual release checklist only** — prone to omission and not repeatable.
+- **Release workflow without asset upload proof** — leaves installer and release assets disconnected.
+
+### Confidence
+
+High — directly addresses public-release blockers found by the package review.
+
+---

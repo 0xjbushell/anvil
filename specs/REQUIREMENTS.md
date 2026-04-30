@@ -93,6 +93,35 @@ All commands operate on the current working directory. There is no `--target-dir
 - **SCAF-06**: Project hygiene — .gitignore, .gitattributes (LF line endings, D-70), .editorconfig, .gitleaks.toml, README.md template.
 - **SCAF-07**: `.anvil.lock` manifest — tracks anvil version, toolchain versions (D-64), generated files, per-file checksums, and a checkpoint marker (`flushStatus` + per-entry `status`, D-70) for crash-recoverable re-scaffold and idempotent regeneration.
 
+### Development Environments (DEV-xx)
+
+- **DEV-01**: The anvil repository provides a Nix development environment for normal contributor work. It installs the required Anvil validation toolchain rather than relying on mutable host-global setup.
+- **DEV-02**: The anvil repository provides a full Nix release-validation environment with Bun, Node, native build tools, Go, Python 3.11+, Make, `uv`, `gitleaks`, `govulncheck`, `golangci-lint`, `staticcheck`, `deadcode`, and all other tools required by supported-language e2e validation.
+- **DEV-03**: Required validation tools are hard requirements. Contributor validation, e2e validation, and release validation fail when required tools are missing; tests do not skip supported-language checks because the environment is incomplete.
+- **DEV-04**: Contributor entrypoints are idempotent wrapper commands or package scripts that enter the correct Nix environment before running validation. Contributors should not install validation tools manually or assemble bespoke local environments.
+- **DEV-05**: Generated projects include purpose-built, language-specific Nix development environments. TypeScript projects receive TypeScript tooling only, Go projects receive Go tooling only, and Python projects receive Python tooling only, plus shared cross-language tools such as `gitleaks` where the generated Makefile requires them.
+- **DEV-06**: Generated project Makefiles remain language-specific and strict. `make check` and `make quality` fail clearly if required tools are unavailable; they never silently omit required targets.
+
+### E2E and Sandbox Environments (E2E-xx)
+
+- **E2E-01**: Fixture inputs may define `setup.sh`; the harness executes it after copying the input into the sandbox and before invoking Anvil. Setup failures fail the scenario.
+- **E2E-02**: Committed fixture scenarios exercise real scaffold and re-scaffold behavior. `--version`-only scenarios are allowed only when the scenario's explicit purpose is version behavior.
+- **E2E-03**: E2E scenarios run inside purpose-built Nix sandbox environments for the target language so tests do not depend on host-global tool installation.
+- **E2E-04**: E2E validation fails, rather than skips, when required tools for a supported-language scenario are unavailable.
+- **E2E-05**: E2E tests isolate temp directories, caches, home directories, and tool state so full-suite runs are deterministic and do not race on global locks or caches.
+- **E2E-06**: `bun agent:check` selects meaningful real scenarios for changed source, template, fixture, and generated-toolchain files. It must not provide false confidence by selecting only smoke scenarios for behavior-changing diffs.
+- **E2E-07**: Interactive PTY scenarios cover enough prompts to prove interactive init remains usable. At minimum, TypeScript interactive init is required; Go and Python interactive scenarios are added unless an explicit decision defers them.
+
+### Release Validation and Distribution (REL-xx)
+
+- **REL-01**: Release CI uses the full Nix release-validation environment and treats any required-tool absence or supported-language e2e skip as a failure.
+- **REL-02**: Release CI runs the authoritative validation battery from a clean worktree: `bun agent:check`, `bun fixtures`, `bunx tsc --noEmit`, full `bun test`, `bun run build`, generated-project e2e for TypeScript, Go, and Python, and `bun mutation`.
+- **REL-03**: Release CI proves the compiled standalone binary can scaffold projects from outside the repository, where repo-relative `static/` and `src/templates/` paths are unavailable.
+- **REL-04**: The installer resolves `latest` releases via GitHub's `/releases/latest/download/` endpoint and pinned versions via `/releases/download/<version>/`.
+- **REL-05**: The release workflow builds and uploads every binary asset referenced by the installer.
+- **REL-06**: Release rehearsal or equivalent CI proof validates installer behavior against the assets that will be published.
+- **REL-07**: Release validation verifies tix/spec hygiene for shipped scope: no executable deliverables are accidentally left open, and parent rollups are either reconciled or explicitly documented.
+
 ## v2 — Deferred
 
 - **D-01**: Additional languages (Rust, Java, C#) — significant scope; validate v1 model first.
