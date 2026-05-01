@@ -1,0 +1,76 @@
+{
+  description = "<%= projectName %> Go development environment";
+
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+
+  outputs = { self, nixpkgs, ... }:
+    let
+      systems = [
+        "x86_64-linux"
+        "aarch64-linux"
+        "x86_64-darwin"
+        "aarch64-darwin"
+      ];
+      forAllSystems = nixpkgs.lib.genAttrs systems;
+      pkgsFor = system: import nixpkgs { inherit system; };
+    in
+    {
+      packages = forAllSystems (system:
+        let
+          pkgs = pkgsFor system;
+        in
+        {
+          deadcode = pkgs.buildGoModule {
+            pname = "deadcode";
+            version = "0.31.0";
+            src = pkgs.fetchFromGitHub {
+              owner = "golang";
+              repo = "tools";
+              rev = "v0.31.0";
+              hash = "sha256-6YtMyPY7N4z/uxVGVyk9Ucfrd/HbNSiXC2K2/PJU44A=";
+            };
+            subPackages = [ "cmd/deadcode" ];
+            vendorHash = "sha256-6tMAGBmh5oNE2qK++u7IgIVveXb8bfkNpq6rwVqPvLw=";
+          };
+
+          go-mutesting = pkgs.buildGoModule {
+            pname = "go-mutesting";
+            version = "1.2";
+            src = pkgs.fetchFromGitHub {
+              owner = "zimmski";
+              repo = "go-mutesting";
+              rev = "v1.2";
+              hash = "sha256-FyqIhM+UD89ELfcuWyXDgSKvNwB1g2PkKe91JyMK6QQ=";
+            };
+            subPackages = [ "cmd/go-mutesting" ];
+            vendorHash = "sha256-3lVJpC0mmzcvYnSxqRZgvnhPL3SkTXAbgwY9xQnjSKE=";
+            doCheck = false;
+          };
+        });
+
+      devShells = forAllSystems (system:
+        let
+          pkgs = pkgsFor system;
+          deadcode = self.packages.${system}.deadcode;
+          goMutesting = self.packages.${system}.go-mutesting;
+        in
+        {
+          default = pkgs.mkShell {
+            packages = [
+              pkgs.go
+              pkgs.gnumake
+              pkgs.git
+              pkgs.gitleaks
+              pkgs.pre-commit
+              pkgs.golangci-lint
+              pkgs.govulncheck
+              # nixpkgs packages the staticcheck binary in go-tools.
+              pkgs.go-tools
+              pkgs.gotools
+              deadcode
+              goMutesting
+            ];
+          };
+        });
+    };
+}

@@ -27,7 +27,7 @@ class StringWriter {
   }
 }
 
-const tsProjectDeps = ["eslint", "prettier", "vitest", "knip", "typescript", "better-npm-audit"];
+const tsProjectDeps = ["eslint", "prettier", "vitest", "knip", "typescript"];
 const pythonProjectDeps = ["flake8", "mypy", "pytest", "pip-audit"];
 const goProjectDeps = ["golang.org/x/tools/cmd/deadcode", "golang.org/x/vuln/cmd/govulncheck"];
 
@@ -213,7 +213,7 @@ describe("anvil doctor command", () => {
                 "├── prettier@3.0.0",
                 "├── vitest@3.0.0",
                 "├── knip@5.0.0",
-                "└── better-npm-audit-extra@1.0.0",
+                "└── typescript-extra@1.0.0",
               ].join("\n"),
             });
           }
@@ -230,7 +230,6 @@ describe("anvil doctor command", () => {
       "Run bun install to restore project dependencies.",
     );
     expect(byName(checks, "typescript dependency: typescript").status).toBe("fail");
-    expect(byName(checks, "typescript dependency: better-npm-audit").status).toBe("fail");
     expect(byName(checks, "typescript dependency: prettier").status).toBe("pass");
     expect(byName(checks, "typescript dependency: prettier").message).toContain("is installed");
   });
@@ -503,7 +502,7 @@ describe("anvil doctor command", () => {
     expect(allText).toContain("anvil init");
   });
 
-  test("audit uses the Bun better-npm-audit command for Bun TypeScript projects", async () => {
+  test("audit uses the native Bun audit command for Bun TypeScript projects", async () => {
     const calls: Array<{ command: string; args: string[] }> = [];
     const checks = await checkAudit(
       "typescript",
@@ -517,7 +516,7 @@ describe("anvil doctor command", () => {
       "bun",
     );
 
-    expect(calls).toEqual([{ command: "bunx", args: ["better-npm-audit", "audit"] }]);
+    expect(calls).toEqual([{ command: "bun", args: ["audit", "--audit-level", "high"] }]);
     expect(byName(checks, "dependency audit").status).toBe("pass");
     expect(byName(checks, "dependency audit").message).toBe("dependency audit passed");
   });
@@ -539,10 +538,10 @@ describe("anvil doctor command", () => {
       "bun",
     );
 
-    expect(calls).toEqual([{ command: "bunx", args: ["better-npm-audit", "audit"], cwd: scratch }]);
+    expect(calls).toEqual([{ command: "bun", args: ["audit", "--audit-level", "high"], cwd: scratch }]);
     const audit = byName(checks, "dependency audit");
     expect(audit.status).toBe("fail");
-    expect(audit.message).toContain("bunx better-npm-audit audit exited 7");
+    expect(audit.message).toContain("bun audit --audit-level high exited 7");
     expect(audit.instruction).toBe("vulnerable package found");
   });
 
@@ -558,7 +557,7 @@ describe("anvil doctor command", () => {
 
     const audit = byName(checks, "dependency audit");
     expect(audit.status).toBe("fail");
-    expect(audit.instruction).toBe("Run bunx better-npm-audit audit for details.");
+    expect(audit.instruction).toBe("Run bun audit --audit-level high for details.");
   });
 
   test("language-specific project dependency checks cover Go and Python", async () => {

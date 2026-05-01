@@ -48,6 +48,7 @@ const requiredPythonManifestFiles = [
   ".gitattributes",
   ".editorconfig",
   ".gitleaks.toml",
+  "flake.nix",
   "AGENTS.md",
   "README.md",
 ];
@@ -261,8 +262,16 @@ function assertLockfile(projectDir: string, expectedFiles: string[]): void {
 
 function assertGeneratedDocsAndSeedThresholds(projectDir: string): void {
   const agentsText = readFileSync(path.join(projectDir, "AGENTS.md"), "utf8");
+  const readmeText = readFileSync(path.join(projectDir, "README.md"), "utf8");
+  const flakeText = readFileSync(path.join(projectDir, "flake.nix"), "utf8");
   const agentsLines = agentsText.trimEnd().split(/\r?\n/);
   expect(agentsLines.length).toBeLessThanOrEqual(40);
+  expect(agentsText).toContain("nix develop path:.");
+  expect(readmeText).toContain("nix develop path:.");
+  expect(flakeText).toContain("pkgs.python311");
+  expect(flakeText).toContain("pkgs.uv");
+  expect(flakeText).not.toContain("pkgs.go");
+  expect(flakeText).not.toContain("pkgs.bun");
   expect(agentsText).toContain("src/seed/");
   expect(agentsText).not.toMatch(/\b(disposable|starter|temporary|throwaway)\b/i);
 

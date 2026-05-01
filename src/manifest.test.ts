@@ -7,6 +7,7 @@ import { describe, expect, test } from "bun:test";
 import { parse as parseYaml } from "yaml";
 
 import { getManifest, type Lang, type ManifestEntry, type ScaffoldContext } from "./manifest.ts";
+import type { PackageManager } from "./types.ts";
 import { previewScaffold, scaffold } from "./scaffold/engine.ts";
 
 const languages: Lang[] = ["typescript", "golang", "python"];
@@ -38,6 +39,7 @@ const expectedTypescriptTemplateFiles = [
   ".prettierrc.ejs",
   "package.json.ejs",
   "vitest.config.ts.ejs",
+  "flake.nix.ejs",
   "Makefile.ejs",
   ".pre-commit-config.yaml.ejs",
   ".gitignore.ejs",
@@ -46,6 +48,7 @@ const expectedTypescriptTemplateFiles = [
 ];
 const expectedGolangTemplateFiles = [
   ".golangci.yml.ejs",
+  "flake.nix.ejs",
   "go.mod.ejs",
   "Makefile.ejs",
   ".pre-commit-config.yaml.ejs",
@@ -69,6 +72,7 @@ const expectedPythonStaticFiles = [
 const expectedPythonTemplateFiles = [
   "pyproject.toml.ejs",
   ".flake8.ejs",
+  "flake.nix.ejs",
   "Makefile.ejs",
   ".pre-commit-config.yaml.ejs",
   ".gitignore.ejs",
@@ -76,9 +80,9 @@ const expectedPythonTemplateFiles = [
   "README.md.ejs",
 ];
 const expectedRanges: Record<Lang, { min: number; max: number }> = {
-  typescript: { min: 23, max: 30 },
-  golang: { min: 19, max: 28 },
-  python: { min: 18, max: 24 },
+  typescript: { min: 24, max: 31 },
+  golang: { min: 20, max: 30 },
+  python: { min: 19, max: 25 },
 };
 const expectedSeedDests: Record<Lang, string[]> = {
   typescript: [
@@ -91,6 +95,7 @@ const expectedSeedDests: Record<Lang, string[]> = {
   ],
   golang: [
     "cmd/app/main.go",
+    "cmd/app/main_test.go",
     "internal/seed/constants.go",
     "internal/seed/enums.go",
     "internal/seed/errors.go",
@@ -134,7 +139,7 @@ function seedEntries(lang: Lang): ManifestEntry[] {
 
   if (lang === "golang") {
     return entries.filter(
-      (entry) => entry.dest.startsWith("internal/seed/") || entry.dest === "cmd/app/main.go",
+      (entry) => entry.dest.startsWith("internal/seed/") || entry.dest.startsWith("cmd/app/"),
     );
   }
 
@@ -209,6 +214,15 @@ async function renderGolangTemplate(
   return ejs.render(template, makeContext("golang", overrides));
 }
 
+async function renderPythonTemplate(
+  relativePath: string,
+  overrides: Partial<ScaffoldContext> = {},
+): Promise<string> {
+  const template = await pythonTemplateFile(relativePath).text();
+
+  return ejs.render(template, makeContext("python", overrides));
+}
+
 async function renderGolangRootTemplate(
   relativePath: string,
   overrides: Partial<ScaffoldContext> = {},
@@ -227,6 +241,25 @@ function makefileTargetRecipe(source: string, target: string): string {
 
   expect(match).not.toBeNull();
   return match?.[0] ?? "";
+}
+
+function expectContainsAll(source: string, snippets: readonly string[]): void {
+  for (const snippet of snippets) {
+    expect(source, `expected rendered template to contain ${snippet}`).toContain(snippet);
+  }
+}
+
+function expectContainsNone(source: string, snippets: readonly string[]): void {
+  for (const snippet of snippets) {
+    expect(source, `expected rendered template not to contain ${snippet}`).not.toContain(snippet);
+  }
+}
+
+function expectContainsPackage(source: string, packageName: string): void {
+  const escapedPackageName = packageName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  expect(source, `expected rendered template to contain exact package token pkgs.${packageName}`).toMatch(
+    new RegExp(`(^|[^A-Za-z0-9_-])pkgs\\.${escapedPackageName}(?![-A-Za-z0-9_])`),
+  );
 }
 
 async function assertGofmtAccepts(source: string): Promise<void> {
@@ -502,15 +535,93 @@ describe("scaffold manifests", () => {
     }
   });
 
-  test("Go app entrypoint is rendered from a template source", async () => {
-    const entry = getManifest("golang").entries.find((candidate) => candidate.dest === "cmd/app/main.go");
+  test("TypeScript generated Nix shell stays TypeScript-specific across package managers", async () => {
+    const packageManagers: PackageManager[] = ["bun", "npm", "pnpm", "yarn"];
+
+    for (const packageManager of packageManagers) {
+      const rendered = await renderTypescriptTemplate("flake.nix.ejs", { packageManager });
+
+      expectContainsAll(rendered, [
+        "pkgs.nodejs_22",
+        "pkgs.node-gyp",
+        "pkgs.python311",
+        "pkgs.gcc",
+        "pkgs.gnumake",
+        "pkgs.git",
+        "pkgs.gitleaks",
+        "pkgs.pre-commit",
+      ]);
+      expectContainsNone(rendered, [
+        "pkgs.go",
+        "pkgs.govulncheck",
+        "pkgs.golangci-lint",
+        "pkgs.go-tools",
+        "pkgs.gotools",
+        "pkgs.uv",
+      ]);
+    }
+
+    expect(await renderTypescriptTemplate("flake.nix.ejs", { packageManager: "bun" })).toContain("pkgs.bun");
+    expect(await renderTypescriptTemplate("flake.nix.ejs", { packageManager: "npm" })).not.toContain("pkgs.bun");
+    expect(await renderTypescriptTemplate("flake.nix.ejs", { packageManager: "pnpm" })).toContain("pkgs.pnpm");
+    expect(await renderTypescriptTemplate("flake.nix.ejs", { packageManager: "yarn" })).toContain("pkgs.yarn");
+  });
+
+  test("Go generated Nix shell includes only Go and shared validation tools", async () => {
+    const rendered = await renderGolangTemplate("flake.nix.ejs");
+
+    expectContainsPackage(rendered, "go");
+    expectContainsAll(rendered, [
+      "pkgs.golangci-lint",
+      "pkgs.govulncheck",
+      "pkgs.go-tools",
+      "pkgs.gotools",
+      "pkgs.gnumake",
+      "pkgs.git",
+      "pkgs.gitleaks",
+      "pkgs.pre-commit",
+      "deadcode",
+      "go-mutesting",
+    ]);
+    expectContainsNone(rendered, ["pkgs.bun", "pkgs.nodejs_22", "pkgs.node-gyp", "pkgs.python311", "pkgs.uv"]);
+  });
+
+  test("Python generated Nix shell includes only Python and shared validation tools", async () => {
+    const rendered = await renderPythonTemplate("flake.nix.ejs");
+
+    expectContainsAll(rendered, [
+      "pkgs.python311",
+      "pkgs.uv",
+      "pkgs.gnumake",
+      "pkgs.git",
+      "pkgs.gitleaks",
+      "pkgs.pre-commit",
+    ]);
+    expectContainsNone(rendered, [
+      "pkgs.bun",
+      "pkgs.nodejs_22",
+      "pkgs.go",
+      "pkgs.govulncheck",
+      "pkgs.golangci-lint",
+      "pkgs.go-tools",
+      "pkgs.gotools",
+    ]);
+    expect(rendered).toContain("UV_PYTHON_PREFERENCE=only-system");
+    expect(rendered).not.toContain("UV_PYTHON=");
+  });
+
+  test.each([
+    ["cmd/app/main.go"],
+    ["cmd/app/main_test.go"],
+  ])("Go app file %s is rendered from a template source", async (dest) => {
+    const entry = getManifest("golang").entries.find((candidate) => candidate.dest === dest);
 
     expect(entry).toMatchObject({
-      dest: "cmd/app/main.go",
-      src: "src/templates/golang/cmd/app/main.go.ejs",
+      dest,
+      src: `src/templates/golang/${dest}.ejs`,
       source: "template",
     });
-    expect(await golangTemplateFile("cmd/app/main.go.ejs").exists()).toBe(true);
+    expect(await golangTemplateFile(`${dest}.ejs`).exists()).toBe(true);
   });
 
   test("Go dynamic root template files exist at their manifest source paths", async () => {
@@ -580,11 +691,16 @@ describe("scaffold manifests", () => {
 
     const lintRecipe = makefileTargetRecipe(rendered, "lint");
     const typecheckRecipe = makefileTargetRecipe(rendered, "typecheck");
+    const crapRecipe = makefileTargetRecipe(rendered, "crap");
 
-    expect(rendered).toMatch(/^tools\/go-analyzers\/bin\/anvil-lint:\n\t(?:\$\(MAKE\)|make) -C tools\/go-analyzers build$/m);
+    expect(rendered).toMatch(
+      /^tools\/go-analyzers\/bin\/anvil-lint tools\/go-analyzers\/bin\/crap-report:\n\t(?:\$\(MAKE\)|make) -C tools\/go-analyzers build$/m,
+    );
     expect(lintRecipe).toContain("go vet -vettool=tools/go-analyzers/bin/anvil-lint ./...");
     expect(typecheckRecipe).toContain("go vet ./...");
     expect(typecheckRecipe).toContain("staticcheck ./...");
+    expect(crapRecipe).toContain("tools/go-analyzers/bin/crap-report");
+    expect(crapRecipe).not.toContain("go run ./tools/go-analyzers");
   });
 
   test("Go pre-commit template wires tier-1 hooks to pre-commit and check to pre-push", async () => {
@@ -655,11 +771,17 @@ describe("scaffold manifests", () => {
   });
 
   test("Go app entrypoint template renders gofmt-canonical source", async () => {
-    const rendered = await renderGolangTemplate("cmd/app/main.go.ejs", {
-      projectName: "example.com/service",
-    });
+    const sources = await Promise.all(
+      ["cmd/app/main.go.ejs", "cmd/app/main_test.go.ejs"].map((template) =>
+        renderGolangTemplate(template, {
+          projectName: "example.com/service",
+        }),
+      ),
+    );
 
-    await assertGofmtAccepts(rendered);
+    for (const rendered of sources) {
+      await assertGofmtAccepts(rendered);
+    }
   });
 
   test("Go static manifest source paths exist", async () => {
@@ -685,15 +807,15 @@ describe("scaffold manifests", () => {
 
     expect(packageJson.name).toBe("example");
     expect(packageJson.dependencies.pino).toBeDefined();
-    expect(packageJson.devDependencies["better-npm-audit"]).toBeDefined();
+    expect(packageJson.devDependencies["better-npm-audit"]).toBeUndefined();
     expect(packageJson.devDependencies["@stryker-mutator/core"]).toBeDefined();
     expect(packageJson.devDependencies["@stryker-mutator/vitest-runner"]).toBeDefined();
     expect(packageJson.devDependencies["@vitest/coverage-v8"]).toBeDefined();
     expect(packageJson.scripts.crap).toContain("tools/crap-score.ts");
     expect(makefile).toContain("PKG_EXEC ?= bunx");
     expect(makefile).toContain("lint: ## Run all linters (built-in + custom)\n\t$(PKG_EXEC) eslint .");
-    expect(makefile).toContain("$(PKG_EXEC) better-npm-audit audit");
-    expect(makefile).not.toContain("bun audit");
+    expect(makefile).toContain("bun audit --audit-level high");
+    expect(makefile).not.toContain("better-npm-audit");
   });
 
   test("TypeScript templates route non-Bun package manager commands", async () => {
@@ -747,7 +869,7 @@ describe("scaffold manifests", () => {
       expect(result.filesCreated).toContain("package.json");
       expect(renderedPackage.name).toBe("example");
       expect(renderedPackage.dependencies.pino).toBeDefined();
-      expect(renderedPackage.devDependencies["better-npm-audit"]).toBeDefined();
+      expect(renderedPackage.devDependencies["better-npm-audit"]).toBeUndefined();
       expect(await Bun.file(path.join(targetDir, ".anvil.lock")).exists()).toBe(true);
     } finally {
       await rm(targetDir, { recursive: true, force: true });

@@ -407,7 +407,7 @@ For ESLint: rule option in `eslint.config.mjs`. For Go: analyzer flag. For Flake
 
 **Choice:** Each scaffolded project includes explicit tool installation in its setup:
 
-- **TS/JS:** All tools as `devDependencies` in `package.json` (eslint, prettier, vitest, knip, stryker, eslint-plugin-security, eslint-plugin-import, typescript, @typescript-eslint/eslint-plugin, @typescript-eslint/parser). Seed logger: `pino` as a `dependency` (D-61). Bun projects also include `better-npm-audit` (D-58). Global tools: `gitleaks`, `pre-commit` (documented in README, checked by `anvil doctor`).
+- **TS/JS:** All tools as `devDependencies` in `package.json` (eslint, prettier, vitest, knip, stryker, eslint-plugin-security, eslint-plugin-import, typescript, @typescript-eslint/eslint-plugin, @typescript-eslint/parser). Seed logger: `pino` as a `dependency` (D-61). Bun projects use Bun's native audit command (D-58). Global tools: `gitleaks`, `pre-commit` (documented in README, checked by `anvil doctor`).
 - **Go:** Module-vendored tools in `tools/tools.go` using blank import pattern (`_ "github.com/golangci/golangci-lint/..."`), plus `go install` targets in Makefile. Tools are version-pinned in `go.mod` and installed to `GOBIN` via `go install` — this is Go's standard project-local tool pattern. Global tools: `gitleaks`, `pre-commit`.
 - **Python:** Dev dependencies in `pyproject.toml` `[project.optional-dependencies.dev]` installed via `uv pip install -e ".[dev]"` (ruff, flake8, mypy, pytest, pytest-cov, pytest-crap, vulture, mutmut, pip-audit). Bandit S rules are provided by Ruff's `S` rule set — no separate `bandit` package needed. Global tools: `gitleaks`, `pre-commit`.
 
@@ -761,13 +761,13 @@ No configuration for test directory mapping in v1. If the user uses a non-standa
 
 ---
 
-## D-58: Bun audit fallback
+## D-58: Bun audit
 
-**Choice:** Bun does not provide a `bun audit` command. For Bun-managed TS/JS projects, the `make audit` target (Tier 2 / `make check`) uses `$(PKG_EXEC) better-npm-audit audit` as the audit command. `better-npm-audit` is added to `devDependencies` for Bun projects only (D-35). If the tool is not installed, the audit step fails — same hard-fail policy as every other missing required tool. `anvil doctor` is the supported recovery path (it detects the missing devDep and tells the user to `bun install`).
+**Choice:** Bun-managed TS/JS projects use `bun audit --audit-level high` for the `make audit` target (Tier 2 / `make check`) and package `audit` script. Bun itself is the required audit tool for Bun projects; no npm-lockfile-based audit shim is added to `devDependencies`. If the audit command finds high or critical advisories, the step fails — same hard-fail policy as every other missing or failing required tool. `anvil doctor` is the supported recovery path (it runs the same command and tells the user to inspect failures).
 
-**Rationale:** Bun's CLI has no audit subcommand. Rather than silently skipping security auditing, we use a well-maintained npm-compatible alternative. Hard-failing on missing tooling is consistent with the rest of the toolchain (govulncheck, pip-audit, gitleaks all hard-fail when missing) — soft-warning here would create a special case that lets supply-chain regressions slip through unnoticed.
+**Rationale:** Bun now provides a native audit command that understands Bun lockfiles, while npm-lockfile-based shims fail in Bun-only projects. The high/critical threshold matches the generated quality gate's intent and avoids breaking clean scaffolds on low/moderate advisories in transitive dev tooling. Hard-failing high/critical audit failures is consistent with the rest of the toolchain (govulncheck, pip-audit, gitleaks all hard-fail when missing or failing) — soft-warning here would create a special case that lets severe supply-chain regressions slip through unnoticed.
 
-**Confidence:** Medium — may switch to `socket` CLI or Bun-native audit if/when available.
+**Confidence:** Medium — Bun audit behavior can still evolve, but using the package manager's native lockfile-aware command is the least surprising default.
 
 ---
 

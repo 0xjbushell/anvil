@@ -6,7 +6,7 @@ const pkgExecByManager = {
   pnpm: "pnpm exec",
   yarn: "yarn exec",
 };
-const auditCommand = pm === "bun" ? "$(PKG_EXEC) better-npm-audit audit" : `${pm} audit`;
+const auditCommand = pm === "bun" ? "bun audit --audit-level high" : `${pm} audit`;
 %>PKG_EXEC ?= <%= pkgExecByManager[pm] ?? "npx" %>
 
 .PHONY: lint format typecheck security test coverage deadcode crap audit mutate quality check fix

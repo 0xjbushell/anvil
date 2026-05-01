@@ -72,7 +72,7 @@ All commands operate on the current working directory. There is no `--target-dir
 - **QUAL-02**: Mutation testing — configured per language (StrykerJS, go-mutesting, mutmut) as on-demand quality gate.
 - **QUAL-03**: Dead code detection — configured per language (Knip, deadcode, Vulture) in pre-push hook.
 - **QUAL-04**: CRAP score — per-function scoring script (custom for TS/JS and Go; pytest-crap for Python) in pre-push hook.
-- **QUAL-05**: Dependency auditing — npm/pnpm/yarn audit, govulncheck, pip-audit in pre-push hook. Bun projects use `$(PKG_EXEC) better-npm-audit audit` (i.e. `bunx better-npm-audit audit`); `better-npm-audit` is added as a devDependency for Bun projects (D-58).
+- **QUAL-05**: Dependency auditing — bun/npm/pnpm/yarn audit, govulncheck, pip-audit in pre-push hook. Bun projects use `bun audit --audit-level high` so audits read the Bun lockfile directly and fail on high/critical advisories (D-58).
 
 ### Security (SEC-xx)
 

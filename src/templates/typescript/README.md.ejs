@@ -3,6 +3,7 @@
 ## Getting Started
 
 ```bash
+nix develop path:.
 <%= packageManager ?? "npm" %> install
 make check
 ```
@@ -28,5 +29,5 @@ coverage/      Test coverage reports (generated)
 
 ## Required External Tools
 
-Install `gitleaks` and `pre-commit` so `make security` and scaffolded git hooks work
-locally.
+Use `nix develop path:.` to enter the language-specific shell with Node/native build
+tools, `gitleaks`, and `pre-commit` available locally.

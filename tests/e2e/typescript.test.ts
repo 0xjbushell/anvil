@@ -71,6 +71,7 @@ const requiredTypeScriptManifestFiles = [
   ".gitattributes",
   ".editorconfig",
   ".gitleaks.toml",
+  "flake.nix",
   "AGENTS.md",
   "README.md",
 ];
@@ -262,8 +263,17 @@ function assertLockfile(projectDir: string, expectedFiles: string[]): void {
 }
 
 function assertGeneratedDocsAndSeedThresholds(projectDir: string): void {
-  const agentsLines = readFileSync(path.join(projectDir, "AGENTS.md"), "utf8").trimEnd().split(/\r?\n/);
+  const agentsText = readFileSync(path.join(projectDir, "AGENTS.md"), "utf8");
+  const readmeText = readFileSync(path.join(projectDir, "README.md"), "utf8");
+  const flakeText = readFileSync(path.join(projectDir, "flake.nix"), "utf8");
+  const agentsLines = agentsText.trimEnd().split(/\r?\n/);
   expect(agentsLines.length).toBeLessThanOrEqual(40);
+  expect(agentsText).toContain("nix develop path:.");
+  expect(readmeText).toContain("nix develop path:.");
+  expect(flakeText).toContain("pkgs.bun");
+  expect(flakeText).toContain("pkgs.gitleaks");
+  expect(flakeText).not.toContain("pkgs.go");
+  expect(flakeText).not.toContain("pkgs.uv");
 
   for (const relativePath of requiredTypeScriptManifestFiles.filter((filePath) => filePath.startsWith("src/seed/"))) {
     const lineCount = readFileSync(path.join(projectDir, relativePath), "utf8").trimEnd().split(/\r?\n/).length;

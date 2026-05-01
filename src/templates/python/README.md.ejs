@@ -3,6 +3,7 @@
 ## Setup
 
 ```bash
+nix develop path:.
 uv venv
 uv pip install -e ".[dev]"
 uv pip install -e tools/flake8-plugin/
@@ -31,5 +32,5 @@ tools/          Custom lint rules
 
 ## Required External Tools
 
-Install `uv`, `gitleaks`, and `pre-commit` so setup, security checks, and
-scaffolded git hooks work locally.
+Use `nix develop path:.` to enter the language-specific shell with Python, `uv`,
+`gitleaks`, and `pre-commit` available locally.

@@ -22,6 +22,7 @@ const requiredGoManifestFiles = [
   "internal/seed/constants.go",
   "internal/seed/enums.go",
   "cmd/app/main.go",
+  "cmd/app/main_test.go",
   "tools/tools.go",
   "tools/go-analyzers/cmd/anvil-lint/main.go",
   "tools/go-analyzers/cmd/crap-report/main.go",
@@ -67,6 +68,7 @@ const requiredGoManifestFiles = [
   ".gitattributes",
   ".editorconfig",
   ".gitleaks.toml",
+  "flake.nix",
   "AGENTS.md",
   "README.md",
 ];
@@ -247,7 +249,17 @@ if (!scaffoldTools.available) {
       assertLockfile(projectDir, expectedFiles);
 
       const agentsLines = readFileSync(path.join(projectDir, "AGENTS.md"), "utf8").trimEnd().split(/\r?\n/);
+      const agentsText = readFileSync(path.join(projectDir, "AGENTS.md"), "utf8");
+      const readmeText = readFileSync(path.join(projectDir, "README.md"), "utf8");
+      const flakeText = readFileSync(path.join(projectDir, "flake.nix"), "utf8");
       expect(agentsLines.length).toBeLessThanOrEqual(40);
+      expect(agentsText).toContain("nix develop path:.");
+      expect(readmeText).toContain("nix develop path:.");
+      expect(flakeText).toMatch(/(^|[^A-Za-z0-9_-])pkgs\.go(?![-A-Za-z0-9_])/);
+      expect(flakeText).toContain("pkgs.golangci-lint");
+      expect(flakeText).toContain("deadcode");
+      expect(flakeText).not.toContain("pkgs.bun");
+      expect(flakeText).not.toContain("pkgs.uv");
     }, commandTimeoutMs);
 
     test("go mod tidy and make test pass on clean seed code", () => {

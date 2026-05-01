@@ -441,7 +441,7 @@ All language-specific tools are declared as project dependencies and installed v
 
 **TS/JS:** Quality tools added to `package.json` `devDependencies`:
 - `eslint`, `prettier`, `vitest`, `@vitest/coverage-v8`, `knip`, `@stryker-mutator/core`, `eslint-plugin-security`, `eslint-plugin-import`, `typescript`, `@typescript-eslint/eslint-plugin`, `@typescript-eslint/parser`
-- Bun projects additionally include `better-npm-audit` (D-58 — Bun has no built-in audit command)
+- Bun projects use `bun audit --audit-level high` rather than an npm-lockfile audit shim (D-58)
 - Seed logger `pino` added as a `dependency` (not devDependency) — D-61
 
 **Go:** Tools vendored via `tools/tools.go` blank import pattern + Makefile `go install` targets (version-pinned in `go.mod`, installed to `GOBIN`):

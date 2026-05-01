@@ -8,13 +8,20 @@ import (
 )
 
 func main() {
+	os.Exit(run(seed.Greet))
+}
+
+type greetFunc func(string, seed.Language) (seed.SeedResult, error)
+
+func run(greet greetFunc) int {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, nil)))
 
-	result, err := seed.Greet("World", seed.DefaultLanguage)
+	result, err := greet("World", seed.DefaultLanguage)
 	if err != nil {
 		slog.Error("greeting failed", "error", err)
-		os.Exit(1)
+		return 1
 	}
 
 	slog.Info("greeting ready", "greeting", result.Greeting, "language", result.Language.String())
+	return 0
 }
