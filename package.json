@@ -24,6 +24,12 @@
     "lint": "bunx tsc --noEmit",
     "mutation": "stryker run",
     "quality": "bun mutation",
+    "nix:env:check": "scripts/nix-run.sh release -- scripts/require-tools.sh release",
+    "nix:agent:check": "scripts/nix-run.sh release -- scripts/require-tools.sh release -- bun agent:check",
+    "nix:fixtures": "scripts/nix-run.sh release -- scripts/require-tools.sh release -- bun fixtures",
+    "nix:test": "scripts/nix-run.sh release -- scripts/require-tools.sh release -- bun test",
+    "nix:build": "scripts/nix-run.sh release -- scripts/require-tools.sh release -- bun run build",
+    "nix:mutation": "scripts/nix-run.sh release -- scripts/require-tools.sh release -- bun mutation",
     "format": "echo \"format not yet configured\""
   },
   "dependencies": {

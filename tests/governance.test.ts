@@ -152,13 +152,19 @@ describe('TIX-000070 governance', () => {
 
     const steps = wf?.jobs?.fixtures?.steps ?? [];
     expect(steps.some((step: { uses?: string }) => step.uses === 'actions/checkout@v4')).toBe(true);
-    expect(steps.some((step: { uses?: string }) => step.uses === 'oven-sh/setup-bun@v2')).toBe(true);
+    expect(steps.some((step: { uses?: string }) => step.uses === 'cachix/install-nix-action@v31')).toBe(true);
     const runSteps = steps.flatMap((step: { run?: string }) =>
       typeof step.run === 'string' ? [step.run] : [],
     );
-    const installIndex = runSteps.findIndex((run: string) => run.includes('bun install --frozen-lockfile'));
-    const fixturesIndex = runSteps.findIndex((run: string) => run.trim() === 'bun fixtures');
-    const mutationIndex = runSteps.findIndex((run: string) => run.trim() === 'bun mutation');
+    const installIndex = runSteps.findIndex((run: string) =>
+      run.trim() === 'scripts/nix-run.sh release -- bun install --frozen-lockfile',
+    );
+    const fixturesIndex = runSteps.findIndex((run: string) =>
+      run.trim() === 'scripts/nix-run.sh release -- scripts/require-tools.sh release -- bun fixtures',
+    );
+    const mutationIndex = runSteps.findIndex((run: string) =>
+      run.trim() === 'scripts/nix-run.sh release -- scripts/require-tools.sh release -- bun mutation',
+    );
     expect(installIndex).toBeGreaterThanOrEqual(0);
     expect(fixturesIndex).toBeGreaterThan(installIndex);
     expect(mutationIndex).toBeGreaterThan(fixturesIndex);

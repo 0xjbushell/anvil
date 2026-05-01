@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           clean: true
-      - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
-      - run: bun fixtures
-      - run: bun mutation
+      - uses: cachix/install-nix-action@v31
+      - run: scripts/nix-run.sh release -- bun install --frozen-lockfile
+      - run: scripts/nix-run.sh release -- scripts/require-tools.sh release -- bun fixtures
+      - run: scripts/nix-run.sh release -- scripts/require-tools.sh release -- bun mutation
