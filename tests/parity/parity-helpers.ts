@@ -1,11 +1,18 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { expect } from "bun:test";
 import { ESLint } from "eslint";
+
+import {
+  assertRequiredTools,
+  commandRequirement,
+  formatRequiredToolsError,
+  python311Requirement,
+} from "../support/required-tools.ts";
 
 const require = createRequire(import.meta.url);
 const parser = require("@typescript-eslint/parser");
@@ -40,11 +47,6 @@ export interface LintResult {
   column: number;
 }
 
-export interface ToolGate {
-  available: boolean;
-  missing: string[];
-}
-
 export interface RuleFixture {
   code: string;
   filename?: string;
@@ -76,7 +78,6 @@ interface CommandResult {
   error?: Error;
 }
 
-let goGateCache: ToolGate | undefined;
 let goAnalyzerBinary: string | undefined;
 let goAnalyzerTempDir: string | undefined;
 
@@ -91,64 +92,39 @@ export function source(value: string): string {
   return lines.map((line) => line.slice(indent)).join("\n");
 }
 
-export function availability(required: string[]): ToolGate {
-  const missing = required.filter((command) => {
-    if (path.isAbsolute(command)) {
-      return !existsSync(command) || !statSync(command).isFile();
-    }
+export function requireGoAnalyzer(): void {
+  if (goAnalyzerBinary !== undefined) {
+    return;
+  }
 
-    return runCommand("which", [command], repoRoot, 5_000).status !== 0;
+  assertRequiredTools("Go parity", [commandRequirement("go")], {
+    cwd: repoRoot,
+    nixEntrypoint: "bun run nix:test -- tests/parity",
   });
-
-  return { available: missing.length === 0, missing };
-}
-
-export function skipReason(gate: ToolGate): string {
-  return gate.available ? "" : ` (missing: ${gate.missing.join(", ")})`;
-}
-
-export function goAnalyzerGate(): ToolGate {
-  if (goGateCache !== undefined) {
-    return goGateCache;
-  }
-
-  const toolGate = availability(["go"]);
-  if (!toolGate.available) {
-    goGateCache = toolGate;
-    return goGateCache;
-  }
 
   const tempDir = mkdtempSync(path.join(tmpdir(), "anvil-parity-vettool-"));
   const binaryPath = path.join(tempDir, "anvil-lint");
   const build = runCommand("go", ["build", "-o", binaryPath, "./cmd/anvil-lint"], goAnalyzerRoot);
   if (build.status !== 0) {
     rmSync(tempDir, { recursive: true, force: true });
-    goGateCache = {
-      available: false,
-      missing: [`go analyzer build failed: ${build.stderr || build.stdout}`],
-    };
-    return goGateCache;
+    throw new Error(
+      formatRequiredToolsError(
+        "Go parity",
+        [`go analyzer build failed: ${build.stderr || build.stdout}`],
+        "bun run nix:test -- tests/parity",
+      ),
+    );
   }
 
   goAnalyzerBinary = binaryPath;
   goAnalyzerTempDir = tempDir;
-  goGateCache = { available: true, missing: [] };
-  return goGateCache;
 }
 
-export function pythonParityGate(): ToolGate {
-  const toolGate = availability(["python3", "uv"]);
-  if (!toolGate.available) {
-    return toolGate;
-  }
-
-  const version = runCommand(
-    "python3",
-    ["-c", "import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)"],
-    repoRoot,
-    5_000,
-  );
-  return version.status === 0 ? toolGate : { available: false, missing: ["python3>=3.11"] };
+export function requirePythonParityTools(): void {
+  assertRequiredTools("Python parity", [python311Requirement(), commandRequirement("uv")], {
+    cwd: repoRoot,
+    nixEntrypoint: "bun run nix:test -- tests/parity",
+  });
 }
 
 export async function runEslintRule(
@@ -339,6 +315,13 @@ function goAnalyzerFlags(analyzerName: string): string[] {
 }
 
 function parseGoVetOutput(ruleId: string, output: string): LintResult[] {
+  return [
+    ...parseGoVetTextOutput(ruleId, output),
+    ...parseGoVetJsonOutput(ruleId, output),
+  ];
+}
+
+function parseGoVetTextOutput(ruleId: string, output: string): LintResult[] {
   return output
     .split(/\r?\n/)
     .flatMap((line) => {
@@ -356,6 +339,106 @@ function parseGoVetOutput(ruleId: string, output: string): LintResult[] {
         },
       ];
     });
+}
+
+function parseGoVetJsonOutput(ruleId: string, output: string): LintResult[] {
+  return extractJsonObjects(output).flatMap((jsonText) => {
+    const parsed = JSON.parse(jsonText) as unknown;
+    if (!isGoVetJson(parsed)) {
+      return [];
+    }
+
+    const findings: LintResult[] = [];
+    for (const packageDiagnostics of Object.values(parsed)) {
+      const diagnostics = packageDiagnostics[ruleId] ?? [];
+      for (const diagnostic of diagnostics) {
+        const position = diagnostic.posn.match(/:(\d+):(\d+)$/);
+        if (position === null) {
+          continue;
+        }
+        findings.push({
+          ruleId,
+          line: Number(position[1]),
+          column: Number(position[2]),
+          message: diagnostic.message,
+        });
+      }
+    }
+    return findings;
+  });
+}
+
+function extractJsonObjects(output: string): string[] {
+  const objects: string[] = [];
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = 0; index < output.length; index += 1) {
+    const char = output[index];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === "\"") {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === "\"") {
+      inString = true;
+      continue;
+    }
+
+    if (char === "{") {
+      if (depth === 0) {
+        start = index;
+      }
+      depth += 1;
+      continue;
+    }
+
+    if (char === "}" && depth > 0) {
+      depth -= 1;
+      if (depth === 0 && start >= 0) {
+        objects.push(output.slice(start, index + 1));
+        start = -1;
+      }
+    }
+  }
+
+  return objects;
+}
+
+function isGoVetJson(
+  value: unknown,
+): value is Record<string, Record<string, Array<{ posn: string; message: string }>>> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+
+  return Object.values(value).every(
+    (packageDiagnostics) =>
+      typeof packageDiagnostics === "object" &&
+      packageDiagnostics !== null &&
+      !Array.isArray(packageDiagnostics) &&
+      Object.values(packageDiagnostics).every(
+        (diagnostics) =>
+          Array.isArray(diagnostics) &&
+          diagnostics.every(
+            (diagnostic) =>
+              typeof diagnostic === "object" &&
+              diagnostic !== null &&
+              "posn" in diagnostic &&
+              typeof diagnostic.posn === "string" &&
+              "message" in diagnostic &&
+              typeof diagnostic.message === "string",
+          ),
+      ),
+  );
 }
 
 function parseFlake8Output(ruleId: string, output: string): LintResult[] {

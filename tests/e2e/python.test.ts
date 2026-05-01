@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { getManifest } from "../../src/manifest.ts";
 import { isTextFile, normalizeForChecksum } from "../../src/scaffold/lockfile.ts";
 import type { AnvilLockfile, ScaffoldContext } from "../../src/types.ts";
+import { assertRequiredTools, commandRequirement, python311Requirement } from "../support/required-tools.ts";
 
 const repoRoot = path.resolve(import.meta.dir, "../..");
 const bunExecutable = process.execPath;
@@ -17,7 +18,7 @@ const sandboxRoot = path.join(repoRoot, ".sandbox", `e2e-python-${randomUUID()}`
 const commandTimeoutMs = 600_000;
 const suiteTimeoutMs = 900_000;
 const seedLineThreshold = 100;
-const suiteStartMs = Date.now();
+const suiteStartMs = performance.now();
 
 const requiredPythonManifestFiles = [
   "src/seed/__init__.py",
@@ -60,11 +61,6 @@ interface CommandResult {
   error?: Error;
 }
 
-interface ToolGate {
-  available: boolean;
-  missing: string[];
-}
-
 interface LabeledCommandResult {
   label: string;
   result: CommandResult;
@@ -93,32 +89,21 @@ function run(command: string, args: string[], cwd: string, timeout = commandTime
   };
 }
 
-function availability(required: string[]): ToolGate {
-  const missing = required.filter((command) => {
-    if (path.isAbsolute(command)) {
-      return !existsSync(command) || !statSync(command).isFile();
-    }
-
-    const result = run("which", [command], repoRoot, 5_000);
-    return result.status !== 0;
-  });
-
-  return { available: missing.length === 0, missing };
-}
-
-function pythonToolGate(): ToolGate {
-  const baseGate = availability([bunExecutable, "python3", "uv", "make"]);
-  if (!baseGate.available) {
-    return baseGate;
-  }
-
-  const version = run("python3", ["-c", "import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)"], repoRoot, 5_000);
-  return version.status === 0 ? baseGate : { available: false, missing: ["python3>=3.11"] };
-}
-
-const scaffoldTools = pythonToolGate();
-const gitleaksTools = availability(["gitleaks"]);
-const checkTools = scaffoldTools.available ? gitleaksTools : scaffoldTools;
+assertRequiredTools(
+  "Python scaffold e2e",
+  [
+    commandRequirement("bun", bunExecutable),
+    python311Requirement(),
+    commandRequirement("uv"),
+    commandRequirement("make"),
+    commandRequirement("gitleaks"),
+  ],
+  {
+    cwd: repoRoot,
+    env: commandEnv(),
+    nixEntrypoint: "bun run nix:test -- tests/e2e/python.test.ts",
+  },
+);
 
 function expectSuccess(result: CommandResult, label: string): void {
   expect(result.error, `${label} failed to start`).toBeUndefined();
@@ -305,17 +290,12 @@ function assertInstallResults(results: LabeledCommandResult[]): void {
 }
 
 afterAll(() => {
-  const suiteDurationMs = Date.now() - suiteStartMs;
+  const suiteDurationMs = performance.now() - suiteStartMs;
   rmSync(sandboxRoot, { recursive: true, force: true });
   expect(suiteDurationMs, "Python E2E suite duration").toBeLessThanOrEqual(suiteTimeoutMs);
 });
 
-if (!scaffoldTools.available) {
-  describe("Python scaffold e2e", () => {
-    test.skip(`requires missing tools: ${scaffoldTools.missing.join(", ")}`, () => {});
-  });
-} else {
-  describe("Python scaffold e2e", () => {
+describe("Python scaffold e2e", () => {
     let positiveProjectDir = "";
     let installResults: LabeledCommandResult[] = [];
 
@@ -351,8 +331,7 @@ if (!scaffoldTools.available) {
       expect(`${coverageResult.stdout}\n${coverageResult.stderr}`).toMatch(/TOTAL\s+\d+\s+\d+(?:\s+\d+\s+\d+)?\s+\d+%/);
     }, commandTimeoutMs);
 
-    const makeCheckTest = checkTools.available ? test : test.skip;
-    makeCheckTest(`make check passes when the full Python quality toolchain is present${checkTools.available ? "" : ` (missing: ${checkTools.missing.join(", ")})`}`, () => {
+    test("make check passes when the full Python quality toolchain is present", () => {
       assertInstallResults(installResults);
       expectSuccess(run("make", ["check"], positiveProjectDir), "make check");
     }, commandTimeoutMs);
@@ -413,5 +392,4 @@ if (!scaffoldTools.available) {
       );
       expectSuccess(run("make", ["lint"], projectDir), "make lint after restoring type-organization mutation");
     }, commandTimeoutMs);
-  });
-}
+});

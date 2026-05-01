@@ -8,6 +8,7 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { getManifest } from "../../src/manifest.ts";
 import { isTextFile, normalizeForChecksum } from "../../src/scaffold/lockfile.ts";
 import type { AnvilLockfile, ScaffoldContext } from "../../src/types.ts";
+import { assertRequiredTools, commandRequirement } from "../support/required-tools.ts";
 
 const repoRoot = path.resolve(import.meta.dir, "../..");
 const bunExecutable = process.execPath;
@@ -80,27 +81,23 @@ interface CommandResult {
   error?: Error;
 }
 
-interface ToolGate {
-  available: boolean;
-  missing: string[];
-}
-
-function availability(required: string[]): ToolGate {
-  const missing = required.filter((command) => {
-    if (path.isAbsolute(command)) {
-      return !existsSync(command) || !statSync(command).isFile();
-    }
-
-    const result = spawnSync("which", [command], { encoding: "utf8", timeout: 5_000 });
-    return result.status !== 0;
-  });
-
-  return { available: missing.length === 0, missing };
-}
-
-const scaffoldTools = availability([bunExecutable, "go", "make"]);
-const lintTools = availability(["go", "make", "golangci-lint"]);
-const checkTools = availability(["go", "make", "golangci-lint", "staticcheck", "deadcode", "govulncheck", "gitleaks"]);
+assertRequiredTools(
+  "Go scaffold e2e",
+  [
+    commandRequirement("bun", bunExecutable),
+    commandRequirement("go"),
+    commandRequirement("make"),
+    commandRequirement("golangci-lint"),
+    commandRequirement("staticcheck"),
+    commandRequirement("deadcode"),
+    commandRequirement("govulncheck"),
+    commandRequirement("gitleaks"),
+  ],
+  {
+    cwd: repoRoot,
+    nixEntrypoint: "bun run nix:test -- tests/e2e/golang.test.ts",
+  },
+);
 
 function run(command: string, args: string[], cwd: string, timeout = commandTimeoutMs): CommandResult {
   const result = spawnSync(command, args, {
@@ -235,12 +232,7 @@ afterAll(() => {
   rmSync(sandboxRoot, { recursive: true, force: true });
 });
 
-if (!scaffoldTools.available) {
-  describe("Go scaffold e2e", () => {
-    test.skip(`requires missing tools: ${scaffoldTools.missing.join(", ")}`, () => {});
-  });
-} else {
-  describe("Go scaffold e2e", () => {
+describe("Go scaffold e2e", () => {
     test("scaffolds expected files, validates .anvil.lock, and keeps AGENTS.md concise", () => {
       const projectDir = scaffoldProject("valid-output");
       const expectedFiles = expectedManifestFiles("valid-output");
@@ -269,8 +261,7 @@ if (!scaffoldTools.available) {
       expectSuccess(run("make", ["test"], projectDir), "make test");
     }, commandTimeoutMs);
 
-    const lintTest = lintTools.available ? test : test.skip;
-    lintTest("make lint passes and lazily builds the custom analyzer binary", () => {
+    test("make lint passes and lazily builds the custom analyzer binary", () => {
       const projectDir = scaffoldProject("valid-lint");
       const analyzerBinary = path.join(projectDir, "tools/go-analyzers/bin/anvil-lint");
 
@@ -279,14 +270,13 @@ if (!scaffoldTools.available) {
       expect(existsSync(analyzerBinary)).toBe(true);
     }, commandTimeoutMs);
 
-    const checkTest = checkTools.available ? test : test.skip;
-    checkTest("make check passes when the full Go quality toolchain is present", () => {
+    test("make check passes when the full Go quality toolchain is present", () => {
       const projectDir = scaffoldProject("valid-check");
 
       expectSuccess(run("make", ["check"], projectDir), "make check");
     }, commandTimeoutMs);
 
-    lintTest("make lint fails when a custom analyzer violation is introduced", () => {
+    test("make lint fails when a custom analyzer violation is introduced", () => {
       const projectDir = scaffoldProject("invalid-lint");
       appendFileSync(path.join(projectDir, "internal/seed/seed.go"), "\n// TODO: implement later\n", "utf8");
 
@@ -295,5 +285,4 @@ if (!scaffoldTools.available) {
       expect(result.status, `make lint unexpectedly passed\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`).not.toBe(0);
       expect(`${result.stdout}\n${result.stderr}`).toContain("placeholder comment");
     }, commandTimeoutMs);
-  });
-}
+});

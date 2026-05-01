@@ -8,6 +8,7 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { getManifest } from "../../src/manifest.ts";
 import { isTextFile, normalizeForChecksum } from "../../src/scaffold/lockfile.ts";
 import type { AnvilLockfile, ScaffoldContext } from "../../src/types.ts";
+import { assertRequiredTools, commandRequirement } from "../support/required-tools.ts";
 
 const repoRoot = path.resolve(import.meta.dir, "../..");
 const bunExecutable = process.execPath;
@@ -17,7 +18,7 @@ const sandboxRoot = path.join(repoRoot, ".sandbox", `e2e-typescript-${randomUUID
 const commandTimeoutMs = 600_000;
 const suiteTimeoutMs = 600_000;
 const seedLineThreshold = 100;
-const suiteStartMs = Date.now();
+const suiteStartMs = performance.now();
 
 const requiredTypeScriptManifestFiles = [
   "src/seed/seed.ts",
@@ -83,11 +84,6 @@ interface CommandResult {
   error?: Error;
 }
 
-interface ToolGate {
-  available: boolean;
-  missing: string[];
-}
-
 function commandEnv(): NodeJS.ProcessEnv {
   return {
     ...process.env,
@@ -95,21 +91,20 @@ function commandEnv(): NodeJS.ProcessEnv {
   };
 }
 
-function availability(required: string[]): ToolGate {
-  const missing = required.filter((command) => {
-    if (path.isAbsolute(command)) {
-      return !existsSync(command) || !statSync(command).isFile();
-    }
-
-    const result = spawnSync("which", [command], { encoding: "utf8", timeout: 5_000, env: commandEnv() });
-    return result.status !== 0;
-  });
-
-  return { available: missing.length === 0, missing };
-}
-
-const scaffoldTools = availability([bunExecutable, "node", "make"]);
-const externalCheckTools = availability(["gitleaks"]);
+assertRequiredTools(
+  "TypeScript scaffold e2e",
+  [
+    commandRequirement("bun", bunExecutable),
+    commandRequirement("node"),
+    commandRequirement("make"),
+    commandRequirement("gitleaks"),
+  ],
+  {
+    cwd: repoRoot,
+    env: commandEnv(),
+    nixEntrypoint: "bun run nix:test -- tests/e2e/typescript.test.ts",
+  },
+);
 
 function run(command: string, args: string[], cwd: string, timeout = commandTimeoutMs): CommandResult {
   try {
@@ -299,17 +294,12 @@ function assertLintFailure(projectDir: string, label: string, expectedPattern: R
 }
 
 afterAll(() => {
-  const suiteDurationMs = Date.now() - suiteStartMs;
+  const suiteDurationMs = performance.now() - suiteStartMs;
   rmSync(sandboxRoot, { recursive: true, force: true });
   expect(suiteDurationMs, "TypeScript E2E suite duration").toBeLessThanOrEqual(suiteTimeoutMs);
 });
 
-if (!scaffoldTools.available) {
-  describe("TypeScript scaffold e2e", () => {
-    test.skip(`requires missing tools: ${scaffoldTools.missing.join(", ")}`, () => {});
-  });
-} else {
-  describe("TypeScript scaffold e2e", () => {
+describe("TypeScript scaffold e2e", () => {
     test("scaffolds expected files, validates .anvil.lock, and keeps generated guidance concise", () => {
       const projectDir = scaffoldProject("valid-output");
       const expectedFiles = expectedManifestFiles("valid-output");
@@ -332,8 +322,7 @@ if (!scaffoldTools.available) {
       expectSuccess(run("make", ["crap"], projectDir), "make crap");
     }, commandTimeoutMs);
 
-    const makeCheckTest = externalCheckTools.available ? test : test.skip;
-    makeCheckTest(`make check passes when external quality tools are available${externalCheckTools.available ? "" : ` (missing: ${externalCheckTools.missing.join(", ")})`}`, () => {
+    test("make check passes when external quality tools are available", () => {
       const projectDir = scaffoldProject("valid-check");
 
       installProject(projectDir);
@@ -369,5 +358,4 @@ if (!scaffoldTools.available) {
       );
       expectSuccess(run("make", ["lint"], projectDir), "make lint after restoring placeholder mutation");
     }, commandTimeoutMs);
-  });
-}
+});
