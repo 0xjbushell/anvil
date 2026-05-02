@@ -2,7 +2,7 @@ import type { Lang, LanguageManifest, ManifestEntry, ScaffoldContext } from "./t
 
 export type { FileSource, Lang, LanguageManifest, ManifestEntry, ScaffoldContext } from "./types.ts";
 
-const includeSeed = (ctx: ScaffoldContext): boolean => !ctx.hasExistingCode && !ctx.skipSeed;
+const includeSeed = (ctx: ScaffoldContext): boolean => !ctx.skipSeed;
 
 function staticEntry(lang: Lang, dest: string, when?: ManifestEntry["when"]): ManifestEntry {
   return {

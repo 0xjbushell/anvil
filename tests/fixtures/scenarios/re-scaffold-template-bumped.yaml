@@ -1,11 +1,16 @@
 name: re-scaffold-template-bumped
-description: Current CLI smoke scenario for the template-bumped re-scaffold input.
+description: Setup-backed re-scaffold scenario proving dry-run UPDATE classification for an older template.
 input: re-scaffold-template-bumped
+language: typescript
 args:
-  - --version
+  - init
+  - --lang
+  - typescript
+  - --non-interactive
+  - --dry-run
 expect:
   exit_code: 0
   stdout_contains:
-    - 0.1.0
-  stderr_empty: true
-  files_unchanged_from_input: true
+    - "Dry run: no files written."
+    - "Files to update: 1"
+  files_unchanged_after_setup: true

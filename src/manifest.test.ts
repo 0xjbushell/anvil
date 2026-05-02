@@ -353,7 +353,7 @@ describe("scaffold manifests", () => {
     expect(generatorEntries).toEqual([]);
   });
 
-  test("seed conditions account for existing code and explicit seed skips", () => {
+  test("seed conditions follow the authoritative skipSeed decision", () => {
     for (const lang of languages) {
       for (const entry of seedEntries(lang)) {
         expect(entry.when).toBeDefined();
@@ -364,7 +364,7 @@ describe("scaffold manifests", () => {
           false,
         );
         expect(entry.when?.(makeContext(lang, { hasExistingCode: true, skipSeed: false }))).toBe(
-          false,
+          true,
         );
         expect(entry.when?.(makeContext(lang, { hasExistingCode: false, skipSeed: false }))).toBe(
           true,

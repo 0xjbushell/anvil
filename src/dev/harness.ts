@@ -33,6 +33,7 @@ interface RunScenarioDeps {
 const repoRoot = path.resolve(import.meta.dir, "..", "..");
 const fixtureInputRoot = path.join(repoRoot, "tests", "fixtures", "inputs");
 const anvilEntrypoint = path.join(repoRoot, "bin", "anvil.ts");
+const setupBaselineIgnoredTopLevel = new Set([".git", "node_modules"]);
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {
   return typeof error === "object" && error !== null && "code" in error;
@@ -119,6 +120,15 @@ function runAnvil(args: string[], env: Scenario["env"], workdir: string): Promis
   return runProcess(bunExecutable(), [anvilEntrypoint, ...args], env, workdir);
 }
 
+function setupEnvironment(env: Scenario["env"]): Record<string, string> {
+  return {
+    ANVIL_REPO_ROOT: repoRoot,
+    ANVIL_BIN: anvilEntrypoint,
+    ANVIL_BUN: bunExecutable(),
+    ...env,
+  };
+}
+
 async function runSetup(env: Scenario["env"], workdir: string): Promise<ProcessResult | undefined> {
   const setupPath = path.join(workdir, "setup.sh");
   try {
@@ -138,7 +148,7 @@ async function runSetup(env: Scenario["env"], workdir: string): Promise<ProcessR
     throw error;
   }
 
-  return runProcess("sh", [setupPath], env, workdir);
+  return runProcess("sh", [setupPath], setupEnvironment(env), workdir);
 }
 
 function formatSetupFailures(result: ProcessResult): string[] {
@@ -155,12 +165,34 @@ function formatSetupFailures(result: ProcessResult): string[] {
   return [details.join("\n")];
 }
 
+async function copySetupBaseline(workdir: string): Promise<string> {
+  const baselineDir = await mkdtemp(path.join(tmpdir(), "anvil-fixtures-baseline-"));
+  try {
+    await rm(baselineDir, { recursive: true, force: true });
+    await cp(workdir, baselineDir, {
+      recursive: true,
+      preserveTimestamps: true,
+      filter: (source) => {
+        const relativePath = path.relative(workdir, source);
+        const topLevel = relativePath.split(path.sep)[0] ?? "";
+        return !setupBaselineIgnoredTopLevel.has(topLevel);
+      },
+    });
+  } catch (error) {
+    await rm(baselineDir, { recursive: true, force: true });
+    throw error;
+  }
+
+  return baselineDir;
+}
+
 export async function runScenario(yamlPath: string, deps: RunScenarioDeps = {}): Promise<RunResult> {
   const started = performance.now();
   const scenario = await loadScenario(yamlPath);
 
   const inputDir = await resolveInputDir(scenario.input, deps.inputRoot);
   const workdir = await copyInputToWorkdir(inputDir);
+  let setupBaselineDir: string | undefined;
 
   let processResult: ProcessResult;
   let failures: string[];
@@ -178,6 +210,9 @@ export async function runScenario(yamlPath: string, deps: RunScenarioDeps = {}):
         workdir,
       };
     }
+    if (scenario.expect.files_unchanged_after_setup !== undefined) {
+      setupBaselineDir = await copySetupBaseline(workdir);
+    }
 
     if (scenario.pty !== undefined) {
       processResult = await (deps.runPtyScript ?? runPtyScript)({
@@ -194,12 +229,16 @@ export async function runScenario(yamlPath: string, deps: RunScenarioDeps = {}):
     failures = await evaluateAssertions(scenario.expect, {
       workdir,
       inputDir,
+      setupBaselineDir,
       exit_code: processResult.exit_code,
       stdout: processResult.stdout,
       stderr: processResult.stderr,
     });
   } catch (error) {
     await rm(workdir, { recursive: true, force: true });
+    if (setupBaselineDir !== undefined) {
+      await rm(setupBaselineDir, { recursive: true, force: true });
+    }
     throw error;
   }
 
@@ -216,6 +255,9 @@ export async function runScenario(yamlPath: string, deps: RunScenarioDeps = {}):
 
   if (result.passed) {
     await rm(workdir, { recursive: true, force: true });
+  }
+  if (setupBaselineDir !== undefined) {
+    await rm(setupBaselineDir, { recursive: true, force: true });
   }
 
   return result;

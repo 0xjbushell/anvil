@@ -1,22 +1,29 @@
 name: hostile
-description: Setup-backed smoke scenario for the hostile input.
+description: Setup-backed TypeScript scaffold scenario for read-only files and stale lock payloads.
 input: hostile
+language: typescript
 args:
-  - --version
+  - init
+  - --lang
+  - typescript
+  - --non-interactive
 expect:
   exit_code: 0
   files_exist:
-    - .anvil.lock.pid
     - setup-applied.txt
     - readonly.txt
+    - package.json
+    - src/seed/seed.ts
+    - .anvil.lock
+  files_absent:
+    - .anvil.lock.pid
   files_contain:
-    - file: .anvil.lock.pid
-      matches: "999999"
     - file: setup-applied.txt
       matches: hostile setup applied
     - file: readonly.txt
       matches: intentionally unwritable text
+    - file: package.json
+      matches: '"type": "module"'
   stdout_contains:
-    - 0.1.0
-  stderr_empty: true
+    - Scaffolded typescript project
   files_unchanged_from_input: false

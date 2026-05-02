@@ -7,6 +7,7 @@ import type { Scenario } from "./schema.ts";
 export interface AssertionContext {
   workdir: string;
   inputDir: string;
+  setupBaselineDir?: string;
   exit_code: number;
   stdout: string;
   stderr: string;
@@ -14,6 +15,7 @@ export interface AssertionContext {
 
 type Expect = Scenario["expect"];
 type ResolvedWorkdirPath = { path: string } | { failure: string };
+const setupBaselineIgnoredTopLevel = new Set([".git", "node_modules"]);
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {
   return typeof error === "object" && error !== null && "code" in error;
@@ -193,15 +195,17 @@ export function assertStderrEmpty(expected: boolean, context: AssertionContext):
   ];
 }
 
-export async function assertFilesUnchangedFromInput(
+async function assertDirectoriesMatch(
+  key: keyof Expect,
   expected: boolean,
+  baselineDir: string,
   context: AssertionContext,
 ): Promise<string[]> {
-  const result = await compare(context.inputDir, context.workdir, { compareContent: true });
+  const result = await compare(baselineDir, context.workdir, { compareContent: true });
   if (result.same === expected) return [];
 
   if (!expected) {
-    return ["files_unchanged_from_input: expected workdir to differ from input, but no differences were found"];
+    return [`${key}: expected workdir to differ from baseline, but no differences were found`];
   }
 
   const details = result.diffSet
@@ -214,7 +218,42 @@ export async function assertFilesUnchangedFromInput(
     .join(", ");
   const suffix = details.length > 0 ? `: ${details}` : "";
 
-  return [`files_unchanged_from_input: expected workdir to match input, found ${result.differences} differences${suffix}`];
+  return [`${key}: expected workdir to match baseline, found ${result.differences} differences${suffix}`];
+}
+
+export async function assertFilesUnchangedFromInput(
+  expected: boolean,
+  context: AssertionContext,
+): Promise<string[]> {
+  return assertDirectoriesMatch("files_unchanged_from_input", expected, context.inputDir, context);
+}
+
+export async function assertFilesUnchangedAfterSetup(
+  expected: boolean,
+  context: AssertionContext,
+): Promise<string[]> {
+  const baselineDir = context.setupBaselineDir ?? context.inputDir;
+  const result = await compare(baselineDir, context.workdir, {
+    compareContent: true,
+    filter: (relativePath) => !setupBaselineIgnoredTopLevel.has(relativePath.split("/")[0] ?? ""),
+  });
+  if (result.same === expected) return [];
+
+  if (!expected) {
+    return ["files_unchanged_after_setup: expected workdir to differ from baseline, but no differences were found"];
+  }
+
+  const details = result.diffSet
+    .filter((entry) => entry.state !== "equal")
+    .slice(0, 5)
+    .map((entry) => {
+      const reason = entry.reason ? ` (${entry.reason})` : "";
+      return `${entry.relativePath}: ${entry.state}${reason}`;
+    })
+    .join(", ");
+  const suffix = details.length > 0 ? `: ${details}` : "";
+
+  return [`files_unchanged_after_setup: expected workdir to match baseline, found ${result.differences} differences${suffix}`];
 }
 
 export async function evaluateAssertions(expect: Expect, context: AssertionContext): Promise<string[]> {
@@ -249,6 +288,9 @@ export async function evaluateAssertions(expect: Expect, context: AssertionConte
   }
   if (expect.files_unchanged_from_input !== undefined) {
     failures.push(...(await assertFilesUnchangedFromInput(expect.files_unchanged_from_input, context)));
+  }
+  if (expect.files_unchanged_after_setup !== undefined) {
+    failures.push(...(await assertFilesUnchangedAfterSetup(expect.files_unchanged_after_setup, context)));
   }
 
   return failures;

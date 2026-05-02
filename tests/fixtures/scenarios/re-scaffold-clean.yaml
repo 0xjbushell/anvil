@@ -1,11 +1,15 @@
 name: re-scaffold-clean
-description: Current CLI smoke scenario for the clean re-scaffold input.
+description: Setup-backed re-scaffold scenario proving a clean TypeScript project is an idempotent no-op.
 input: re-scaffold-clean
+language: typescript
 args:
-  - --version
+  - init
+  - --lang
+  - typescript
+  - --non-interactive
 expect:
   exit_code: 0
   stdout_contains:
-    - 0.1.0
-  stderr_empty: true
-  files_unchanged_from_input: true
+    - "Files created: 0"
+    - "Files skipped: 0"
+  files_unchanged_after_setup: true

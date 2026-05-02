@@ -3,10 +3,10 @@ import { access, chmod, mkdir, readFile, readdir, rm, stat, writeFile } from "no
 import path from "node:path";
 
 import { afterAll, afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { stringify as stringifyYaml } from "yaml";
+import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 
 import { runScenario } from "./harness.ts";
-import type { Scenario } from "./schema.ts";
+import { ScenarioSchema, type Scenario } from "./schema.ts";
 
 const repoRoot = path.resolve(import.meta.dir, "..", "..");
 const fixtureInputRoot = path.join(repoRoot, "tests", "fixtures", "inputs");
@@ -54,6 +54,36 @@ async function inputDirectoryNames(): Promise<string[]> {
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .sort();
+}
+
+async function committedScenarioFiles(): Promise<string[]> {
+  return (await readdir(committedScenarioRoot))
+    .filter((name) => name.endsWith(".yaml"))
+    .sort();
+}
+
+async function loadCommittedScenarios(): Promise<Array<{ file: string; scenario: Scenario }>> {
+  const scenarioFiles = await committedScenarioFiles();
+  const scenarios: Array<{ file: string; scenario: Scenario }> = [];
+
+  for (const file of scenarioFiles) {
+    const scenario = ScenarioSchema.parse(parseYaml(await readFile(path.join(committedScenarioRoot, file), "utf8")));
+    scenarios.push({ file, scenario });
+  }
+
+  return scenarios;
+}
+
+function isVersionOnlyScenario(scenario: Scenario): boolean {
+  return scenario.args?.length === 1 && scenario.args[0] === "--version";
+}
+
+function scenarioDriver(scenario: Scenario): string[] {
+  return scenario.args ?? scenario.pty?.command ?? [];
+}
+
+function isRealScaffoldDriver(scenario: Scenario): boolean {
+  return scenarioDriver(scenario)[0] === "init";
 }
 
 async function writeInputFile(inputDir: string, relativePath: string, contents: string): Promise<void> {
@@ -142,6 +172,7 @@ describe("runScenario", () => {
         exit_code: 0,
         files_exist: ["setup-marker.txt", "setup-script-dir.txt", "protected.txt"],
         files_contain: [{ file: "setup-marker.txt", matches: "setup ran before command" }],
+        files_unchanged_after_setup: true,
       },
     });
 
@@ -417,16 +448,68 @@ describe("runScenario", () => {
 
   test("runs every committed input scenario through the harness", async () => {
     const inputs = await inputDirectoryNames();
-    const scenarioFiles = (await readdir(committedScenarioRoot))
-      .filter((name) => name.endsWith(".yaml"))
+    const committedScenarios = await loadCommittedScenarios();
+    const scenarioInputs = new Set(committedScenarios.map(({ scenario }) => scenario.input));
+
+    for (const input of inputs) {
+      expect(scenarioInputs.has(input), `expected at least one committed scenario for input ${input}`).toBe(true);
+    }
+
+    const versionOnlyWithoutPurpose = committedScenarios
+      .filter(({ scenario }) => isVersionOnlyScenario(scenario))
+      .map(({ file }) => file);
+    expect(versionOnlyWithoutPurpose).toEqual([]);
+
+    const nonScaffoldDrivers = committedScenarios
+      .filter(({ scenario }) => !isRealScaffoldDriver(scenario))
+      .map(({ file }) => file);
+    expect(nonScaffoldDrivers).toEqual([]);
+
+    const languageGreenfields = committedScenarios
+      .filter(({ scenario }) => scenario.input === "greenfield" && scenario.args?.[0] === "init")
+      .map(({ scenario }) => `${scenario.language}:${scenario.args?.join(" ")}`)
       .sort();
+    expect(languageGreenfields).toEqual([
+      "golang:init --lang golang --non-interactive",
+      "python:init --lang python --non-interactive",
+      "typescript:init --lang typescript --non-interactive",
+    ]);
 
-    expect(scenarioFiles).toEqual([...inputs.map((input) => `${input}.yaml`), "greenfield-ts-interactive.yaml"].sort());
+    const byName = new Map(committedScenarios.map(({ scenario }) => [scenario.name, scenario]));
+    expect(byName.get("re-scaffold-clean")).toMatchObject({
+      args: ["init", "--lang", "typescript", "--non-interactive"],
+      expect: {
+        exit_code: 0,
+        stdout_contains: ["Files created: 0", "Files skipped: 0"],
+        files_unchanged_after_setup: true,
+      },
+    });
+    expect(byName.get("re-scaffold-drift")).toMatchObject({
+      args: ["init", "--lang", "typescript", "--non-interactive"],
+      expect: {
+        exit_code: 1,
+        stderr_contains: [
+          "--- existing Makefile",
+          "+++ new Makefile",
+          "1 file differs from current anvil templates.",
+        ],
+        files_contain: [{ file: "Makefile", matches: "locally added by user" }],
+        files_unchanged_after_setup: true,
+      },
+    });
+    expect(byName.get("re-scaffold-template-bumped")).toMatchObject({
+      args: ["init", "--lang", "typescript", "--non-interactive", "--dry-run"],
+      expect: {
+        exit_code: 0,
+        stdout_contains: ["Dry run: no files written.", "Files to update: 1"],
+        files_unchanged_after_setup: true,
+      },
+    });
 
-    for (const scenarioFile of scenarioFiles) {
-      const result = await runScenario(path.join(committedScenarioRoot, scenarioFile));
+    for (const { file } of committedScenarios) {
+      const result = await runScenario(path.join(committedScenarioRoot, file));
       expect(result.passed, result.failures.join("\n")).toBe(true);
       expect(await pathExists(result.workdir)).toBe(false);
     }
-  }, 30_000);
+  }, 180_000);
 });

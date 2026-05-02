@@ -21,6 +21,8 @@ const fileRegexAssertionSchema = z
   })
   .strict();
 
+const languageSchema = z.enum(["typescript", "golang", "python"]);
+
 const ScenarioExpectSchema = z
   .object({
     exit_code: z.number().int().optional(),
@@ -33,6 +35,7 @@ const ScenarioExpectSchema = z
     stdout_empty: z.boolean().optional(),
     stderr_empty: z.boolean().optional(),
     files_unchanged_from_input: z.boolean().optional(),
+    files_unchanged_after_setup: z.boolean().optional(),
   })
   .strict();
 
@@ -68,6 +71,7 @@ export const ScenarioSchema = z
     name: z.string().min(1),
     description: z.string().optional(),
     input: fixtureDirectoryNameSchema,
+    language: languageSchema.optional(),
     args: z.array(z.string()).optional(),
     env: z.record(z.string()).optional(),
     pty: ScenarioPtySchema.optional(),

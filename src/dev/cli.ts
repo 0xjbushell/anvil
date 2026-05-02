@@ -226,6 +226,24 @@ async function loadFixtureScenario(yamlPath: string): Promise<Scenario> {
   return scenario.data;
 }
 
+function isVersionOnlyScenario(scenario: Scenario): boolean {
+  return scenario.args?.length === 1 && scenario.args[0] === "--version";
+}
+
+function hasExplicitVersionPurpose(scenario: Scenario): boolean {
+  return /version behavior/i.test(`${scenario.name}\n${scenario.description ?? ""}`);
+}
+
+function assertFixtureScenarioPurpose(scenario: Scenario, yamlPath: string): void {
+  if (isVersionOnlyScenario(scenario) && !hasExplicitVersionPurpose(scenario)) {
+    throw new Error(
+      `version-only fixture scenario ${JSON.stringify(
+        scenario.name,
+      )} at ${yamlPath} must describe explicit version behavior`,
+    );
+  }
+}
+
 async function loadFixtureInputLanguage(input: string, inputRoot: string): Promise<string | undefined> {
   const inputDir = path.resolve(inputRoot, input);
   if (!isInside(inputRoot, inputDir)) {
@@ -472,10 +490,13 @@ async function discoverFixtureScenarios(scenarioRoot: string, inputRoot?: string
     }
 
     const scenario = await loadFixtureScenario(yamlPath);
+    assertFixtureScenarioPurpose(scenario, yamlPath);
     scenarios.push({
       name: scenario.name,
       input: scenario.input,
-      inputLanguage: inputRoot === undefined ? undefined : await loadFixtureInputLanguage(scenario.input, inputRoot),
+      inputLanguage: scenario.language ?? (inputRoot === undefined
+        ? undefined
+        : await loadFixtureInputLanguage(scenario.input, inputRoot)),
       yamlPath,
     });
   }
