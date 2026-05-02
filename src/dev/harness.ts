@@ -26,6 +26,7 @@ interface ProcessResult {
 }
 
 interface RunScenarioDeps {
+  inputRoot?: string;
   runPtyScript?: (request: RunPtyScriptRequest) => Promise<ProcessResult>;
 }
 
@@ -46,15 +47,45 @@ function bunExecutable(): string {
   return "bun" in process.versions ? process.execPath : "bun";
 }
 
+function runProcess(command: string, args: string[], env: Scenario["env"], workdir: string): Promise<ProcessResult> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd: workdir,
+      env: { ...process.env, ...env },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    let stdout = "";
+    let stderr = "";
+    child.stdout?.setEncoding("utf8");
+    child.stderr?.setEncoding("utf8");
+    child.stdout?.on("data", (chunk: string) => {
+      stdout += chunk;
+    });
+    child.stderr?.on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      resolve({
+        exit_code: code ?? 1,
+        stdout,
+        stderr,
+      });
+    });
+  });
+}
+
 async function loadScenario(yamlPath: string): Promise<Scenario> {
   const contents = await readFile(yamlPath, "utf8");
   return ScenarioSchema.parse(parseYaml(contents));
 }
 
-async function resolveInputDir(input: string): Promise<string> {
-  const inputDir = path.resolve(fixtureInputRoot, input);
-  if (!isInside(fixtureInputRoot, inputDir)) {
-    throw new Error(`input fixture ${JSON.stringify(input)} resolves outside ${fixtureInputRoot}`);
+async function resolveInputDir(input: string, inputRoot = fixtureInputRoot): Promise<string> {
+  const resolvedInputRoot = path.resolve(inputRoot);
+  const inputDir = path.resolve(resolvedInputRoot, input);
+  if (!isInside(resolvedInputRoot, inputDir)) {
+    throw new Error(`input fixture ${JSON.stringify(input)} resolves outside ${resolvedInputRoot}`);
   }
 
   try {
@@ -85,44 +116,69 @@ async function copyInputToWorkdir(inputDir: string): Promise<string> {
 }
 
 function runAnvil(args: string[], env: Scenario["env"], workdir: string): Promise<ProcessResult> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(bunExecutable(), [anvilEntrypoint, ...args], {
-      cwd: workdir,
-      env: { ...process.env, ...env },
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+  return runProcess(bunExecutable(), [anvilEntrypoint, ...args], env, workdir);
+}
 
-    let stdout = "";
-    let stderr = "";
-    child.stdout?.setEncoding("utf8");
-    child.stderr?.setEncoding("utf8");
-    child.stdout?.on("data", (chunk: string) => {
-      stdout += chunk;
-    });
-    child.stderr?.on("data", (chunk: string) => {
-      stderr += chunk;
-    });
-    child.on("error", reject);
-    child.on("close", (code) => {
-      resolve({
-        exit_code: code ?? 1,
-        stdout,
-        stderr,
-      });
-    });
-  });
+async function runSetup(env: Scenario["env"], workdir: string): Promise<ProcessResult | undefined> {
+  const setupPath = path.join(workdir, "setup.sh");
+  try {
+    const setupStat = await stat(setupPath);
+    if (!setupStat.isFile()) {
+      return {
+        exit_code: 1,
+        stdout: "",
+        stderr: `setup.sh exists but is not a regular file: ${setupPath}`,
+      };
+    }
+  } catch (error) {
+    if (isNodeError(error) && error.code === "ENOENT") {
+      return undefined;
+    }
+
+    throw error;
+  }
+
+  return runProcess("sh", [setupPath], env, workdir);
+}
+
+function formatSetupFailures(result: ProcessResult): string[] {
+  const details = [
+    `setup.sh failed with exit code ${result.exit_code}`,
+  ];
+  if (result.stdout.length > 0) {
+    details.push(`setup.sh stdout:\n${result.stdout.trimEnd()}`);
+  }
+  if (result.stderr.length > 0) {
+    details.push(`setup.sh stderr:\n${result.stderr.trimEnd()}`);
+  }
+
+  return [details.join("\n")];
 }
 
 export async function runScenario(yamlPath: string, deps: RunScenarioDeps = {}): Promise<RunResult> {
   const started = performance.now();
   const scenario = await loadScenario(yamlPath);
 
-  const inputDir = await resolveInputDir(scenario.input);
+  const inputDir = await resolveInputDir(scenario.input, deps.inputRoot);
   const workdir = await copyInputToWorkdir(inputDir);
 
   let processResult: ProcessResult;
   let failures: string[];
   try {
+    const setupResult = await runSetup(scenario.env, workdir);
+    if (setupResult !== undefined && setupResult.exit_code !== 0) {
+      return {
+        scenario: scenario.name,
+        passed: false,
+        failures: formatSetupFailures(setupResult),
+        exit_code: setupResult.exit_code,
+        stdout: setupResult.stdout,
+        stderr: setupResult.stderr,
+        duration_ms: Math.round(performance.now() - started),
+        workdir,
+      };
+    }
+
     if (scenario.pty !== undefined) {
       processResult = await (deps.runPtyScript ?? runPtyScript)({
         command: bunExecutable(),

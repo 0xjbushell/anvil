@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { access, mkdir, readdir, rm, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { afterAll, afterEach, beforeEach, describe, expect, test } from "bun:test";
@@ -26,7 +26,7 @@ type PtyScriptRunner = (request: {
 }) => Promise<PtyProcessResult>;
 type RunScenarioWithPty = (
   yamlPath: string,
-  deps: { runPtyScript: PtyScriptRunner },
+  deps: { inputRoot?: string; runPtyScript: PtyScriptRunner },
 ) => Promise<Awaited<ReturnType<typeof runScenario>>>;
 
 async function pathExists(targetPath: string): Promise<boolean> {
@@ -54,6 +54,12 @@ async function inputDirectoryNames(): Promise<string[]> {
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .sort();
+}
+
+async function writeInputFile(inputDir: string, relativePath: string, contents: string): Promise<void> {
+  const targetPath = path.join(inputDir, relativePath);
+  await mkdir(path.dirname(targetPath), { recursive: true });
+  await writeFile(targetPath, contents, "utf8");
 }
 
 async function expectRejects(action: () => Promise<unknown>, expectedMessage: RegExp): Promise<void> {
@@ -119,6 +125,130 @@ describe("runScenario", () => {
     expect(result.stderr).toBe("");
     expect(result.duration_ms).toBeGreaterThanOrEqual(0);
     expect(await pathExists(result.workdir)).toBe(false);
+  });
+
+  test("runs setup.sh after copying input and before invoking the scenario command", async () => {
+    const inputName = `setup-order-${randomUUID()}`;
+    const inputRoot = path.join(scratch, "inputs");
+    const inputDir = path.join(inputRoot, inputName);
+    const scenarioPath = await writeScenarioFile("setup-order", {
+      name: "setup-order",
+      input: inputName,
+      pty: {
+        command: ["--version"],
+        script: [{ expect_exit: 0 }],
+      },
+      expect: {
+        exit_code: 0,
+        files_exist: ["setup-marker.txt", "setup-script-dir.txt", "protected.txt"],
+        files_contain: [{ file: "setup-marker.txt", matches: "setup ran before command" }],
+      },
+    });
+
+    try {
+      await writeInputFile(
+        inputDir,
+        "setup.sh",
+        [
+          "#!/usr/bin/env sh",
+          "set -e",
+          "printf 'setup ran before command\\n' > setup-marker.txt",
+          "printf '%s\\n' \"$(cd \"$(dirname \"$0\")\" && pwd)\" > setup-script-dir.txt",
+          "printf 'protected by setup\\n' > protected.txt",
+          "chmod 0400 protected.txt",
+          "",
+        ].join("\n"),
+      );
+      await chmod(path.join(inputDir, "setup.sh"), 0o755);
+
+      const runScenarioWithPty = runScenario as RunScenarioWithPty;
+      const result = await runScenarioWithPty(scenarioPath, {
+        inputRoot,
+        runPtyScript: async (request) => {
+          expect(await readFile(path.join(request.cwd, "setup-marker.txt"), "utf8")).toContain(
+            "setup ran before command",
+          );
+          expect((await readFile(path.join(request.cwd, "setup-script-dir.txt"), "utf8")).trim()).toBe(request.cwd);
+          expect((await stat(path.join(request.cwd, "protected.txt"))).mode & 0o777).toBe(0o400);
+
+          return {
+            exit_code: 0,
+            stdout: "setup-aware pty command\n",
+            stderr: "",
+          };
+        },
+      });
+
+      expect(result.passed).toBe(true);
+      expect(await pathExists(result.workdir)).toBe(false);
+      expect(await pathExists(path.join(inputDir, "setup-marker.txt"))).toBe(false);
+      expect(await pathExists(path.join(inputDir, "setup-script-dir.txt"))).toBe(false);
+      expect(await pathExists(path.join(inputDir, "protected.txt"))).toBe(false);
+    } finally {
+      await rm(inputDir, { recursive: true, force: true });
+    }
+  });
+
+  test("returns a failed scenario with setup output when setup.sh exits non-zero", async () => {
+    const inputName = `setup-failure-${randomUUID()}`;
+    const inputRoot = path.join(scratch, "inputs");
+    const inputDir = path.join(inputRoot, inputName);
+    const scenarioPath = await writeScenarioFile("setup-failure", {
+      name: "setup-failure",
+      input: inputName,
+      pty: {
+        command: ["--version"],
+        script: [{ expect_exit: 0 }],
+      },
+      expect: {
+        exit_code: 0,
+      },
+    });
+
+    try {
+      await writeInputFile(
+        inputDir,
+        "setup.sh",
+        [
+          "#!/usr/bin/env sh",
+          "set -e",
+          "printf 'setup stdout detail\\n'",
+          "printf 'setup stderr detail\\n' >&2",
+          "printf 'partial setup state\\n' > partial.txt",
+          "exit 23",
+          "",
+        ].join("\n"),
+      );
+      await chmod(path.join(inputDir, "setup.sh"), 0o755);
+
+      let commandInvoked = false;
+      const runScenarioWithPty = runScenario as RunScenarioWithPty;
+      const result = await runScenarioWithPty(scenarioPath, {
+        inputRoot,
+        runPtyScript: async () => {
+          commandInvoked = true;
+          return {
+            exit_code: 0,
+            stdout: "anvil command was invoked\n",
+            stderr: "",
+          };
+        },
+      });
+      const failures = result.failures.join("\n");
+
+      expect(result.passed).toBe(false);
+      expect(commandInvoked).toBe(false);
+      expect(result.exit_code).toBe(23);
+      expect(result.stdout).toContain("setup stdout detail");
+      expect(result.stdout).not.toContain("anvil command was invoked");
+      expect(result.stderr).toContain("setup stderr detail");
+      expect(failures).toContain("setup.sh");
+      expect(failures).toContain("23");
+      expect(failures).toContain("setup stderr detail");
+      expect(await readFile(path.join(result.workdir, "partial.txt"), "utf8")).toContain("partial setup state");
+    } finally {
+      await rm(inputDir, { recursive: true, force: true });
+    }
   });
 
   test("returns a failing result with a clear exit_code failure and keeps the temp workdir", async () => {

@@ -483,11 +483,11 @@ async function discoverFixtureScenarios(scenarioRoot: string, inputRoot?: string
   return scenarios;
 }
 
-async function runFixtureScenario(scenario: FixtureScenario): Promise<FixtureRunOutcome> {
+async function runFixtureScenario(scenario: FixtureScenario, inputRoot: string): Promise<FixtureRunOutcome> {
   const started = performance.now();
 
   try {
-    const result = await runScenario(scenario.yamlPath);
+    const result = await runScenario(scenario.yamlPath, { inputRoot });
     return {
       name: result.scenario,
       passed: result.passed,
@@ -586,7 +586,7 @@ export async function runFixtures(
   try {
     const args = parseFixturesArgs(argv);
     const resolvedRoots = resolveRoots(roots);
-    const discovered = await discoverFixtureScenarios(resolvedRoots.scenarioRoot);
+    const discovered = await discoverFixtureScenarios(resolvedRoots.scenarioRoot, resolvedRoots.inputRoot);
     if (discovered.length === 0) {
       io.stderr.write(`error: no fixture scenarios found in ${resolvedRoots.scenarioRoot}\n`);
       return 1;
@@ -604,7 +604,7 @@ export async function runFixtures(
     let failed = 0;
 
     for (const scenario of selected) {
-      const outcome = await runFixtureScenario(scenario);
+      const outcome = await runFixtureScenario(scenario, resolvedRoots.inputRoot);
       if (outcome.passed) {
         passed++;
         writeFixtureOutcomeLine(io, outcome);
@@ -647,7 +647,7 @@ export async function runAgentCheck(
     const started = performance.now();
     const outcomes: FixtureRunOutcome[] = [];
     for (const scenario of selected) {
-      outcomes.push(await runFixtureScenario(scenario));
+      outcomes.push(await runFixtureScenario(scenario, resolvedRoots.inputRoot));
     }
 
     const { passed, failed } = countOutcomes(outcomes);

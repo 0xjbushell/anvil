@@ -38,7 +38,8 @@ against (D-68).
   `README.md`. Exercises uncommitted-changes detection.
 - **hostile/** — read-only file (`readonly.txt`, mode `0400` enforced by
   `setup.sh`) and an orphan PID lock (`.anvil.lock.pid` referencing dead
-  PID `999999`). Exercises safety paths and stale-lock cleanup.
+  PID `999999`) created at sandbox-copy time. Exercises safety paths and
+  stale-lock cleanup.
 
 ## `setup.sh` contract
 
@@ -47,12 +48,14 @@ a real `.git/` directory, restrictive Unix mode bits, etc. Those fixtures
 ship a `setup.sh` script. The harness:
 
 1. Copies the fixture dir into `.sandbox/scratch/<run-id>/`.
-2. Runs `bash <copy>/setup.sh` if the file exists.
+2. Runs `sh <copy>/setup.sh` if the file exists.
 3. Then invokes the CLI under test.
 
-`setup.sh` files are POSIX `sh`, idempotent, and safe to re-run. If a
-contributor wipes the scratch dir, simply re-running the harness (or
-`bash setup.sh` manually) restores the expected state.
+`setup.sh` files are POSIX `sh`, idempotent, and safe to re-run. A non-zero
+setup exit fails the scenario before Anvil runs, preserves setup stdout/stderr
+in the failure details, and keeps the sandbox for inspection. If a contributor
+wipes the scratch dir, simply re-running the harness (or `sh setup.sh`
+manually) restores the expected state.
 
 ## Edge cases & contributor guidance
 

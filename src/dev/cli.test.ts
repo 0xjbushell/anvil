@@ -464,6 +464,51 @@ describe("bun fixtures regression CLI", () => {
     expect(await pathExists(workdir ?? "")).toBe(true);
   });
 
+  test("a setup.sh failure exits non-zero and reports setup output with the preserved workdir", async () => {
+    const root = path.join(sandboxRoot, `cli-test-fixtures-setup-failure-${randomUUID()}`);
+    const inputName = `cli-setup-failure-${randomUUID()}`;
+    const inputRoot = path.join(root, "inputs");
+    const inputDir = path.join(inputRoot, inputName);
+    createdTargets.add(root);
+    const scenarioRoot = path.join(root, "scenarios");
+    const tmpRoot = path.join(root, "tmp");
+
+    await mkdir(scenarioRoot, { recursive: true });
+    await mkdir(inputDir, { recursive: true });
+    await writeFile(
+      path.join(inputDir, "setup.sh"),
+      [
+        "#!/usr/bin/env sh",
+        "set -e",
+        "printf 'fixture setup stdout\\n'",
+        "printf 'fixture setup stderr\\n' >&2",
+        "printf 'partial setup artifact\\n' > partial.txt",
+        "exit 23",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    await chmod(path.join(inputDir, "setup.sh"), 0o755);
+    await writeFile(
+      path.join(scenarioRoot, "setup-failure.yaml"),
+      `name: setup-failure\ninput: ${inputName}\nargs:\n  - --version\nexpect:\n  exit_code: 0\n`,
+      "utf8",
+    );
+
+    const result = await withTmpDir(tmpRoot, () => runMain(["fixtures"], { scenarioRoot, inputRoot }));
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toContain("setup-failure failed in ");
+    expect(result.stdout).toContain("(0 passed, 1 failed in ");
+    expect(result.stderr).toContain("failures for setup-failure:");
+    expect(result.stderr).toContain("setup.sh failed with exit code 23");
+    expect(result.stderr).toContain("fixture setup stdout");
+    expect(result.stderr).toContain("fixture setup stderr");
+    const workdir = result.stderr.match(/^workdir: (.+)$/m)?.[1];
+    expect(workdir).toBeDefined();
+    expect(await readFile(path.join(workdir ?? "", "partial.txt"), "utf8")).toContain("partial setup artifact");
+  });
+
   test("a filter with no matching scenario names exits non-zero with a clear message", async () => {
     const root = path.join(sandboxRoot, `cli-test-fixtures-empty-${randomUUID()}`);
     createdTargets.add(root);
