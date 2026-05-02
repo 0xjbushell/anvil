@@ -5,6 +5,7 @@ import { spawnSync } from "node:child_process";
 
 import { afterAll, describe, expect, test } from "bun:test";
 
+import { createE2eIsolation, type E2eIsolation } from "../../src/internal/e2e-isolation.ts";
 import { getManifest } from "../../src/manifest.ts";
 import { isTextFile, normalizeForChecksum } from "../../src/scaffold/lockfile.ts";
 import type { AnvilLockfile, ScaffoldContext } from "../../src/types.ts";
@@ -15,6 +16,12 @@ const bunExecutable = process.execPath;
 const anvilEntrypoint = path.join(repoRoot, "bin/anvil.ts");
 const sandboxRoot = path.join(repoRoot, ".sandbox", `e2e-golang-${randomUUID()}`);
 const commandTimeoutMs = 300_000;
+const preflightIsolation = createE2eIsolation({
+  suiteName: "golang-e2e",
+  testName: "preflight",
+  parentDir: sandboxRoot,
+});
+const projectIsolations = new Map<string, E2eIsolation>();
 const requiredGoManifestFiles = [
   "internal/seed/seed.go",
   "internal/seed/seed_test.go",
@@ -81,30 +88,52 @@ interface CommandResult {
   error?: Error;
 }
 
-assertRequiredTools(
-  "Go scaffold e2e",
-  [
-    commandRequirement("bun", bunExecutable),
-    commandRequirement("go"),
-    commandRequirement("make"),
-    commandRequirement("golangci-lint"),
-    commandRequirement("staticcheck"),
-    commandRequirement("deadcode"),
-    commandRequirement("govulncheck"),
-    commandRequirement("gitleaks"),
-  ],
-  {
-    cwd: repoRoot,
-    nixEntrypoint: "bun run nix:test -- tests/e2e/golang.test.ts",
-  },
-);
+try {
+  assertRequiredTools(
+    "Go scaffold e2e",
+    [
+      commandRequirement("bun", bunExecutable),
+      commandRequirement("go"),
+      commandRequirement("make"),
+      commandRequirement("golangci-lint"),
+      commandRequirement("staticcheck"),
+      commandRequirement("deadcode"),
+      commandRequirement("govulncheck"),
+      commandRequirement("gitleaks"),
+    ],
+    {
+      cwd: repoRoot,
+      env: preflightIsolation.env,
+      nixEntrypoint: "bun run nix:test -- tests/e2e/golang.test.ts",
+    },
+  );
+} catch (error) {
+  preflightIsolation.cleanup();
+  rmSync(sandboxRoot, { recursive: true, force: true });
+  throw error;
+}
+
+function isolationForProject(projectDir: string): E2eIsolation {
+  const existing = projectIsolations.get(projectDir);
+  if (existing !== undefined) {
+    return existing;
+  }
+
+  const isolation = createE2eIsolation({
+    suiteName: "golang-e2e",
+    testName: path.basename(projectDir),
+    parentDir: sandboxRoot,
+  });
+  projectIsolations.set(projectDir, isolation);
+  return isolation;
+}
 
 function run(command: string, args: string[], cwd: string, timeout = commandTimeoutMs): CommandResult {
   const result = spawnSync(command, args, {
     cwd,
     encoding: "utf8",
     timeout,
-    env: process.env,
+    env: isolationForProject(cwd).env,
   });
 
   return {
@@ -229,8 +258,12 @@ function assertLockfile(projectDir: string, expectedFiles: string[]): void {
 }
 
 afterAll(() => {
+  preflightIsolation.cleanup();
+  for (const isolation of projectIsolations.values()) {
+    isolation.cleanup();
+  }
   rmSync(sandboxRoot, { recursive: true, force: true });
-});
+}, commandTimeoutMs);
 
 describe("Go scaffold e2e", () => {
     test("scaffolds expected files, validates .anvil.lock, and keeps AGENTS.md concise", () => {

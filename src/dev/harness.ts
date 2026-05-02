@@ -1,9 +1,10 @@
 import { spawn } from "node:child_process";
-import { cp, mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
 
+import { createE2eIsolation, type E2eIsolation } from "../internal/e2e-isolation.ts";
 import { evaluateAssertions } from "./assertions.ts";
 import { runPtyScript, type RunPtyScriptRequest } from "./pty-runner.ts";
 import { ScenarioSchema, type Scenario } from "./schema.ts";
@@ -28,6 +29,7 @@ interface ProcessResult {
 interface RunScenarioDeps {
   inputRoot?: string;
   runPtyScript?: (request: RunPtyScriptRequest) => Promise<ProcessResult>;
+  tempRoot?: string;
 }
 
 const repoRoot = path.resolve(import.meta.dir, "..", "..");
@@ -48,11 +50,11 @@ function bunExecutable(): string {
   return "bun" in process.versions ? process.execPath : "bun";
 }
 
-function runProcess(command: string, args: string[], env: Scenario["env"], workdir: string): Promise<ProcessResult> {
+function runProcess(command: string, args: string[], env: NodeJS.ProcessEnv, workdir: string): Promise<ProcessResult> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd: workdir,
-      env: { ...process.env, ...env },
+      env,
       stdio: ["ignore", "pipe", "pipe"],
     });
 
@@ -103,8 +105,9 @@ async function resolveInputDir(input: string, inputRoot = fixtureInputRoot): Pro
   throw new Error(`input fixture ${JSON.stringify(input)} is not a directory at ${inputDir}`);
 }
 
-async function copyInputToWorkdir(inputDir: string): Promise<string> {
-  const workdir = await mkdtemp(path.join(tmpdir(), "anvil-fixtures-"));
+async function copyInputToWorkdir(inputDir: string, tempRoot = tmpdir()): Promise<string> {
+  await mkdir(tempRoot, { recursive: true });
+  const workdir = await mkdtemp(path.join(tempRoot, "anvil-fixtures-"));
   try {
     await rm(workdir, { recursive: true, force: true });
     await cp(inputDir, workdir, { recursive: true });
@@ -116,12 +119,13 @@ async function copyInputToWorkdir(inputDir: string): Promise<string> {
   return workdir;
 }
 
-function runAnvil(args: string[], env: Scenario["env"], workdir: string): Promise<ProcessResult> {
+function runAnvil(args: string[], env: NodeJS.ProcessEnv, workdir: string): Promise<ProcessResult> {
   return runProcess(bunExecutable(), [anvilEntrypoint, ...args], env, workdir);
 }
 
-function setupEnvironment(env: Scenario["env"]): Record<string, string> {
+function scenarioEnvironment(env: Scenario["env"], isolation: E2eIsolation): NodeJS.ProcessEnv {
   return {
+    ...isolation.env,
     ANVIL_REPO_ROOT: repoRoot,
     ANVIL_BIN: anvilEntrypoint,
     ANVIL_BUN: bunExecutable(),
@@ -129,7 +133,7 @@ function setupEnvironment(env: Scenario["env"]): Record<string, string> {
   };
 }
 
-async function runSetup(env: Scenario["env"], workdir: string): Promise<ProcessResult | undefined> {
+async function runSetup(env: NodeJS.ProcessEnv, workdir: string): Promise<ProcessResult | undefined> {
   const setupPath = path.join(workdir, "setup.sh");
   try {
     const setupStat = await stat(setupPath);
@@ -148,7 +152,7 @@ async function runSetup(env: Scenario["env"], workdir: string): Promise<ProcessR
     throw error;
   }
 
-  return runProcess("sh", [setupPath], setupEnvironment(env), workdir);
+  return runProcess("sh", [setupPath], env, workdir);
 }
 
 function formatSetupFailures(result: ProcessResult): string[] {
@@ -165,8 +169,9 @@ function formatSetupFailures(result: ProcessResult): string[] {
   return [details.join("\n")];
 }
 
-async function copySetupBaseline(workdir: string): Promise<string> {
-  const baselineDir = await mkdtemp(path.join(tmpdir(), "anvil-fixtures-baseline-"));
+async function copySetupBaseline(workdir: string, tempRoot = tmpdir()): Promise<string> {
+  await mkdir(tempRoot, { recursive: true });
+  const baselineDir = await mkdtemp(path.join(tempRoot, "anvil-fixtures-baseline-"));
   try {
     await rm(baselineDir, { recursive: true, force: true });
     await cp(workdir, baselineDir, {
@@ -191,13 +196,19 @@ export async function runScenario(yamlPath: string, deps: RunScenarioDeps = {}):
   const scenario = await loadScenario(yamlPath);
 
   const inputDir = await resolveInputDir(scenario.input, deps.inputRoot);
-  const workdir = await copyInputToWorkdir(inputDir);
+  const workdir = await copyInputToWorkdir(inputDir, deps.tempRoot);
+  const isolation = createE2eIsolation({
+    suiteName: "fixtures",
+    testName: scenario.name,
+    parentDir: path.dirname(workdir),
+  });
+  const env = scenarioEnvironment(scenario.env, isolation);
   let setupBaselineDir: string | undefined;
 
   let processResult: ProcessResult;
   let failures: string[];
   try {
-    const setupResult = await runSetup(scenario.env, workdir);
+    const setupResult = await runSetup(env, workdir);
     if (setupResult !== undefined && setupResult.exit_code !== 0) {
       return {
         scenario: scenario.name,
@@ -211,7 +222,7 @@ export async function runScenario(yamlPath: string, deps: RunScenarioDeps = {}):
       };
     }
     if (scenario.expect.files_unchanged_after_setup !== undefined) {
-      setupBaselineDir = await copySetupBaseline(workdir);
+      setupBaselineDir = await copySetupBaseline(workdir, deps.tempRoot);
     }
 
     if (scenario.pty !== undefined) {
@@ -219,11 +230,11 @@ export async function runScenario(yamlPath: string, deps: RunScenarioDeps = {}):
         command: bunExecutable(),
         args: [anvilEntrypoint, ...scenario.pty.command],
         cwd: workdir,
-        env: { ...process.env, ...scenario.env },
+        env,
         script: scenario.pty.script,
       });
     } else {
-      processResult = await runAnvil(scenario.args ?? [], scenario.env, workdir);
+      processResult = await runAnvil(scenario.args ?? [], env, workdir);
     }
 
     failures = await evaluateAssertions(scenario.expect, {
@@ -240,6 +251,8 @@ export async function runScenario(yamlPath: string, deps: RunScenarioDeps = {}):
       await rm(setupBaselineDir, { recursive: true, force: true });
     }
     throw error;
+  } finally {
+    isolation.cleanup();
   }
 
   const result: RunResult = {

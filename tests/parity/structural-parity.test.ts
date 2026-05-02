@@ -5,6 +5,7 @@ import {
   goodFixture,
   requireGoAnalyzer,
   requirePythonParityTools,
+  parityCommandTestTimeoutMs,
   runEslintRule,
   runFlake8Rule,
   runGoAnalyzer,
@@ -189,7 +190,7 @@ describe("structural parity", () => {
 
           const good = runGoAnalyzer(ruleCase.golang.analyzerName, goodFixture(ruleCase.golang));
           expect(good).toEqual([]);
-        });
+        }, parityCommandTestTimeoutMs);
       }
 
       if (ruleCase.python !== undefined) {
@@ -199,7 +200,7 @@ describe("structural parity", () => {
 
           const good = runFlake8Rule(ruleCase.python.anvCode, goodFixture(ruleCase.python));
           expect(good).toEqual([]);
-        });
+        }, parityCommandTestTimeoutMs);
       }
     });
   }

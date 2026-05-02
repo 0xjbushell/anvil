@@ -5,6 +5,7 @@ import {
   goodFixture,
   requireGoAnalyzer,
   requirePythonParityTools,
+  parityCommandTestTimeoutMs,
   runEslintRule,
   runFlake8Rule,
   runGoAnalyzer,
@@ -351,7 +352,7 @@ describe("anti-slop parity", () => {
 
         const good = runGoAnalyzer(ruleCase.golang.analyzerName, goodFixture(ruleCase.golang));
         expect(good).toEqual([]);
-      });
+      }, parityCommandTestTimeoutMs);
 
       test("Python Flake8 checker fires on bad code and stays clean on good code", () => {
         const bad = runFlake8Rule(ruleCase.python.anvCode, ruleCase.python);
@@ -359,7 +360,7 @@ describe("anti-slop parity", () => {
 
         const good = runFlake8Rule(ruleCase.python.anvCode, goodFixture(ruleCase.python));
         expect(good).toEqual([]);
-      });
+      }, parityCommandTestTimeoutMs);
     });
   }
 });

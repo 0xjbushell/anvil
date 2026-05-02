@@ -6,6 +6,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, test } from "bun:tes
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 
 import { runScenario } from "./harness.ts";
+import type { RunPtyScriptRequest } from "./pty-runner.ts";
 import { ScenarioSchema, type Scenario } from "./schema.ts";
 
 const repoRoot = path.resolve(import.meta.dir, "..", "..");
@@ -14,20 +15,12 @@ const committedScenarioRoot = path.join(repoRoot, "tests", "fixtures", "scenario
 const sandboxRoot = path.join(repoRoot, ".sandbox", "harness-tests");
 
 let scratch: string;
-let previousTmpDir: string | undefined;
 
 type PtyProcessResult = { exit_code: number; stdout: string; stderr: string };
-type PtyScriptRunner = (request: {
-  command: string;
-  args: string[];
-  script: NonNullable<Scenario["pty"]>["script"];
-  env?: Scenario["env"];
-  cwd: string;
-}) => Promise<PtyProcessResult>;
-type RunScenarioWithPty = (
-  yamlPath: string,
-  deps: { inputRoot?: string; runPtyScript: PtyScriptRunner },
-) => Promise<Awaited<ReturnType<typeof runScenario>>>;
+type PtyScriptRunner = (request: RunPtyScriptRequest) => Promise<PtyProcessResult>;
+type RunScenarioDeps = Omit<NonNullable<Parameters<typeof runScenario>[1]>, "runPtyScript"> & {
+  runPtyScript?: PtyScriptRunner;
+};
 
 async function pathExists(targetPath: string): Promise<boolean> {
   try {
@@ -105,20 +98,16 @@ async function expectRejects(action: () => Promise<unknown>, expectedMessage: Re
   expect(message).toMatch(expectedMessage);
 }
 
+function runScenarioForTest(yamlPath: string, deps: RunScenarioDeps = {}): Promise<Awaited<ReturnType<typeof runScenario>>> {
+  return runScenario(yamlPath, { ...deps, tempRoot: scratch });
+}
+
 beforeEach(async () => {
   scratch = path.join(sandboxRoot, randomUUID());
-  previousTmpDir = process.env.TMPDIR;
-  process.env.TMPDIR = scratch;
   await mkdir(scratch, { recursive: true });
 });
 
 afterEach(async () => {
-  if (previousTmpDir === undefined) {
-    delete process.env.TMPDIR;
-  } else {
-    process.env.TMPDIR = previousTmpDir;
-  }
-
   await rm(scratch, { recursive: true, force: true });
 });
 
@@ -145,7 +134,7 @@ describe("runScenario", () => {
       },
     });
 
-    const result = await runScenario(scenarioPath);
+    const result = await runScenarioForTest(scenarioPath);
 
     expect(result.scenario).toBe("success");
     expect(result.passed).toBe(true);
@@ -192,8 +181,7 @@ describe("runScenario", () => {
       );
       await chmod(path.join(inputDir, "setup.sh"), 0o755);
 
-      const runScenarioWithPty = runScenario as RunScenarioWithPty;
-      const result = await runScenarioWithPty(scenarioPath, {
+      const result = await runScenarioForTest(scenarioPath, {
         inputRoot,
         runPtyScript: async (request) => {
           expect(await readFile(path.join(request.cwd, "setup-marker.txt"), "utf8")).toContain(
@@ -253,8 +241,7 @@ describe("runScenario", () => {
       await chmod(path.join(inputDir, "setup.sh"), 0o755);
 
       let commandInvoked = false;
-      const runScenarioWithPty = runScenario as RunScenarioWithPty;
-      const result = await runScenarioWithPty(scenarioPath, {
+      const result = await runScenarioForTest(scenarioPath, {
         inputRoot,
         runPtyScript: async () => {
           commandInvoked = true;
@@ -292,7 +279,7 @@ describe("runScenario", () => {
       },
     });
 
-    const result = await runScenario(scenarioPath);
+    const result = await runScenarioForTest(scenarioPath);
 
     expect(result.passed).toBe(false);
     expect(result.exit_code).toBe(0);
@@ -322,7 +309,7 @@ describe("runScenario", () => {
       },
     });
 
-    const result = await runScenario(scenarioPath);
+    const result = await runScenarioForTest(scenarioPath);
     const failures = result.failures.join("\n");
 
     expect(result.passed).toBe(false);
@@ -357,7 +344,7 @@ describe("runScenario", () => {
       },
     });
 
-    const result = await runScenario(scenarioPath);
+    const result = await runScenarioForTest(scenarioPath);
 
     expect(result.passed).toBe(true);
     expect(result.stderr).toContain("unknown command");
@@ -375,7 +362,7 @@ describe("runScenario", () => {
       },
     });
 
-    await expectRejects(() => runScenario(scenarioPath), /input fixture.*does-not-exist/i);
+    await expectRejects(() => runScenarioForTest(scenarioPath), /input fixture.*does-not-exist/i);
   });
 
   test("validates loaded YAML through the scenario schema", async () => {
@@ -392,7 +379,7 @@ describe("runScenario", () => {
       "utf8",
     );
 
-    await expectRejects(() => runScenario(scenarioPath), /exactly one/i);
+    await expectRejects(() => runScenarioForTest(scenarioPath), /exactly one/i);
   });
 
   test("executes pty scenarios and passes combined PTY output through existing assertions", async () => {
@@ -413,9 +400,8 @@ describe("runScenario", () => {
       },
     });
 
-    const runScenarioWithPty = runScenario as RunScenarioWithPty;
     const ptyCalls: Array<Parameters<PtyScriptRunner>[0]> = [];
-    const result = await runScenarioWithPty(scenarioPath, {
+    const result = await runScenarioForTest(scenarioPath, {
       runPtyScript: async (request) => {
         ptyCalls.push(request);
         const firstStep = request.script[0];
@@ -444,6 +430,59 @@ describe("runScenario", () => {
     expect(result.stdout).toContain("Scaffold complete");
     expect(result.stderr).toBe("");
     expect(await pathExists(result.workdir)).toBe(false);
+  });
+
+  test("passes setup env, scenario env, and isolated env into PTY scenarios", async () => {
+    const scenarioPath = await writeScenarioFile("pty-env", {
+      name: "pty-env",
+      input: "greenfield",
+      env: {
+        ANVIL_SCENARIO_SENTINEL: "from-yaml",
+      },
+      pty: {
+        command: ["--version"],
+        script: [{ expect_exit: 0 }],
+      },
+      expect: {
+        exit_code: 0,
+        stdout_contains: ["0.1.0"],
+        stderr_empty: true,
+      },
+    });
+
+    const result = await runScenarioForTest(scenarioPath, {
+      runPtyScript: async (request) => {
+        expect(request.env).toMatchObject({
+          ANVIL_REPO_ROOT: repoRoot,
+          ANVIL_BIN: path.join(repoRoot, "bin", "anvil.ts"),
+          ANVIL_BUN: expect.any(String),
+          ANVIL_SCENARIO_SENTINEL: "from-yaml",
+          HUSKY: "0",
+        });
+
+        for (const key of [
+          "HOME",
+          "TMPDIR",
+          "XDG_CACHE_HOME",
+          "GOCACHE",
+          "GOMODCACHE",
+          "GOLANGCI_LINT_CACHE",
+          "GIT_CONFIG_GLOBAL",
+          "ANVIL_PTY_STATE_DIR",
+        ] as const) {
+          expect(request.env?.[key], `${key} must be isolated`).toBeTruthy();
+          expect(request.env?.[key], `${key} must not reuse the parent process value`).not.toBe(process.env[key]);
+        }
+
+        return {
+          exit_code: 0,
+          stdout: "0.1.0\n",
+          stderr: "",
+        };
+      },
+    });
+
+    expect(result.passed).toBe(true);
   });
 
   test("runs every committed input scenario through the harness", async () => {
@@ -507,7 +546,7 @@ describe("runScenario", () => {
     });
 
     for (const { file } of committedScenarios) {
-      const result = await runScenario(path.join(committedScenarioRoot, file));
+      const result = await runScenarioForTest(path.join(committedScenarioRoot, file));
       expect(result.passed, result.failures.join("\n")).toBe(true);
       expect(await pathExists(result.workdir)).toBe(false);
     }

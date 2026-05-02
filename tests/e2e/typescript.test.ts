@@ -5,6 +5,7 @@ import { spawnSync } from "node:child_process";
 
 import { afterAll, describe, expect, test } from "bun:test";
 
+import { createE2eIsolation, type E2eIsolation } from "../../src/internal/e2e-isolation.ts";
 import { getManifest } from "../../src/manifest.ts";
 import { isTextFile, normalizeForChecksum } from "../../src/scaffold/lockfile.ts";
 import type { AnvilLockfile, ScaffoldContext } from "../../src/types.ts";
@@ -19,6 +20,13 @@ const commandTimeoutMs = 600_000;
 const suiteTimeoutMs = 600_000;
 const seedLineThreshold = 100;
 const suiteStartMs = performance.now();
+const preflightIsolation = createE2eIsolation({
+  suiteName: "typescript-e2e",
+  testName: "preflight",
+  parentDir: sandboxRoot,
+  pathPrepend: [bunExecutableDir],
+});
+const projectIsolations = new Map<string, E2eIsolation>();
 
 const requiredTypeScriptManifestFiles = [
   "src/seed/seed.ts",
@@ -84,27 +92,42 @@ interface CommandResult {
   error?: Error;
 }
 
-function commandEnv(): NodeJS.ProcessEnv {
-  return {
-    ...process.env,
-    PATH: `${bunExecutableDir}${path.delimiter}${process.env.PATH ?? ""}`,
-  };
+function isolationForProject(projectDir: string): E2eIsolation {
+  const existing = projectIsolations.get(projectDir);
+  if (existing !== undefined) {
+    return existing;
+  }
+
+  const isolation = createE2eIsolation({
+    suiteName: "typescript-e2e",
+    testName: path.basename(projectDir),
+    parentDir: sandboxRoot,
+    pathPrepend: [bunExecutableDir],
+  });
+  projectIsolations.set(projectDir, isolation);
+  return isolation;
 }
 
-assertRequiredTools(
-  "TypeScript scaffold e2e",
-  [
-    commandRequirement("bun", bunExecutable),
-    commandRequirement("node"),
-    commandRequirement("make"),
-    commandRequirement("gitleaks"),
-  ],
-  {
-    cwd: repoRoot,
-    env: commandEnv(),
-    nixEntrypoint: "bun run nix:test -- tests/e2e/typescript.test.ts",
-  },
-);
+try {
+  assertRequiredTools(
+    "TypeScript scaffold e2e",
+    [
+      commandRequirement("bun", bunExecutable),
+      commandRequirement("node"),
+      commandRequirement("make"),
+      commandRequirement("gitleaks"),
+    ],
+    {
+      cwd: repoRoot,
+      env: preflightIsolation.env,
+      nixEntrypoint: "bun run nix:test -- tests/e2e/typescript.test.ts",
+    },
+  );
+} catch (error) {
+  preflightIsolation.cleanup();
+  rmSync(sandboxRoot, { recursive: true, force: true });
+  throw error;
+}
 
 function run(command: string, args: string[], cwd: string, timeout = commandTimeoutMs): CommandResult {
   try {
@@ -112,7 +135,7 @@ function run(command: string, args: string[], cwd: string, timeout = commandTime
       cwd,
       encoding: "utf8",
       timeout,
-      env: commandEnv(),
+      env: isolationForProject(cwd).env,
     });
 
     return {
@@ -295,9 +318,13 @@ function assertLintFailure(projectDir: string, label: string, expectedPattern: R
 
 afterAll(() => {
   const suiteDurationMs = performance.now() - suiteStartMs;
+  preflightIsolation.cleanup();
+  for (const isolation of projectIsolations.values()) {
+    isolation.cleanup();
+  }
   rmSync(sandboxRoot, { recursive: true, force: true });
   expect(suiteDurationMs, "TypeScript E2E suite duration").toBeLessThanOrEqual(suiteTimeoutMs);
-});
+}, commandTimeoutMs);
 
 describe("TypeScript scaffold e2e", () => {
     test("scaffolds expected files, validates .anvil.lock, and keeps generated guidance concise", () => {

@@ -1,8 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
+
+import { createE2eIsolation } from '../src/internal/e2e-isolation.ts';
 
 const repoRoot = join(import.meta.dir, '..');
 
@@ -97,8 +100,12 @@ describe('TIX-000070 governance', () => {
   test.skipIf(!commitlintInstalled)(
     '7. commitlint hook integration: bad rejected, good accepted',
     () => {
-      const dir = join(repoRoot, '.sandbox/governance-commitlint');
-      rmSync(dir, { recursive: true, force: true });
+      const dir = join(repoRoot, '.sandbox', `governance-commitlint-${randomUUID()}`);
+      const isolation = createE2eIsolation({
+        suiteName: 'governance',
+        testName: 'commitlint',
+        parentDir: dir,
+      });
       mkdirSync(dir, { recursive: true });
       const badFile = join(dir, 'bad.txt');
       const goodFile = join(dir, 'good.txt');
@@ -109,15 +116,20 @@ describe('TIX-000070 governance', () => {
         const bad = spawnSync('bunx', ['--bun', 'commitlint', '--edit', badFile], {
           cwd: repoRoot,
           encoding: 'utf8',
+          env: isolation.env,
         });
         expect(bad.status).not.toBe(0);
 
         const good = spawnSync('bunx', ['--bun', 'commitlint', '--edit', goodFile], {
           cwd: repoRoot,
           encoding: 'utf8',
+          env: isolation.env,
         });
         expect(good.status).toBe(0);
+        expect(isolation.env.HOME).toContain('.anvil-env');
+        expect(isolation.env.HUSKY).toBe('0');
       } finally {
+        isolation.cleanup();
         rmSync(dir, { recursive: true, force: true });
       }
     },

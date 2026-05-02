@@ -21,6 +21,7 @@
     "fixtures": "bun src/dev/cli.ts fixtures",
     "agent:check": "bun src/dev/cli.ts agent:check",
     "test": "bun test",
+    "test:repeat": "sh -c 'for i in 1 2 3; do \"$npm_execpath\" test \"$@\" || exit 1; done' --",
     "lint": "bunx tsc --noEmit",
     "mutation": "stryker run",
     "quality": "bun mutation",
@@ -28,6 +29,7 @@
     "nix:agent:check": "scripts/nix-run.sh release -- scripts/require-tools.sh release -- bun agent:check",
     "nix:fixtures": "scripts/nix-run.sh release -- scripts/require-tools.sh release -- bun fixtures",
     "nix:test": "scripts/nix-run.sh release -- scripts/require-tools.sh release -- bun test",
+    "nix:test:repeat": "scripts/nix-run.sh release -- scripts/require-tools.sh release -- sh -c 'for i in 1 2 3; do bun test \"$@\" || exit 1; done' --",
     "nix:build": "scripts/nix-run.sh release -- scripts/require-tools.sh release -- bun run build",
     "nix:mutation": "scripts/nix-run.sh release -- scripts/require-tools.sh release -- bun mutation",
     "format": "echo \"format not yet configured\""

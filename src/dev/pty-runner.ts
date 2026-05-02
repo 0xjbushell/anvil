@@ -79,7 +79,7 @@ class BridgePtyProcess implements PtyProcess {
 
   constructor(command: string, args: string[], options: PtySpawnOptions) {
     this.child = spawnProcess(nodeExecutable(), [bridgeScript], {
-      env: process.env,
+      env: options.env ?? process.env,
       stdio: ["pipe", "pipe", "pipe"],
     });
 

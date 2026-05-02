@@ -49,6 +49,7 @@ export interface DevCliRoots {
   scenarioRoot?: string;
   inputRoot?: string;
   sandboxRoot?: string;
+  tempRoot?: string;
 }
 
 export interface AgentCheckOptions extends DevCliRoots {
@@ -73,6 +74,7 @@ interface ResolvedRoots {
   scenarioRoot: string;
   inputRoot: string;
   sandboxRoot: string;
+  tempRoot?: string;
 }
 
 const defaultRepoRoot = path.resolve(import.meta.dir, "..", "..");
@@ -106,6 +108,7 @@ function resolveRoots(roots: DevCliRoots): ResolvedRoots {
     scenarioRoot: path.resolve(roots.scenarioRoot ?? path.join(repoRoot, "tests", "fixtures", "scenarios")),
     inputRoot: path.resolve(roots.inputRoot ?? path.join(repoRoot, "tests", "fixtures", "inputs")),
     sandboxRoot: path.resolve(roots.sandboxRoot ?? path.join(repoRoot, ".sandbox")),
+    tempRoot: roots.tempRoot === undefined ? undefined : path.resolve(roots.tempRoot),
   };
 }
 
@@ -504,11 +507,15 @@ async function discoverFixtureScenarios(scenarioRoot: string, inputRoot?: string
   return scenarios;
 }
 
-async function runFixtureScenario(scenario: FixtureScenario, inputRoot: string): Promise<FixtureRunOutcome> {
+async function runFixtureScenario(
+  scenario: FixtureScenario,
+  inputRoot: string,
+  tempRoot?: string,
+): Promise<FixtureRunOutcome> {
   const started = performance.now();
 
   try {
-    const result = await runScenario(scenario.yamlPath, { inputRoot });
+    const result = await runScenario(scenario.yamlPath, { inputRoot, tempRoot });
     return {
       name: result.scenario,
       passed: result.passed,
@@ -625,7 +632,7 @@ export async function runFixtures(
     let failed = 0;
 
     for (const scenario of selected) {
-      const outcome = await runFixtureScenario(scenario, resolvedRoots.inputRoot);
+      const outcome = await runFixtureScenario(scenario, resolvedRoots.inputRoot, resolvedRoots.tempRoot);
       if (outcome.passed) {
         passed++;
         writeFixtureOutcomeLine(io, outcome);
@@ -668,7 +675,7 @@ export async function runAgentCheck(
     const started = performance.now();
     const outcomes: FixtureRunOutcome[] = [];
     for (const scenario of selected) {
-      outcomes.push(await runFixtureScenario(scenario, resolvedRoots.inputRoot));
+      outcomes.push(await runFixtureScenario(scenario, resolvedRoots.inputRoot, resolvedRoots.tempRoot));
     }
 
     const { passed, failed } = countOutcomes(outcomes);

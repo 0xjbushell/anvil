@@ -27,6 +27,7 @@ interface CliRootOverrides {
   scenarioRoot?: string;
   inputRoot?: string;
   sandboxRoot?: string;
+  tempRoot?: string;
   changedFiles?: string[];
 }
 
@@ -128,22 +129,6 @@ async function runAgentCheckMain(args: string[], roots: CliRootOverrides = {}): 
     stdout: stdout.text,
     stderr: stderr.text,
   };
-}
-
-async function withTmpDir<T>(tmpDir: string, action: () => Promise<T>): Promise<T> {
-  const previousTmpDir = process.env.TMPDIR;
-  process.env.TMPDIR = tmpDir;
-  await mkdir(tmpDir, { recursive: true });
-
-  try {
-    return await action();
-  } finally {
-    if (previousTmpDir === undefined) {
-      delete process.env.TMPDIR;
-    } else {
-      process.env.TMPDIR = previousTmpDir;
-    }
-  }
 }
 
 async function pathExists(targetPath: string): Promise<boolean> {
@@ -444,7 +429,7 @@ describe("bun fixtures regression CLI", () => {
       "utf8",
     );
 
-    const result = await withTmpDir(tmpRoot, () => runMain(["fixtures", "--filter", "drift"], { scenarioRoot }));
+    const result = await runMain(["fixtures", "--filter", "drift"], { scenarioRoot, tempRoot: tmpRoot });
 
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
@@ -454,6 +439,79 @@ describe("bun fixtures regression CLI", () => {
     expect(passLines[0]).toContain(" alpha-drift passed in ");
     expect(result.stdout).not.toContain("beta-clean");
     expect(lines.at(-1)).toContain("(1 passed, 0 failed in ");
+  });
+
+  test("bun fixtures gives each scenario isolated HOME, temp, cache, hook, and PTY state", async () => {
+    const root = path.join(sandboxRoot, `cli-test-fixtures-isolation-${randomUUID()}`);
+    createdTargets.add(root);
+    const inputRoot = path.join(root, "inputs");
+    const scenarioRoot = path.join(root, "scenarios");
+    await mkdir(scenarioRoot, { recursive: true });
+
+    for (const name of ["alpha", "beta"]) {
+      const inputDir = path.join(inputRoot, name);
+      await mkdir(inputDir, { recursive: true });
+      await writeFile(
+        path.join(inputDir, "setup.sh"),
+        [
+          "#!/usr/bin/env sh",
+          "set -eu",
+          "printf 'HOME=%s\\n' \"$HOME\" > env.txt",
+          "printf 'TMPDIR=%s\\n' \"$TMPDIR\" >> env.txt",
+          "printf 'XDG_CACHE_HOME=%s\\n' \"${XDG_CACHE_HOME:-}\" >> env.txt",
+          "printf 'GOCACHE=%s\\n' \"${GOCACHE:-}\" >> env.txt",
+          "printf 'GOMODCACHE=%s\\n' \"${GOMODCACHE:-}\" >> env.txt",
+          "printf 'GOLANGCI_LINT_CACHE=%s\\n' \"${GOLANGCI_LINT_CACHE:-}\" >> env.txt",
+          "printf 'GIT_CONFIG_GLOBAL=%s\\n' \"${GIT_CONFIG_GLOBAL:-}\" >> env.txt",
+          "printf 'HUSKY=%s\\n' \"${HUSKY:-}\" >> env.txt",
+          "printf 'ANVIL_PTY_STATE_DIR=%s\\n' \"${ANVIL_PTY_STATE_DIR:-}\" >> env.txt",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
+      await chmod(path.join(inputDir, "setup.sh"), 0o755);
+      await writeFile(
+        path.join(scenarioRoot, `${name}.yaml`),
+        [
+          `name: ${name}`,
+          "description: Version behavior fixture used to prove per-scenario env isolation.",
+          `input: ${name}`,
+          "args:",
+          "  - --version",
+          "expect:",
+          "  exit_code: 0",
+          "  files_match_regex:",
+          "    - file: env.txt",
+          "      pattern: 'HOME=.*/\\.anvil-env/.+'",
+          "    - file: env.txt",
+          "      pattern: 'TMPDIR=.*/\\.anvil-env/.+'",
+          "    - file: env.txt",
+          "      pattern: 'XDG_CACHE_HOME=.*/\\.anvil-env/.+'",
+          "    - file: env.txt",
+          "      pattern: 'GOCACHE=.*/\\.anvil-env/.+'",
+          "    - file: env.txt",
+          "      pattern: 'GOMODCACHE=.*/\\.anvil-env/.+'",
+          "    - file: env.txt",
+          "      pattern: 'GOLANGCI_LINT_CACHE=.*/\\.anvil-env/.+'",
+          "    - file: env.txt",
+          "      pattern: 'GIT_CONFIG_GLOBAL=.*/\\.anvil-env/.+'",
+          "    - file: env.txt",
+          "      pattern: 'ANVIL_PTY_STATE_DIR=.*/\\.anvil-env/.+'",
+          "  files_contain:",
+          "    - file: env.txt",
+          "      matches: 'HUSKY=0'",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
+    }
+
+    const result = await runMain(["fixtures"], { scenarioRoot, inputRoot });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toContain(" alpha passed in ");
+    expect(result.stdout).toContain(" beta passed in ");
   });
 
   test("a broken scenario exits non-zero and reports failures with the preserved workdir", async () => {
@@ -477,7 +535,7 @@ describe("bun fixtures regression CLI", () => {
       "utf8",
     );
 
-    const result = await withTmpDir(tmpRoot, () => runMain(["fixtures"], { scenarioRoot }));
+    const result = await runMain(["fixtures"], { scenarioRoot, tempRoot: tmpRoot });
 
     expect(result.exitCode).toBe(1);
     const lines = outputLines(result.stdout);
@@ -531,7 +589,7 @@ describe("bun fixtures regression CLI", () => {
       "utf8",
     );
 
-    const result = await withTmpDir(tmpRoot, () => runMain(["fixtures"], { scenarioRoot, inputRoot }));
+    const result = await runMain(["fixtures"], { scenarioRoot, inputRoot, tempRoot: tmpRoot });
 
     expect(result.exitCode).toBe(1);
     expect(result.stdout).toContain("setup-failure failed in ");
@@ -619,9 +677,10 @@ describe("bun agent:check regression CLI", () => {
     const tmpRoot = path.join(sandboxRoot, `cli-test-agent-check-template-${randomUUID()}`);
     createdTargets.add(tmpRoot);
 
-    const result = await withTmpDir(tmpRoot, () =>
-      runAgentCheckMain([], { changedFiles: ["src/templates/typescript/Makefile.ejs"] }),
-    );
+    const result = await runAgentCheckMain([], {
+      changedFiles: ["src/templates/typescript/Makefile.ejs"],
+      tempRoot: tmpRoot,
+    });
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("✓ 10 scenarios passed\n");
@@ -671,7 +730,7 @@ describe("bun agent:check regression CLI", () => {
     await writeFile(path.join(gitRoot, "tests", "fixtures", "inputs", "greenfield", "README.md"), "after\n", "utf8");
     await runGit(["add", "tests/fixtures/inputs/greenfield/README.md"], gitRoot);
 
-    const result = await withTmpDir(tmpRoot, () => runAgentCheckMain([], { repoRoot: gitRoot, scenarioRoot }));
+    const result = await runAgentCheckMain([], { repoRoot: gitRoot, scenarioRoot, tempRoot: tmpRoot });
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("✓ 1 scenarios passed\n");
@@ -701,12 +760,11 @@ describe("bun agent:check regression CLI", () => {
       "utf8",
     );
 
-    const result = await withTmpDir(tmpRoot, () =>
-      runAgentCheckMain([], {
-        scenarioRoot,
-        changedFiles: ["tests/fixtures/inputs/greenfield/.gitkeep"],
-      }),
-    );
+    const result = await runAgentCheckMain([], {
+      scenarioRoot,
+      changedFiles: ["tests/fixtures/inputs/greenfield/.gitkeep"],
+      tempRoot: tmpRoot,
+    });
 
     expect(result.exitCode).toBe(1);
     const lines = outputLines(result.stdout);
