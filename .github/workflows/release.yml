@@ -1,6 +1,11 @@
 name: release-please
 
 on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing release tag to rebuild and upload assets for
+        required: true
   push:
     branches: [main]
 
@@ -12,7 +17,73 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: googleapis/release-please-action@v4
+      - id: release
+        uses: googleapis/release-please-action@v4
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+      - name: Resolve release asset tag
+        id: asset-tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_CREATED: ${{ steps.release.outputs.release_created }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag_name }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            if ! [[ "$DISPATCH_RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+              echo "workflow_dispatch release_tag must be a vX.Y.Z release tag." >&2
+              exit 1
+            fi
+            gh release view "$DISPATCH_RELEASE_TAG" >/dev/null
+            printf 'tag=%s\n' "$DISPATCH_RELEASE_TAG" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "$RELEASE_CREATED" = "true" ]; then
+            printf 'tag=%s\n' "$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "No release assets to upload for this main push." >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/checkout@v4
+        if: ${{ steps.asset-tag.outputs.tag != '' }}
+        with:
+          ref: ${{ steps.asset-tag.outputs.tag }}
+          clean: true
+
+      - uses: cachix/install-nix-action@v31
+        if: ${{ steps.asset-tag.outputs.tag != '' }}
+
+      - name: Install dependencies
+        if: ${{ steps.asset-tag.outputs.tag != '' }}
+        run: scripts/nix-run.sh release -- bun install --frozen-lockfile
+
+      - name: Build release assets
+        if: ${{ steps.asset-tag.outputs.tag != '' }}
+        run: scripts/nix-run.sh release -- scripts/require-tools.sh release -- bun run build
+
+      - name: Verify release assets
+        if: ${{ steps.asset-tag.outputs.tag != '' }}
+        run: |
+          test -s "dist/anvil-linux-x64"
+          test -s "dist/anvil-linux-arm64"
+          test -s "dist/anvil-darwin-x64"
+          test -s "dist/anvil-darwin-arm64"
+          test -s "dist/anvil-windows-x64.exe"
+
+      - name: Upload release assets
+        if: ${{ steps.asset-tag.outputs.tag != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ steps.asset-tag.outputs.tag }}" \
+            dist/anvil-linux-x64 \
+            dist/anvil-linux-arm64 \
+            dist/anvil-darwin-x64 \
+            dist/anvil-darwin-arm64 \
+            dist/anvil-windows-x64.exe \
+            --clobber
