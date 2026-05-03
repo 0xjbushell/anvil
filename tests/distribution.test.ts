@@ -1,10 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import { type SpawnSyncReturns, spawnSync } from "node:child_process";
 import {
+  chmodSync,
+  copyFileSync,
+  cpSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
+  renameSync,
   rmSync,
   statSync,
   symlinkSync,
@@ -20,6 +25,7 @@ import {
   outputDir,
   type BuildRunner,
 } from "../scripts/build.ts";
+import { collectScaffoldAssets, formatScaffoldAssetsModule } from "../scripts/generate-scaffold-assets.ts";
 import pkg from "../package.json" with { type: "json" };
 
 const repoRoot = path.join(import.meta.dir, "..");
@@ -94,6 +100,38 @@ function hostBinaryName(): string {
   return platform === "windows" ? `${name}.exe` : name;
 }
 
+function withSourceAssetsUnavailable(root: string, operation: () => void): void {
+  const movedPaths = [
+    { original: path.join(root, "static"), hidden: path.join(root, `.static-unavailable-${process.pid}`) },
+    {
+      original: path.join(root, "src/templates"),
+      hidden: path.join(root, "src", `.templates-unavailable-${process.pid}`),
+    },
+  ];
+
+  try {
+    for (const { original, hidden } of movedPaths) {
+      renameSync(original, hidden);
+    }
+
+    operation();
+  } finally {
+    for (const { original, hidden } of movedPaths.reverse()) {
+      if (!existsSync(original) && existsSync(hidden)) {
+        renameSync(hidden, original);
+      }
+    }
+  }
+}
+
+function copyDistributionBuildSource(destination: string): void {
+  for (const entry of ["bin", "scripts", "src", "static", "package.json"] as const) {
+    cpSync(path.join(repoRoot, entry), path.join(destination, entry), { recursive: true });
+  }
+
+  symlinkSync(path.join(repoRoot, "node_modules"), path.join(destination, "node_modules"), "dir");
+}
+
 describe("TIX-000027 distribution", () => {
   test("package metadata exposes Bun entrypoint and publishable files without Node engines", () => {
     const pkg = packageJson();
@@ -136,14 +174,22 @@ describe("TIX-000027 distribution", () => {
     expect(commands).toEqual(buildTargets.map((target) => commandForTarget(target)));
   });
 
+  test("embedded scaffold assets match the source scaffold trees", async () => {
+    expect(read("src/generated/scaffold-assets.ts")).toBe(
+      formatScaffoldAssetsModule(await collectScaffoldAssets(repoRoot)),
+    );
+  });
+
   test(
-    "bun run build produces standalone binaries and the host binary reports version",
+    "bun run build produces standalone binaries and the host binary scaffolds outside the repo",
     () => {
-      const distDir = path.join(repoRoot, outputDir);
-      rmSync(distDir, { recursive: true, force: true });
+      const buildRoot = mkdtempSync(path.join(tmpdir(), "anvil dist source "));
+      copyDistributionBuildSource(buildRoot);
+
+      const distDir = path.join(buildRoot, outputDir);
 
       const build = spawnSync(bunExecutable, ["run", "build"], {
-        cwd: repoRoot,
+        cwd: buildRoot,
         encoding: "utf8",
         timeout: distributionTimeoutMs,
       });
@@ -159,18 +205,39 @@ describe("TIX-000027 distribution", () => {
         }
       }
 
-      const hostBinary = hostBinaryName();
-      const runDir = mkdtempSync(path.join(tmpdir(), "anvil-dist-run-"));
+      const hostBinaryPath = path.join(distDir, hostBinaryName());
+      const runDir = mkdtempSync(path.join(tmpdir(), "anvil dist run "));
+      const copiedBinary = path.join(runDir, hostBinaryName());
       try {
-        const run = spawnSync(path.join(distDir, hostBinary), ["--version"], {
-          cwd: runDir,
-          encoding: "utf8",
-          timeout: 30_000,
+        copyFileSync(hostBinaryPath, copiedBinary);
+        if (process.platform !== "win32") {
+          chmodSync(copiedBinary, 0o755);
+        }
+
+        withSourceAssetsUnavailable(buildRoot, () => {
+          for (const { lang, files } of [
+            { lang: "typescript", files: ["package.json", "src/seed/seed.ts", ".anvil.lock"] },
+            { lang: "golang", files: ["go.mod", "internal/seed/seed.go", ".anvil.lock"] },
+            { lang: "python", files: ["pyproject.toml", "src/seed/seed.py", ".anvil.lock"] },
+          ] as const) {
+            const projectDir = path.join(runDir, `${lang} project`);
+            mkdirSync(projectDir, { recursive: true });
+
+            const scaffold = spawnSync(copiedBinary, ["init", "--lang", lang, "--non-interactive"], {
+              cwd: projectDir,
+              encoding: "utf8",
+              timeout: distributionTimeoutMs,
+            });
+            expectSuccess(scaffold, `standalone binary scaffold ${lang}`);
+
+            for (const file of files) {
+              expect(existsSync(path.join(projectDir, file))).toBe(true);
+            }
+          }
         });
-        expectSuccess(run, "standalone binary --version");
-        expect(run.stdout.trim()).toBe(pkg.version);
       } finally {
         rmSync(runDir, { recursive: true, force: true });
+        rmSync(buildRoot, { recursive: true, force: true });
       }
     },
     distributionTimeoutMs,
