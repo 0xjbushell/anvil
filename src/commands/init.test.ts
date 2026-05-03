@@ -637,7 +637,7 @@ describe("anvil init command", () => {
     ]);
   });
 
-  test("summary prints seed disposability message only when seed files were created", async () => {
+  test("summary prints seed convention reference only when seed files were created", async () => {
     const withSeed = makeHarness({
       scaffold: async (ctx) => {
         withSeed.scaffoldContexts.push(ctx);
@@ -651,7 +651,9 @@ describe("anvil init command", () => {
 
     expect((await runInit({ lang: "typescript", nonInteractive: true }, withSeed)).exitCode).toBe(0);
     expect(withSeed.stdout.text).toContain("Seed code created at src/seed/");
-    expect(withSeed.stdout.text).toContain("safely delete it");
+    expect(withSeed.stdout.text).toContain("Use it as a reference for project conventions.");
+    expect(withSeed.stdout.text).not.toContain("starter");
+    expect(withSeed.stdout.text).not.toContain("safely delete it");
 
     const withoutSeed = makeHarness({
       scaffold: async (ctx) => {
@@ -665,7 +667,7 @@ describe("anvil init command", () => {
     });
 
     expect((await runInit({ lang: "typescript", nonInteractive: true }, withoutSeed)).exitCode).toBe(0);
-    expect(withoutSeed.stdout.text).not.toContain("safely delete it");
+    expect(withoutSeed.stdout.text).not.toContain("Use it as a reference for project conventions.");
   });
 
   test("dry-run previews changes without scaffold flush or post-scaffold commands", async () => {

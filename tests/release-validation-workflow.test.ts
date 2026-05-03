@@ -46,6 +46,7 @@ describe("TIX-000083 release validation workflow", () => {
       "scripts/nix-run.sh release -- scripts/require-tools.sh release",
       "scripts/nix-run.sh release -- scripts/require-tools.sh release -- bun test tests/no-required-tool-skips.test.ts",
       "scripts/nix-run.sh release -- scripts/require-tools.sh release -- bun agent:check",
+      "scripts/nix-run.sh release -- scripts/require-tools.sh release -- bun release:hygiene",
       "scripts/nix-run.sh release -- scripts/require-tools.sh release -- bun fixtures",
       "scripts/nix-run.sh release -- scripts/require-tools.sh release -- bunx tsc --noEmit",
       "scripts/nix-run.sh release -- scripts/require-tools.sh release -- bun test",
