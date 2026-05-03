@@ -1,0 +1,68 @@
+name: release-validation
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  release-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: true
+          fetch-depth: 0
+
+      - uses: cachix/install-nix-action@v31
+
+      - name: Install dependencies
+        run: scripts/nix-run.sh release -- bun install --frozen-lockfile
+
+      - name: Verify clean checkout
+        run: git diff --exit-code && test -z "$(git status --porcelain)"
+
+      - name: Require release tools
+        run: scripts/nix-run.sh release -- scripts/require-tools.sh release
+
+      - name: Assert no required-tool skips
+        run: scripts/nix-run.sh release -- scripts/require-tools.sh release -- bun test tests/no-required-tool-skips.test.ts
+
+      - name: Agent check
+        run: scripts/nix-run.sh release -- scripts/require-tools.sh release -- bun agent:check
+
+      - name: Fixtures
+        run: scripts/nix-run.sh release -- scripts/require-tools.sh release -- bun fixtures
+
+      - name: Typecheck
+        run: scripts/nix-run.sh release -- scripts/require-tools.sh release -- bunx tsc --noEmit
+
+      - name: Full test suite
+        run: scripts/nix-run.sh release -- scripts/require-tools.sh release -- bun test
+
+      - name: Supported-language e2e and parity
+        run: scripts/nix-run.sh release -- scripts/require-tools.sh release -- bun test tests/e2e/typescript.test.ts tests/e2e/golang.test.ts tests/e2e/python.test.ts tests/parity/anti-slop-parity.test.ts tests/parity/structural-parity.test.ts tests/parity/test-quality-parity.test.ts
+
+      - name: Build binaries
+        run: scripts/nix-run.sh release -- scripts/require-tools.sh release -- bun run build
+
+      - name: Mutation
+        run: scripts/nix-run.sh release -- scripts/require-tools.sh release -- bun mutation
+
+      - name: Upload release validation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-validation-artifacts
+          path: |
+            dist/
+            .sandbox/
+          if-no-files-found: ignore
+          retention-days: 14
