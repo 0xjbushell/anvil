@@ -58,13 +58,20 @@ jobs:
       - uses: cachix/install-nix-action@v31
         if: ${{ steps.asset-tag.outputs.tag != '' }}
 
+      - uses: oven-sh/setup-bun@v2
+        if: ${{ steps.asset-tag.outputs.tag != '' }}
+        with:
+          bun-version: 1.3.13
+
       - name: Install dependencies
         if: ${{ steps.asset-tag.outputs.tag != '' }}
         run: scripts/nix-run.sh release -- bun install --frozen-lockfile
 
       - name: Build release assets
         if: ${{ steps.asset-tag.outputs.tag != '' }}
-        run: scripts/nix-run.sh release -- scripts/require-tools.sh release -- bun run build
+        run: |
+          scripts/nix-run.sh release -- scripts/require-tools.sh release
+          bun run build
 
       - name: Verify release assets
         if: ${{ steps.asset-tag.outputs.tag != '' }}
@@ -74,6 +81,27 @@ jobs:
           test -s "dist/anvil-darwin-x64"
           test -s "dist/anvil-darwin-arm64"
           test -s "dist/anvil-windows-x64.exe"
+
+          for asset in dist/anvil-linux-x64 dist/anvil-linux-arm64; do
+            if grep -a -q "/nix/store" "$asset"; then
+              echo "$asset references /nix/store; rebuild release assets with portable Bun before publishing." >&2
+              exit 1
+            fi
+          done
+
+          chmod +x dist/anvil-linux-x64
+          dist/anvil-linux-x64 --version
+
+          smoke_root="$(mktemp -d)"
+          trap 'rm -rf "$smoke_root"' EXIT
+          cp dist/anvil-linux-x64 "$smoke_root/anvil"
+          chmod +x "$smoke_root/anvil"
+          for lang in typescript golang python; do
+            project="$smoke_root/$lang-project"
+            mkdir -p "$project"
+            (cd "$project" && "$smoke_root/anvil" init --lang "$lang" --non-interactive)
+            test -f "$project/.anvil.lock"
+          done
 
       - name: Upload release assets
         if: ${{ steps.asset-tag.outputs.tag != '' }}
