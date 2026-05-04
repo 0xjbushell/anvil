@@ -247,8 +247,7 @@ function printSummary(ctx: ScaffoldContext, result: ScaffoldResult, stdout: Text
   if (seedWasCreated(ctx, result)) {
     writeLine(stdout);
     writeLine(stdout, `Seed code created at ${seedPath(ctx.lang)}`);
-    writeLine(stdout, "This starter code demonstrates project conventions.");
-    writeLine(stdout, "Once you have your own modules, you can safely delete it.");
+    writeLine(stdout, "Use it as a reference for project conventions.");
   }
 }
 

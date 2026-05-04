@@ -20,6 +20,7 @@
     "dev": "bun src/dev/cli.ts",
     "fixtures": "bun src/dev/cli.ts fixtures",
     "agent:check": "bun src/dev/cli.ts agent:check",
+    "release:hygiene": "bun scripts/check-release-hygiene.ts",
     "test": "bun test",
     "test:repeat": "sh -c 'for i in 1 2 3; do \"$npm_execpath\" test \"$@\" || exit 1; done' --",
     "lint": "bunx tsc --noEmit",
