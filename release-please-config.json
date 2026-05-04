@@ -5,7 +5,14 @@
       "release-type": "node",
       "include-component-in-tag": false,
       "draft": false,
-      "prerelease": false
+      "prerelease": false,
+      "extra-files": [
+        {
+          "type": "json",
+          "path": "src/internal/toolchain-defaults.json",
+          "jsonpath": "$.snapshotAnvilVersion"
+        }
+      ]
     }
   },
   "changelog-sections": [

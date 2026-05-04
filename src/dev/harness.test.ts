@@ -5,6 +5,7 @@ import path from "node:path";
 import { afterAll, afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 
+import pkg from "../../package.json" with { type: "json" };
 import { runScenario } from "./harness.ts";
 import type { RunPtyScriptRequest } from "./pty-runner.ts";
 import { ScenarioSchema, type Scenario } from "./schema.ts";
@@ -13,6 +14,7 @@ const repoRoot = path.resolve(import.meta.dir, "..", "..");
 const fixtureInputRoot = path.join(repoRoot, "tests", "fixtures", "inputs");
 const committedScenarioRoot = path.join(repoRoot, "tests", "fixtures", "scenarios");
 const sandboxRoot = path.join(repoRoot, ".sandbox", "harness-tests");
+const anvilVersion = pkg.version;
 
 let scratch: string;
 
@@ -123,7 +125,7 @@ describe("runScenario", () => {
         files_absent: ["package.json"],
         files_contain: [{ file: "src/foo.ts", matches: "hello, ${name}" }],
         files_match_regex: [{ file: "src/foo.ts", pattern: "export function foo\\(name: string\\): string" }],
-        stdout_contains: ["0.1.0"],
+        stdout_contains: [anvilVersion],
         stdout_empty: false,
         stderr_empty: true,
         files_unchanged_from_input: true,
@@ -136,7 +138,7 @@ describe("runScenario", () => {
     expect(result.passed).toBe(true);
     expect(result.failures).toEqual([]);
     expect(result.exit_code).toBe(0);
-    expect(result.stdout).toContain("0.1.0");
+    expect(result.stdout).toContain(anvilVersion);
     expect(result.stderr).toBe("");
     expect(result.duration_ms).toBeGreaterThanOrEqual(0);
     expect(await pathExists(result.workdir)).toBe(false);
@@ -441,7 +443,7 @@ describe("runScenario", () => {
       },
       expect: {
         exit_code: 0,
-        stdout_contains: ["0.1.0"],
+        stdout_contains: [anvilVersion],
         stderr_empty: true,
       },
     });
@@ -472,7 +474,7 @@ describe("runScenario", () => {
 
         return {
           exit_code: 0,
-          stdout: "0.1.0\n",
+          stdout: `${anvilVersion}\n`,
           stderr: "",
         };
       },
