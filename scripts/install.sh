@@ -46,7 +46,11 @@ if [ "$OS" = "windows" ]; then
   DEST_NAME="anvil.exe"
 fi
 
-URL="https://github.com/0xjbushell/anvil/releases/download/${VERSION}/${ASSET}"
+if [ "$VERSION" = "latest" ]; then
+  URL="https://github.com/0xjbushell/anvil/releases/latest/download/${ASSET}"
+else
+  URL="https://github.com/0xjbushell/anvil/releases/download/${VERSION}/${ASSET}"
+fi
 INSTALL_DIR="${ANVIL_INSTALL_DIR:-/usr/local/bin}"
 DEST="${INSTALL_DIR}/${DEST_NAME}"
 TMP="$(mktemp)"
@@ -58,7 +62,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
-curl -fsSL "$URL" -o "$TMP"
+if ! curl -fsSL "$URL" -o "$TMP"; then
+  echo "Failed to download anvil release asset: $URL" >&2
+  exit 1
+fi
 chmod +x "$TMP"
 mkdir -p "$INSTALL_DIR"
 mv "$TMP" "$DEST"
