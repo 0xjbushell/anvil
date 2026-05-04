@@ -121,7 +121,7 @@ describe('TIX-000077 Nix-backed validation environments', () => {
     const log = join(dir, 'nix.log');
     writeExecutable(
       join(dir, 'nix'),
-      `#!/usr/bin/env sh
+      `#!/bin/sh
 printf '%s\\n' "$*" > "${log}"
 `,
     );
@@ -146,7 +146,7 @@ printf '%s\\n' "$*" > "${log}"
     const log = join(dir, 'nix.log');
     writeExecutable(
       join(dir, 'nix'),
-      `#!/usr/bin/env sh
+      `#!/bin/sh
 printf '%s\\n' "$*" > "${log}"
 `,
     );
@@ -204,7 +204,7 @@ printf '%s\\n' "$*" > "${log}"
       'staticcheck',
       'deadcode',
     ]) {
-      writeExecutable(join(dir, tool), '#!/usr/bin/env sh\nexit 0\n');
+      writeExecutable(join(dir, tool), '#!/bin/sh\nexit 0\n');
     }
 
     try {
