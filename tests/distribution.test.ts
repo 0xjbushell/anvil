@@ -83,6 +83,27 @@ function runSteps(steps: unknown[]): string[] {
   });
 }
 
+function runStepByName(steps: unknown[], name: string): string {
+  const step = steps.find((candidate) => {
+    return typeof candidate === "object" && candidate !== null && (candidate as { name?: unknown }).name === name;
+  });
+  const run = typeof step === "object" && step !== null ? (step as { run?: unknown }).run : undefined;
+  if (typeof run !== "string") {
+    throw new Error(`Workflow step "${name}" does not define a run command`);
+  }
+  return run;
+}
+
+function workflowStepByName(steps: unknown[], name: string): Record<string, unknown> {
+  const step = steps.find((candidate) => {
+    return typeof candidate === "object" && candidate !== null && (candidate as { name?: unknown }).name === name;
+  });
+  if (typeof step !== "object" || step === null) {
+    throw new Error(`Workflow step "${name}" is missing`);
+  }
+  return step as Record<string, unknown>;
+}
+
 function hostPlatform(): "linux" | "darwin" | "windows" {
   switch (process.platform) {
     case "linux":
@@ -423,6 +444,9 @@ describe("TIX-000027 distribution", () => {
     const steps = workflow?.jobs?.release?.steps ?? [];
     const commands = runSteps(steps);
     const joinedCommands = commands.join("\n");
+    const resolveAssetTagStep = workflowStepByName(steps, "Resolve release asset tag");
+    const uploadAssetsStep = workflowStepByName(steps, "Upload release assets");
+    const uploadCommand = runStepByName(steps, "Upload release assets");
 
     expect(workflow?.on?.workflow_dispatch?.inputs?.release_tag).toMatchObject({
       required: true,
@@ -435,14 +459,22 @@ describe("TIX-000027 distribution", () => {
     expect(steps.some((step: { uses?: string }) => step.uses === "cachix/install-nix-action@v31")).toBe(true);
     expect(steps.some((step: { uses?: string }) => step.uses === "oven-sh/setup-bun@v2")).toBe(true);
     expect(steps.some((step: { id?: string }) => step.id === "asset-tag")).toBe(true);
+    expect(resolveAssetTagStep.env).toMatchObject({
+      GH_REPO: "${{ github.repository }}",
+    });
+    expect(uploadAssetsStep.env).toMatchObject({
+      GH_REPO: "${{ github.repository }}",
+    });
     expect(joinedCommands).toContain('if [ "$EVENT_NAME" = "workflow_dispatch" ]; then');
-    expect(joinedCommands).toContain('gh release view "$DISPATCH_RELEASE_TAG"');
+    expect(joinedCommands).toContain('gh release view "$DISPATCH_RELEASE_TAG" --repo "$GH_REPO"');
     expect(joinedCommands).toContain('No release assets to upload for this main push.');
     expect(joinedCommands).toContain("scripts/nix-run.sh release -- bun install --frozen-lockfile");
     expect(joinedCommands).toContain("scripts/nix-run.sh release -- scripts/require-tools.sh release");
     expect(joinedCommands).toContain("bun run build");
     expect(joinedCommands).not.toContain("scripts/nix-run.sh release -- scripts/require-tools.sh release -- bun run build");
-    expect(joinedCommands).toContain('gh release upload "${{ steps.asset-tag.outputs.tag }}"');
+    expect(uploadCommand).toContain('gh release upload "${{ steps.asset-tag.outputs.tag }}"');
+    expect(uploadCommand).toContain('--repo "$GH_REPO"');
+    expect(uploadCommand).toContain("--clobber");
     expect(joinedCommands).toContain('grep -a -q "/nix/store" "$asset"');
     expect(joinedCommands).toContain("rebuild release assets with portable Bun before publishing");
     expect(joinedCommands).toContain("dist/anvil-linux-x64 --version");
