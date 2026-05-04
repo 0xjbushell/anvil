@@ -38,6 +38,9 @@ jobs:
       - name: Agent check
         run: scripts/nix-run.sh release -- scripts/require-tools.sh release -- bun agent:check
 
+      - name: Release tix hygiene
+        run: scripts/nix-run.sh release -- scripts/require-tools.sh release -- bun release:hygiene
+
       - name: Fixtures
         run: scripts/nix-run.sh release -- scripts/require-tools.sh release -- bun fixtures
 

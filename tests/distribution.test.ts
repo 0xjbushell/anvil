@@ -13,9 +13,11 @@ import {
   rmSync,
   statSync,
   symlinkSync,
+  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { parse as parseYaml } from "yaml";
 
 import {
   buildBinaries,
@@ -68,6 +70,17 @@ function expectSuccess(result: SpawnSyncReturns<string>, label: string): void {
   if (result.status !== 0) {
     throw new Error(`${label} failed with exit ${String(result.status)}\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
   }
+}
+
+function runSteps(steps: unknown[]): string[] {
+  return steps.flatMap((step) => {
+    if (typeof step !== "object" || step === null || !("run" in step)) {
+      return [];
+    }
+
+    const run = (step as { run?: unknown }).run;
+    return typeof run === "string" ? [run] : [];
+  });
 }
 
 function hostPlatform(): "linux" | "darwin" | "windows" {
@@ -130,6 +143,78 @@ function copyDistributionBuildSource(destination: string): void {
   }
 
   symlinkSync(path.join(repoRoot, "node_modules"), path.join(destination, "node_modules"), "dir");
+}
+
+function writeFakeCurl(binDir: string): void {
+  const curlPath = path.join(binDir, "curl");
+  writeFileSync(
+    curlPath,
+    `#!/usr/bin/env bash
+set -euo pipefail
+url=""
+output=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -o)
+      shift
+      output="$1"
+      ;;
+    -*)
+      ;;
+    *)
+      url="$1"
+      ;;
+  esac
+  shift
+done
+
+printf '%s' "$url" > "$ANVIL_CAPTURE_URL"
+if [ "\${ANVIL_FAKE_CURL_FAIL:-0}" = "1" ]; then
+  echo "mock missing release asset" >&2
+  exit 22
+fi
+
+printf '#!/usr/bin/env sh\\nexit 0\\n' > "$output"
+`,
+    "utf8",
+  );
+  chmodSync(curlPath, 0o755);
+}
+
+function runInstall(version: string, options: { failDownload?: boolean } = {}): {
+  result: SpawnSyncReturns<string>;
+  capturedUrl: string;
+  installDir: string;
+  workspace: string;
+} {
+  const workspace = mkdtempSync(path.join(tmpdir(), "anvil-install-"));
+  const binDir = path.join(workspace, "bin");
+  const installDir = path.join(workspace, "install");
+  const capturePath = path.join(workspace, "url");
+  mkdirSync(binDir, { recursive: true });
+  mkdirSync(installDir, { recursive: true });
+  writeFakeCurl(binDir);
+
+  const result = spawnSync("bash", [path.join(repoRoot, "scripts/install.sh")], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ""}`,
+      ANVIL_CAPTURE_URL: capturePath,
+      ANVIL_INSTALL_DIR: installDir,
+      ANVIL_VERSION: version,
+      ...(options.failDownload === true ? { ANVIL_FAKE_CURL_FAIL: "1" } : {}),
+    },
+    timeout: 30_000,
+  });
+
+  return {
+    result,
+    capturedUrl: existsSync(capturePath) ? readFileSync(capturePath, "utf8") : "",
+    installDir,
+    workspace,
+  };
 }
 
 describe("TIX-000027 distribution", () => {
@@ -263,7 +348,7 @@ describe("TIX-000027 distribution", () => {
     }
   });
 
-  test("install script downloads the release binary for the host platform", () => {
+  test("install script resolves latest and pinned release asset URLs for the host platform", () => {
     const scriptPath = path.join(repoRoot, "scripts/install.sh");
     const script = read("scripts/install.sh");
     const syntax = spawnSync("bash", ["-n", scriptPath], { cwd: repoRoot, encoding: "utf8" });
@@ -272,12 +357,30 @@ describe("TIX-000027 distribution", () => {
     expect(script.startsWith("#!/usr/bin/env bash\nset -euo pipefail\n")).toBe(true);
     expect(script).toContain("ANVIL_VERSION:-latest");
     expect(script).toContain("ANVIL_INSTALL_DIR:-/usr/local/bin");
-    expect(script).toContain("https://github.com/0xjbushell/anvil/releases/download/${VERSION}/${ASSET}");
     expect(script).toContain("x86_64|amd64");
     expect(script).toContain("aarch64|arm64");
     expect(script).toContain('OS="windows"');
     expect(script).toContain('ASSET="${ASSET}.exe"');
     expect(statSync(scriptPath).mode & 0o111).toBeTruthy();
+
+    const installs = [runInstall("latest"), runInstall("v1.2.3")];
+    try {
+      const [latest, pinned] = installs;
+      expectSuccess(latest.result, "install latest");
+      expect(latest.capturedUrl).toBe(
+        `https://github.com/0xjbushell/anvil/releases/latest/download/${hostBinaryName()}`,
+      );
+      expect(existsSync(path.join(latest.installDir, process.platform === "win32" ? "anvil.exe" : "anvil"))).toBe(true);
+
+      expectSuccess(pinned.result, "install pinned");
+      expect(pinned.capturedUrl).toBe(
+        `https://github.com/0xjbushell/anvil/releases/download/v1.2.3/${hostBinaryName()}`,
+      );
+    } finally {
+      for (const install of installs) {
+        rmSync(install.workspace, { recursive: true, force: true });
+      }
+    }
   });
 
   test("install script rejects invalid release versions before download", () => {
@@ -299,6 +402,60 @@ describe("TIX-000027 distribution", () => {
       expect(result.stdout).not.toContain("anvil installed");
     } finally {
       rmSync(installDir, { recursive: true, force: true });
+    }
+  });
+
+  test("install script reports missing release assets without installing success-shaped output", () => {
+    const install = runInstall("v1.2.3", { failDownload: true });
+    try {
+      expect(install.result.status).toBe(1);
+      expect(install.capturedUrl).toBe(`https://github.com/0xjbushell/anvil/releases/download/v1.2.3/${hostBinaryName()}`);
+      expect(install.result.stderr).toContain("Failed to download anvil release asset");
+      expect(install.result.stderr).toContain(install.capturedUrl);
+      expect(install.result.stdout).not.toContain("anvil installed");
+    } finally {
+      rmSync(install.workspace, { recursive: true, force: true });
+    }
+  });
+
+  test("release workflow builds, verifies, and uploads every binary asset", () => {
+    const workflow = parseYaml(read(".github/workflows/release.yml"));
+    const steps = workflow?.jobs?.release?.steps ?? [];
+    const commands = runSteps(steps);
+    const joinedCommands = commands.join("\n");
+
+    expect(workflow?.on?.workflow_dispatch?.inputs?.release_tag).toMatchObject({
+      required: true,
+    });
+    expect(steps[0]).toMatchObject({
+      id: "release",
+      uses: "googleapis/release-please-action@v4",
+    });
+    expect(steps.some((step: { uses?: string }) => step.uses === "actions/checkout@v4")).toBe(true);
+    expect(steps.some((step: { uses?: string }) => step.uses === "cachix/install-nix-action@v31")).toBe(true);
+    expect(steps.some((step: { id?: string }) => step.id === "asset-tag")).toBe(true);
+    expect(joinedCommands).toContain('if [ "$EVENT_NAME" = "workflow_dispatch" ]; then');
+    expect(joinedCommands).toContain('gh release view "$DISPATCH_RELEASE_TAG"');
+    expect(joinedCommands).toContain('No release assets to upload for this main push.');
+    expect(joinedCommands).toContain("scripts/nix-run.sh release -- bun install --frozen-lockfile");
+    expect(joinedCommands).toContain("scripts/nix-run.sh release -- scripts/require-tools.sh release -- bun run build");
+    expect(joinedCommands).toContain('gh release upload "${{ steps.asset-tag.outputs.tag }}"');
+    expect(
+      steps.filter((step: { if?: string }) => step.if === "${{ steps.asset-tag.outputs.tag != '' }}"),
+    ).toHaveLength(6);
+    expect(steps.filter((step: { if?: string }) => step.if === "${{ steps.release.outputs.release_created == 'true' }}")).toHaveLength(0);
+
+    const checkout = steps.find((step: { uses?: string }) => step.uses === "actions/checkout@v4");
+    expect(checkout).toMatchObject({
+      with: {
+        ref: "${{ steps.asset-tag.outputs.tag }}",
+      },
+    });
+
+    for (const target of buildTargets) {
+      const assetPath = `dist/${target.outfile}`;
+      expect(joinedCommands).toContain(`test -s "${assetPath}"`);
+      expect(joinedCommands).toContain(assetPath);
     }
   });
 
