@@ -1,6 +1,6 @@
 {
   "snapshotTakenAt": "2026-04-25T00:00:00.000Z",
-  "snapshotAnvilVersion": "0.1.0",
+  "snapshotAnvilVersion": "0.2.0",
   "node": "24.15.0",
   "go": "1.26.2",
   "python": "3.14.4",
