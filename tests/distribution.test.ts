@@ -433,16 +433,25 @@ describe("TIX-000027 distribution", () => {
     });
     expect(steps.some((step: { uses?: string }) => step.uses === "actions/checkout@v4")).toBe(true);
     expect(steps.some((step: { uses?: string }) => step.uses === "cachix/install-nix-action@v31")).toBe(true);
+    expect(steps.some((step: { uses?: string }) => step.uses === "oven-sh/setup-bun@v2")).toBe(true);
     expect(steps.some((step: { id?: string }) => step.id === "asset-tag")).toBe(true);
     expect(joinedCommands).toContain('if [ "$EVENT_NAME" = "workflow_dispatch" ]; then');
     expect(joinedCommands).toContain('gh release view "$DISPATCH_RELEASE_TAG"');
     expect(joinedCommands).toContain('No release assets to upload for this main push.');
     expect(joinedCommands).toContain("scripts/nix-run.sh release -- bun install --frozen-lockfile");
-    expect(joinedCommands).toContain("scripts/nix-run.sh release -- scripts/require-tools.sh release -- bun run build");
+    expect(joinedCommands).toContain("scripts/nix-run.sh release -- scripts/require-tools.sh release");
+    expect(joinedCommands).toContain("bun run build");
+    expect(joinedCommands).not.toContain("scripts/nix-run.sh release -- scripts/require-tools.sh release -- bun run build");
     expect(joinedCommands).toContain('gh release upload "${{ steps.asset-tag.outputs.tag }}"');
+    expect(joinedCommands).toContain('grep -a -q "/nix/store" "$asset"');
+    expect(joinedCommands).toContain("rebuild release assets with portable Bun before publishing");
+    expect(joinedCommands).toContain("dist/anvil-linux-x64 --version");
+    expect(joinedCommands).toContain('for lang in typescript golang python; do');
+    expect(joinedCommands).toContain('init --lang "$lang" --non-interactive');
+    expect(joinedCommands).toContain('.anvil.lock');
     expect(
       steps.filter((step: { if?: string }) => step.if === "${{ steps.asset-tag.outputs.tag != '' }}"),
-    ).toHaveLength(6);
+    ).toHaveLength(7);
     expect(steps.filter((step: { if?: string }) => step.if === "${{ steps.release.outputs.release_created == 'true' }}")).toHaveLength(0);
 
     const checkout = steps.find((step: { uses?: string }) => step.uses === "actions/checkout@v4");
