@@ -64,6 +64,11 @@ describe('TIX-000070 governance', () => {
     expect(() => JSON.parse(read('.release-please-manifest.json'))).not.toThrow();
     const cfg = JSON.parse(read('release-please-config.json'));
     expect(cfg['release-type']).toBe('node');
+    expect(cfg.packages?.['.']?.['extra-files']).toContainEqual({
+      type: 'json',
+      path: 'src/internal/toolchain-defaults.json',
+      jsonpath: '$.snapshotAnvilVersion',
+    });
   });
 
   test('3. release-please workflow YAML is valid', () => {
