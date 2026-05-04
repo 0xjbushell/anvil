@@ -111,6 +111,15 @@ nix develop .#release --command bun mutation
 | Release CI becomes too slow | Medium | Medium | Keep fast PR CI separate, but do not relax release gate |
 | Tix parent rollups stay stale | Medium | Medium | Add release hygiene check and document intentional exceptions |
 
+### Tix Rollup Hygiene
+
+Release validation treats `release-readiness` deliverables as executable shipped scope:
+each deliverable must be `Done` before release validation can pass. Parent rollups
+(`Story` and `Feature`) are not executable release work; when local tix sync/archive
+state leaves them open, the release hygiene report lists them under **Documented
+parent rollups** so stale rollup state is visible without blocking completed
+deliverables.
+
 ## Testing Strategy
 
 - Work type: ci-pipeline / infrastructure.

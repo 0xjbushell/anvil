@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import ejs from "ejs";
@@ -253,6 +253,22 @@ function expectContainsNone(source: string, snippets: readonly string[]): void {
   for (const snippet of snippets) {
     expect(source, `expected rendered template not to contain ${snippet}`).not.toContain(snippet);
   }
+}
+
+async function listFilesRecursive(root: string): Promise<string[]> {
+  const entries = await readdir(root, { withFileTypes: true });
+  const files = await Promise.all(
+    entries.map(async (entry) => {
+      const absolutePath = path.join(root, entry.name);
+      if (entry.isDirectory()) {
+        return (await listFilesRecursive(absolutePath)).map((file) => path.join(entry.name, file));
+      }
+
+      return [entry.name];
+    }),
+  );
+
+  return files.flat().sort();
 }
 
 function expectContainsPackage(source: string, packageName: string): void {
@@ -529,6 +545,13 @@ describe("scaffold manifests", () => {
     }
   });
 
+  test("Python seed scaffold source tree contains no bytecode artifacts", async () => {
+    const seedRoot = path.join(projectRoot, "static/python/src/seed");
+    const files = await listFilesRecursive(seedRoot);
+
+    expect(files.filter((file) => file.includes("__pycache__") || file.endsWith(".pyc"))).toEqual([]);
+  });
+
   test("Python template scaffold files for dynamic config outputs exist", async () => {
     for (const file of expectedPythonTemplateFiles) {
       expect(await pythonTemplateFile(file).exists()).toBe(true);
@@ -742,6 +765,42 @@ describe("scaffold manifests", () => {
     expect(rendered).toContain("my-service");
     expect(rendered).toContain("Go 1.99.0+");
     expect(rendered).not.toContain("Go 1.23");
+  });
+
+  test("generated seed and project docs avoid disposable sample wording", async () => {
+    const disposableSignals =
+      /\b(starter|disposable|throwaway|temporary|safely delete|delete (?:it|this|when ready)|example package|sample code)\b/i;
+    const renderedDocs = [
+      await renderTypescriptTemplate("README.md.ejs"),
+      await renderTypescriptTemplate("AGENTS.md.ejs"),
+      await renderGolangRootTemplate("README.md.ejs"),
+      await renderGolangRootTemplate("AGENTS.md.ejs"),
+      await renderPythonTemplate("README.md.ejs"),
+      await renderPythonTemplate("AGENTS.md.ejs"),
+    ];
+
+    for (const rendered of renderedDocs) {
+      expect(rendered).not.toMatch(disposableSignals);
+    }
+
+    for (const lang of languages) {
+      for (const entry of seedEntries(lang)) {
+        if (entry.source === "static") {
+          const text = await Bun.file(path.join(projectRoot, entry.src)).text();
+          expect(text).not.toMatch(disposableSignals);
+        }
+        if (entry.source === "template") {
+          const render =
+            lang === "golang"
+              ? renderGolangTemplate
+              : lang === "python"
+                ? renderPythonTemplate
+                : renderTypescriptTemplate;
+          const text = await render(entry.src.replace(`src/templates/${lang}/`, ""));
+          expect(text).not.toMatch(disposableSignals);
+        }
+      }
+    }
   });
 
   test("Go gitignore template covers analyzer, test, build, IDE, and OS artifacts", async () => {
