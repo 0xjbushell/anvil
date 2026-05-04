@@ -64,6 +64,7 @@ describe("ScenarioSchema", () => {
     const scenario = ScenarioSchema.parse({
       name: "greenfield-ts",
       input: "greenfield",
+      language: "typescript",
       args: ["init", "--lang", "typescript", "--non-interactive"],
       env: {
         ANVIL_LOG_LEVEL: "error",
@@ -78,12 +79,15 @@ describe("ScenarioSchema", () => {
         stdout_empty: false,
         stderr_empty: true,
         files_unchanged_from_input: true,
+        files_unchanged_after_setup: false,
       },
     });
 
     expect(scenario.env?.ANVIL_LOG_LEVEL).toBe("error");
+    expect(scenario.language).toBe("typescript");
     expect(scenario.expect.files_match_regex?.[0]?.pattern).toBe('"name"\\s*:');
     expect(scenario.expect.stderr_empty).toBe(true);
+    expect(scenario.expect.files_unchanged_after_setup).toBe(false);
   });
 
   test("parses a pty command and script", () => {

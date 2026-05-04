@@ -3,7 +3,8 @@ import { createRequire } from "node:module";
 import path from "node:path";
 
 export const defaultPtyTimeoutMs = 5_000;
-export const defaultPtyExitTimeoutMs = defaultPtyTimeoutMs;
+// Prompt waits should fail fast; exit waits must allow valid post-confirm scaffolding work.
+export const defaultPtyExitTimeoutMs = 30_000;
 
 export interface PtyProcessResult {
   exit_code: number;
@@ -78,7 +79,7 @@ class BridgePtyProcess implements PtyProcess {
 
   constructor(command: string, args: string[], options: PtySpawnOptions) {
     this.child = spawnProcess(nodeExecutable(), [bridgeScript], {
-      env: process.env,
+      env: options.env ?? process.env,
       stdio: ["pipe", "pipe", "pipe"],
     });
 

@@ -1,0 +1,50 @@
+package main
+
+import (
+	"testing"
+
+	"<%= projectName.replace(/^@/, "") %>/internal/seed"
+)
+
+func TestRun(t *testing.T) {
+	tests := []struct {
+		name     string
+		greet    greetFunc
+		wantCode int
+	}{
+		{
+			name: "returns success when greeting is generated",
+			greet: func(name string, language seed.Language) (seed.SeedResult, error) {
+				if name != "World" {
+					t.Fatalf("expected World, got %q", name)
+				}
+				if language != seed.DefaultLanguage {
+					t.Fatalf("expected default language, got %s", language.String())
+				}
+				return seed.SeedResult{Greeting: "Hello, World!", Language: language}, nil
+			},
+			wantCode: 0,
+		},
+		{
+			name: "returns failure when greeting fails",
+			greet: func(_ string, _ seed.Language) (seed.SeedResult, error) {
+				return seed.SeedResult{}, &seed.SeedError{Field: "name", Message: "boom"}
+			},
+			wantCode: 1,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if test.wantCode != 0 {
+				_, err := test.greet("World", seed.DefaultLanguage)
+				if err == nil {
+					t.Fatal("expected greeting error")
+				}
+			}
+			if gotCode := run(test.greet); gotCode != test.wantCode {
+				t.Fatalf("run() = %d, want %d", gotCode, test.wantCode)
+			}
+		})
+	}
+}

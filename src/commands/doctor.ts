@@ -219,10 +219,6 @@ function packageManagerListCommand(packageManager: PackageManager): { command: s
 }
 
 function typescriptProjectDeps(packageManager: PackageManager): string[] {
-  if (packageManager === "bun") {
-    return [...baseTypescriptProjectDeps, "better-npm-audit"];
-  }
-
   return baseTypescriptProjectDeps;
 }
 
@@ -651,7 +647,7 @@ export async function checkLockfile(
 function auditCommand(packageManager: PackageManager): { command: string; args: string[] } {
   switch (packageManager) {
     case "bun":
-      return { command: "bunx", args: ["better-npm-audit", "audit"] };
+      return { command: "bun", args: ["audit", "--audit-level", "high"] };
     case "npm":
       return { command: "npm", args: ["audit"] };
     case "pnpm":

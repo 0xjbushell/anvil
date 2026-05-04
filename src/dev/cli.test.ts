@@ -27,6 +27,7 @@ interface CliRootOverrides {
   scenarioRoot?: string;
   inputRoot?: string;
   sandboxRoot?: string;
+  tempRoot?: string;
   changedFiles?: string[];
 }
 
@@ -130,22 +131,6 @@ async function runAgentCheckMain(args: string[], roots: CliRootOverrides = {}): 
   };
 }
 
-async function withTmpDir<T>(tmpDir: string, action: () => Promise<T>): Promise<T> {
-  const previousTmpDir = process.env.TMPDIR;
-  process.env.TMPDIR = tmpDir;
-  await mkdir(tmpDir, { recursive: true });
-
-  try {
-    return await action();
-  } finally {
-    if (previousTmpDir === undefined) {
-      delete process.env.TMPDIR;
-    } else {
-      process.env.TMPDIR = previousTmpDir;
-    }
-  }
-}
-
 async function pathExists(targetPath: string): Promise<boolean> {
   try {
     await access(targetPath);
@@ -183,10 +168,10 @@ afterEach(async () => {
 });
 
 describe("bun dev scenario sandbox CLI", () => {
-  test("bun dev greenfield creates .sandbox/scratch matching the greenfield input and prints a hint", async () => {
+  test("bun dev greenfield-typescript creates .sandbox/scratch matching the greenfield input and prints a hint", async () => {
     createdTargets.add(scratchTarget);
 
-    const result = await runDev(["greenfield"]);
+    const result = await runDev(["greenfield-typescript"]);
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(`${scratchTarget}\n`);
@@ -198,12 +183,12 @@ describe("bun dev scenario sandbox CLI", () => {
   test("default runs wipe and recopy .sandbox/scratch", async () => {
     createdTargets.add(scratchTarget);
 
-    expect((await runDev(["greenfield"])).exitCode).toBe(0);
+    expect((await runDev(["greenfield-typescript"])).exitCode).toBe(0);
     const extraFile = path.join(scratchTarget, "extra.txt");
     await writeFile(extraFile, "remove me\n", "utf8");
     expect(await pathExists(extraFile)).toBe(true);
 
-    const result = await runDev(["greenfield"]);
+    const result = await runDev(["greenfield-typescript"]);
 
     expect(result.exitCode).toBe(0);
     expect(await pathExists(extraFile)).toBe(false);
@@ -234,7 +219,7 @@ describe("bun dev scenario sandbox CLI", () => {
     const target = path.join(sandboxRoot, name);
     createdTargets.add(target);
 
-    const result = await runDev(["greenfield", "--name", name]);
+    const result = await runDev(["greenfield-typescript", "--name", name]);
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(`${target}\n`);
@@ -272,7 +257,7 @@ describe("bun dev scenario sandbox CLI", () => {
     const target = path.join(root, "scratch");
     createdTargets.add(root);
 
-    const result = await runMain(["greenfield"], { sandboxRoot: root });
+    const result = await runMain(["greenfield-typescript"], { sandboxRoot: root });
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(`${target}\n`);
@@ -407,7 +392,7 @@ describe("bun fixtures regression CLI", () => {
       expect(passLines.some((line) => line.includes(` ${scenarioName} passed in `))).toBe(true);
     }
     expect(lines.at(-1)).toContain(`(${scenarioFiles.length} passed, 0 failed in `);
-  }, 30_000);
+  }, 180_000);
 
   test("--filter runs only scenarios whose parsed names contain the substring", async () => {
     const root = path.join(sandboxRoot, `cli-test-fixtures-filter-${randomUUID()}`);
@@ -417,16 +402,34 @@ describe("bun fixtures regression CLI", () => {
     await mkdir(scenarioRoot, { recursive: true });
     await writeFile(
       path.join(scenarioRoot, "selected.yaml"),
-      "name: alpha-drift\ninput: greenfield\nargs:\n  - --version\nexpect:\n  exit_code: 0\n",
+      [
+        "name: alpha-drift",
+        "description: Version behavior fixture used to prove filter selection.",
+        "input: greenfield",
+        "args:",
+        "  - --version",
+        "expect:",
+        "  exit_code: 0",
+        "",
+      ].join("\n"),
       "utf8",
     );
     await writeFile(
       path.join(scenarioRoot, "control.yaml"),
-      "name: beta-clean\ninput: greenfield\nargs:\n  - --version\nexpect:\n  exit_code: 0\n",
+      [
+        "name: beta-clean",
+        "description: Version behavior fixture used to prove filter selection.",
+        "input: greenfield",
+        "args:",
+        "  - --version",
+        "expect:",
+        "  exit_code: 0",
+        "",
+      ].join("\n"),
       "utf8",
     );
 
-    const result = await withTmpDir(tmpRoot, () => runMain(["fixtures", "--filter", "drift"], { scenarioRoot }));
+    const result = await runMain(["fixtures", "--filter", "drift"], { scenarioRoot, tempRoot: tmpRoot });
 
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
@@ -438,6 +441,79 @@ describe("bun fixtures regression CLI", () => {
     expect(lines.at(-1)).toContain("(1 passed, 0 failed in ");
   });
 
+  test("bun fixtures gives each scenario isolated HOME, temp, cache, hook, and PTY state", async () => {
+    const root = path.join(sandboxRoot, `cli-test-fixtures-isolation-${randomUUID()}`);
+    createdTargets.add(root);
+    const inputRoot = path.join(root, "inputs");
+    const scenarioRoot = path.join(root, "scenarios");
+    await mkdir(scenarioRoot, { recursive: true });
+
+    for (const name of ["alpha", "beta"]) {
+      const inputDir = path.join(inputRoot, name);
+      await mkdir(inputDir, { recursive: true });
+      await writeFile(
+        path.join(inputDir, "setup.sh"),
+        [
+          "#!/usr/bin/env sh",
+          "set -eu",
+          "printf 'HOME=%s\\n' \"$HOME\" > env.txt",
+          "printf 'TMPDIR=%s\\n' \"$TMPDIR\" >> env.txt",
+          "printf 'XDG_CACHE_HOME=%s\\n' \"${XDG_CACHE_HOME:-}\" >> env.txt",
+          "printf 'GOCACHE=%s\\n' \"${GOCACHE:-}\" >> env.txt",
+          "printf 'GOMODCACHE=%s\\n' \"${GOMODCACHE:-}\" >> env.txt",
+          "printf 'GOLANGCI_LINT_CACHE=%s\\n' \"${GOLANGCI_LINT_CACHE:-}\" >> env.txt",
+          "printf 'GIT_CONFIG_GLOBAL=%s\\n' \"${GIT_CONFIG_GLOBAL:-}\" >> env.txt",
+          "printf 'HUSKY=%s\\n' \"${HUSKY:-}\" >> env.txt",
+          "printf 'ANVIL_PTY_STATE_DIR=%s\\n' \"${ANVIL_PTY_STATE_DIR:-}\" >> env.txt",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
+      await chmod(path.join(inputDir, "setup.sh"), 0o755);
+      await writeFile(
+        path.join(scenarioRoot, `${name}.yaml`),
+        [
+          `name: ${name}`,
+          "description: Version behavior fixture used to prove per-scenario env isolation.",
+          `input: ${name}`,
+          "args:",
+          "  - --version",
+          "expect:",
+          "  exit_code: 0",
+          "  files_match_regex:",
+          "    - file: env.txt",
+          "      pattern: 'HOME=.*/\\.anvil-env/.+'",
+          "    - file: env.txt",
+          "      pattern: 'TMPDIR=.*/\\.anvil-env/.+'",
+          "    - file: env.txt",
+          "      pattern: 'XDG_CACHE_HOME=.*/\\.anvil-env/.+'",
+          "    - file: env.txt",
+          "      pattern: 'GOCACHE=.*/\\.anvil-env/.+'",
+          "    - file: env.txt",
+          "      pattern: 'GOMODCACHE=.*/\\.anvil-env/.+'",
+          "    - file: env.txt",
+          "      pattern: 'GOLANGCI_LINT_CACHE=.*/\\.anvil-env/.+'",
+          "    - file: env.txt",
+          "      pattern: 'GIT_CONFIG_GLOBAL=.*/\\.anvil-env/.+'",
+          "    - file: env.txt",
+          "      pattern: 'ANVIL_PTY_STATE_DIR=.*/\\.anvil-env/.+'",
+          "  files_contain:",
+          "    - file: env.txt",
+          "      matches: 'HUSKY=0'",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
+    }
+
+    const result = await runMain(["fixtures"], { scenarioRoot, inputRoot });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toContain(" alpha passed in ");
+    expect(result.stdout).toContain(" beta passed in ");
+  });
+
   test("a broken scenario exits non-zero and reports failures with the preserved workdir", async () => {
     const root = path.join(sandboxRoot, `cli-test-fixtures-broken-${randomUUID()}`);
     createdTargets.add(root);
@@ -446,11 +522,20 @@ describe("bun fixtures regression CLI", () => {
     await mkdir(scenarioRoot, { recursive: true });
     await writeFile(
       path.join(scenarioRoot, "broken.yaml"),
-      "name: broken-fixture\ninput: greenfield\nargs:\n  - --version\nexpect:\n  exit_code: 99\n",
+      [
+        "name: broken-fixture",
+        "description: Version behavior fixture with an intentionally wrong assertion.",
+        "input: greenfield",
+        "args:",
+        "  - --version",
+        "expect:",
+        "  exit_code: 99",
+        "",
+      ].join("\n"),
       "utf8",
     );
 
-    const result = await withTmpDir(tmpRoot, () => runMain(["fixtures"], { scenarioRoot }));
+    const result = await runMain(["fixtures"], { scenarioRoot, tempRoot: tmpRoot });
 
     expect(result.exitCode).toBe(1);
     const lines = outputLines(result.stdout);
@@ -464,6 +549,60 @@ describe("bun fixtures regression CLI", () => {
     expect(await pathExists(workdir ?? "")).toBe(true);
   });
 
+  test("a setup.sh failure exits non-zero and reports setup output with the preserved workdir", async () => {
+    const root = path.join(sandboxRoot, `cli-test-fixtures-setup-failure-${randomUUID()}`);
+    const inputName = `cli-setup-failure-${randomUUID()}`;
+    const inputRoot = path.join(root, "inputs");
+    const inputDir = path.join(inputRoot, inputName);
+    createdTargets.add(root);
+    const scenarioRoot = path.join(root, "scenarios");
+    const tmpRoot = path.join(root, "tmp");
+
+    await mkdir(scenarioRoot, { recursive: true });
+    await mkdir(inputDir, { recursive: true });
+    await writeFile(
+      path.join(inputDir, "setup.sh"),
+      [
+        "#!/usr/bin/env sh",
+        "set -e",
+        "printf 'fixture setup stdout\\n'",
+        "printf 'fixture setup stderr\\n' >&2",
+        "printf 'partial setup artifact\\n' > partial.txt",
+        "exit 23",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    await chmod(path.join(inputDir, "setup.sh"), 0o755);
+    await writeFile(
+      path.join(scenarioRoot, "setup-failure.yaml"),
+      [
+        "name: setup-failure",
+        "description: Version behavior command should not run after setup failure.",
+        `input: ${inputName}`,
+        "args:",
+        "  - --version",
+        "expect:",
+        "  exit_code: 0",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = await runMain(["fixtures"], { scenarioRoot, inputRoot, tempRoot: tmpRoot });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toContain("setup-failure failed in ");
+    expect(result.stdout).toContain("(0 passed, 1 failed in ");
+    expect(result.stderr).toContain("failures for setup-failure:");
+    expect(result.stderr).toContain("setup.sh failed with exit code 23");
+    expect(result.stderr).toContain("fixture setup stdout");
+    expect(result.stderr).toContain("fixture setup stderr");
+    const workdir = result.stderr.match(/^workdir: (.+)$/m)?.[1];
+    expect(workdir).toBeDefined();
+    expect(await readFile(path.join(workdir ?? "", "partial.txt"), "utf8")).toContain("partial setup artifact");
+  });
+
   test("a filter with no matching scenario names exits non-zero with a clear message", async () => {
     const root = path.join(sandboxRoot, `cli-test-fixtures-empty-${randomUUID()}`);
     createdTargets.add(root);
@@ -471,7 +610,16 @@ describe("bun fixtures regression CLI", () => {
     await mkdir(scenarioRoot, { recursive: true });
     await writeFile(
       path.join(scenarioRoot, "only.yaml"),
-      "name: only-scenario\ninput: greenfield\nargs:\n  - --version\nexpect:\n  exit_code: 0\n",
+      [
+        "name: only-scenario",
+        "description: Version behavior fixture used to prove filter errors.",
+        "input: greenfield",
+        "args:",
+        "  - --version",
+        "expect:",
+        "  exit_code: 0",
+        "",
+      ].join("\n"),
       "utf8",
     );
 
@@ -480,6 +628,25 @@ describe("bun fixtures regression CLI", () => {
     expect(result.exitCode).toBe(1);
     expect(result.stdout).toBe("");
     expect(result.stderr).toContain('no fixtures matched filter "missing"');
+  });
+
+  test("version-only scenarios must declare an explicit version behavior purpose", async () => {
+    const root = path.join(sandboxRoot, `cli-test-fixtures-version-only-${randomUUID()}`);
+    createdTargets.add(root);
+    const scenarioRoot = path.join(root, "scenarios");
+    await mkdir(scenarioRoot, { recursive: true });
+    await writeFile(
+      path.join(scenarioRoot, "smoke.yaml"),
+      "name: smoke\ninput: greenfield\nargs:\n  - --version\nexpect:\n  exit_code: 0\n",
+      "utf8",
+    );
+
+    const result = await runMain(["fixtures"], { scenarioRoot });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("version-only fixture scenario");
+    expect(result.stderr).toContain("must describe explicit version behavior");
   });
 });
 
@@ -510,14 +677,15 @@ describe("bun agent:check regression CLI", () => {
     const tmpRoot = path.join(sandboxRoot, `cli-test-agent-check-template-${randomUUID()}`);
     createdTargets.add(tmpRoot);
 
-    const result = await withTmpDir(tmpRoot, () =>
-      runAgentCheckMain([], { changedFiles: ["templates/typescript/Makefile.ejs"] }),
-    );
+    const result = await runAgentCheckMain([], {
+      changedFiles: ["src/templates/typescript/Makefile.ejs"],
+      tempRoot: tmpRoot,
+    });
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toBe("✓ 4 scenarios passed\n");
+    expect(result.stdout).toBe("✓ 10 scenarios passed\n");
     expect(result.stderr).toBe("");
-  }, 30_000);
+  }, 180_000);
 
   test("agent:check reads git diff HEAD, runs only selected passing scenarios, and stays quiet on green", async () => {
     const root = path.join(sandboxRoot, `cli-test-agent-check-git-${randomUUID()}`);
@@ -530,12 +698,30 @@ describe("bun agent:check regression CLI", () => {
     await writeFile(path.join(gitRoot, "tests", "fixtures", "inputs", "greenfield", "README.md"), "before\n", "utf8");
     await writeFile(
       path.join(scenarioRoot, "selected.yaml"),
-      "name: selected-agent-check\ninput: greenfield\nargs:\n  - --version\nexpect:\n  exit_code: 0\n",
+      [
+        "name: selected-agent-check",
+        "description: Version behavior fixture used to prove agent:check selection.",
+        "input: greenfield",
+        "args:",
+        "  - --version",
+        "expect:",
+        "  exit_code: 0",
+        "",
+      ].join("\n"),
       "utf8",
     );
     await writeFile(
       path.join(scenarioRoot, "control.yaml"),
-      "name: control-agent-check\ninput: monorepo\nargs:\n  - --version\nexpect:\n  exit_code: 99\n",
+      [
+        "name: control-agent-check",
+        "description: Version behavior fixture used to prove agent:check selection.",
+        "input: monorepo",
+        "args:",
+        "  - --version",
+        "expect:",
+        "  exit_code: 99",
+        "",
+      ].join("\n"),
       "utf8",
     );
     await runGit(["init", "-q"], gitRoot);
@@ -544,7 +730,7 @@ describe("bun agent:check regression CLI", () => {
     await writeFile(path.join(gitRoot, "tests", "fixtures", "inputs", "greenfield", "README.md"), "after\n", "utf8");
     await runGit(["add", "tests/fixtures/inputs/greenfield/README.md"], gitRoot);
 
-    const result = await withTmpDir(tmpRoot, () => runAgentCheckMain([], { repoRoot: gitRoot, scenarioRoot }));
+    const result = await runAgentCheckMain([], { repoRoot: gitRoot, scenarioRoot, tempRoot: tmpRoot });
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("✓ 1 scenarios passed\n");
@@ -561,16 +747,24 @@ describe("bun agent:check regression CLI", () => {
     await mkdir(scenarioRoot, { recursive: true });
     await writeFile(
       path.join(scenarioRoot, "broken.yaml"),
-      "name: broken-agent-check\ninput: greenfield\nargs:\n  - --version\nexpect:\n  exit_code: 99\n",
+      [
+        "name: broken-agent-check",
+        "description: Version behavior fixture with an intentionally wrong assertion.",
+        "input: greenfield",
+        "args:",
+        "  - --version",
+        "expect:",
+        "  exit_code: 99",
+        "",
+      ].join("\n"),
       "utf8",
     );
 
-    const result = await withTmpDir(tmpRoot, () =>
-      runAgentCheckMain([], {
-        scenarioRoot,
-        changedFiles: ["tests/fixtures/inputs/greenfield/.gitkeep"],
-      }),
-    );
+    const result = await runAgentCheckMain([], {
+      scenarioRoot,
+      changedFiles: ["tests/fixtures/inputs/greenfield/.gitkeep"],
+      tempRoot: tmpRoot,
+    });
 
     expect(result.exitCode).toBe(1);
     const lines = outputLines(result.stdout);

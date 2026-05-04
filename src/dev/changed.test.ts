@@ -48,7 +48,7 @@ async function loadCommittedScenarioCatalog(): Promise<CatalogScenario[]> {
     catalog.push({
       name: scenario.name,
       input: scenario.input,
-      inputLanguage: await readInputLanguage(scenario.input),
+      inputLanguage: scenario.language ?? await readInputLanguage(scenario.input),
     });
   }
 
@@ -72,10 +72,16 @@ describe("changed-file fixture selection", () => {
 
   test("language template changes select matching language scenarios and skip others", () => {
     expect(selectedNames(["templates/typescript/Makefile.ejs"])).toEqual(["typescript-greenfield"]);
+    expect(selectedNames(["src/templates/typescript/Makefile.ejs"])).toEqual(["typescript-greenfield"]);
+    expect(selectedNames(["static/typescript/tools/crap-score.ts"])).toEqual(["typescript-greenfield"]);
     expect(selectedNames(["templates/ts/package.json.ejs"])).toEqual(["typescript-greenfield"]);
     expect(selectedNames(["templates/go/Makefile.ejs"])).toEqual(["go-greenfield"]);
+    expect(selectedNames(["src/templates/golang/Makefile.ejs"])).toEqual(["go-greenfield"]);
+    expect(selectedNames(["static/golang/tools/tools.go"])).toEqual(["go-greenfield"]);
     expect(selectedNames(["templates/golang/package.json.ejs"])).toEqual(["go-greenfield"]);
     expect(selectedNames(["templates/python/Makefile.ejs"])).toEqual(["python-greenfield"]);
+    expect(selectedNames(["src/templates/python/Makefile.ejs"])).toEqual(["python-greenfield"]);
+    expect(selectedNames(["static/python/tools/flake8-plugin/setup.py"])).toEqual(["python-greenfield"]);
     expect(selectedNames(["templates/py/package.json.ejs"])).toEqual(["python-greenfield"]);
   });
 
@@ -96,28 +102,64 @@ describe("changed-file fixture selection", () => {
       .toEqual(["script"]);
   });
 
-  test("typescript template changes select current TypeScript fixture scenarios from metadata and scenario names", async () => {
+  test("template changes select current real fixture scenarios for each supported language", async () => {
     const catalog = await loadCommittedScenarioCatalog();
-    const expectedTypescriptScenarios = catalog
-      .filter((scenario) => scenario.inputLanguage === "typescript")
-      .map((scenario) => scenario.name)
-      .sort();
+    const expectedByLanguage = {
+      typescript: [
+        "dirty-git-repo",
+        "greenfield-ts-interactive",
+        "greenfield-typescript",
+        "hostile",
+        "monorepo",
+        "partial-toolchain",
+        "re-scaffold-clean",
+        "re-scaffold-drift",
+        "re-scaffold-template-bumped",
+        "with-existing-code",
+      ],
+      golang: ["greenfield-golang"],
+      python: ["greenfield-python"],
+    };
 
-    expect(expectedTypescriptScenarios).toEqual([
+    expect(catalog.filter((scenario) => scenario.inputLanguage === "typescript").map((scenario) => scenario.name).sort())
+      .toEqual(expectedByLanguage.typescript);
+    expect(catalog.filter((scenario) => scenario.inputLanguage === "golang").map((scenario) => scenario.name).sort())
+      .toEqual(expectedByLanguage.golang);
+    expect(catalog.filter((scenario) => scenario.inputLanguage === "python").map((scenario) => scenario.name).sort())
+      .toEqual(expectedByLanguage.python);
+
+    expect(selectRelevantScenarios(catalog, ["src/templates/typescript/Makefile.ejs"]).map((scenario) => scenario.name).sort())
+      .toEqual(expectedByLanguage.typescript);
+    expect(selectRelevantScenarios(catalog, ["src/templates/golang/Makefile.ejs"]).map((scenario) => scenario.name).sort())
+      .toEqual(expectedByLanguage.golang);
+    expect(selectRelevantScenarios(catalog, ["src/templates/python/Makefile.ejs"]).map((scenario) => scenario.name).sort())
+      .toEqual(expectedByLanguage.python);
+  });
+
+  test("generated-toolchain changes select all real supported-language scenarios", async () => {
+    const catalog = await loadCommittedScenarioCatalog();
+
+    expect(selectRelevantScenarios(catalog, ["src/manifest.ts"]).map((scenario) => scenario.name).sort()).toEqual([
+      "dirty-git-repo",
+      "greenfield-golang",
+      "greenfield-python",
+      "greenfield-ts-interactive",
+      "greenfield-typescript",
+      "hostile",
+      "monorepo",
+      "partial-toolchain",
       "re-scaffold-clean",
       "re-scaffold-drift",
       "re-scaffold-template-bumped",
+      "with-existing-code",
     ]);
-    expect(
-      selectRelevantScenarios(catalog, ["templates/typescript/Makefile.ejs"])
-        .map((scenario) => scenario.name)
-        .sort(),
-    ).toEqual(["greenfield-ts-interactive", ...expectedTypescriptScenarios]);
   });
 
   test("shared template changes select every scenario", () => {
     expect(selectedNames(["templates/_shared/Makefile.ejs"])).toEqual(scenarios.map((scenario) => scenario.name));
     expect(selectedNames(["templates/base.ejs"])).toEqual(scenarios.map((scenario) => scenario.name));
+    expect(selectedNames(["src/templates/base.ejs"])).toEqual(scenarios.map((scenario) => scenario.name));
+    expect(selectedNames(["static/shared/tool.txt"])).toEqual(scenarios.map((scenario) => scenario.name));
   });
 
   test("source changes select every scenario", () => {

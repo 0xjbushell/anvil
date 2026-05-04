@@ -2,19 +2,20 @@
 
 ## Prerequisites
 
-- Go <%= toolchain.go %>+
-- golangci-lint
-- pre-commit
-- gitleaks
-- staticcheck, deadcode, govulncheck, goimports, and go-mutesting for the full quality gate
+- Nix for the generated language-specific development shell
 
 ## Setup
 
 ```bash
+nix develop path:.
 go mod tidy
 pre-commit install
 make check
 ```
+
+The generated `flake.nix` provides Go <%= toolchain.go %>+ plus `golangci-lint`,
+`staticcheck`, `deadcode`, `govulncheck`, `goimports`, `go-mutesting`,
+`gitleaks`, and `pre-commit`.
 
 ## Development
 
@@ -30,6 +31,6 @@ make check
 
 ```text
 cmd/app/         Application entrypoint
-internal/seed/   Example package and tests
+internal/seed/   Reference package and tests
 tools/           Tool tracking and custom analyzers
 ```

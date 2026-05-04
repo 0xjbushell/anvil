@@ -5,15 +5,23 @@ import { spawnSync } from "node:child_process";
 
 import { afterAll, describe, expect, test } from "bun:test";
 
+import { createE2eIsolation, type E2eIsolation } from "../../src/internal/e2e-isolation.ts";
 import { getManifest } from "../../src/manifest.ts";
 import { isTextFile, normalizeForChecksum } from "../../src/scaffold/lockfile.ts";
 import type { AnvilLockfile, ScaffoldContext } from "../../src/types.ts";
+import { assertRequiredTools, commandRequirement } from "../support/required-tools.ts";
 
 const repoRoot = path.resolve(import.meta.dir, "../..");
 const bunExecutable = process.execPath;
 const anvilEntrypoint = path.join(repoRoot, "bin/anvil.ts");
 const sandboxRoot = path.join(repoRoot, ".sandbox", `e2e-golang-${randomUUID()}`);
 const commandTimeoutMs = 300_000;
+const preflightIsolation = createE2eIsolation({
+  suiteName: "golang-e2e",
+  testName: "preflight",
+  parentDir: sandboxRoot,
+});
+const projectIsolations = new Map<string, E2eIsolation>();
 const requiredGoManifestFiles = [
   "internal/seed/seed.go",
   "internal/seed/seed_test.go",
@@ -22,6 +30,7 @@ const requiredGoManifestFiles = [
   "internal/seed/constants.go",
   "internal/seed/enums.go",
   "cmd/app/main.go",
+  "cmd/app/main_test.go",
   "tools/tools.go",
   "tools/go-analyzers/cmd/anvil-lint/main.go",
   "tools/go-analyzers/cmd/crap-report/main.go",
@@ -67,6 +76,7 @@ const requiredGoManifestFiles = [
   ".gitattributes",
   ".editorconfig",
   ".gitleaks.toml",
+  "flake.nix",
   "AGENTS.md",
   "README.md",
 ];
@@ -78,34 +88,52 @@ interface CommandResult {
   error?: Error;
 }
 
-interface ToolGate {
-  available: boolean;
-  missing: string[];
+try {
+  assertRequiredTools(
+    "Go scaffold e2e",
+    [
+      commandRequirement("bun", bunExecutable),
+      commandRequirement("go"),
+      commandRequirement("make"),
+      commandRequirement("golangci-lint"),
+      commandRequirement("staticcheck"),
+      commandRequirement("deadcode"),
+      commandRequirement("govulncheck"),
+      commandRequirement("gitleaks"),
+    ],
+    {
+      cwd: repoRoot,
+      env: preflightIsolation.env,
+      nixEntrypoint: "bun run nix:test -- tests/e2e/golang.test.ts",
+    },
+  );
+} catch (error) {
+  preflightIsolation.cleanup();
+  rmSync(sandboxRoot, { recursive: true, force: true });
+  throw error;
 }
 
-function availability(required: string[]): ToolGate {
-  const missing = required.filter((command) => {
-    if (path.isAbsolute(command)) {
-      return !existsSync(command) || !statSync(command).isFile();
-    }
+function isolationForProject(projectDir: string): E2eIsolation {
+  const existing = projectIsolations.get(projectDir);
+  if (existing !== undefined) {
+    return existing;
+  }
 
-    const result = spawnSync("which", [command], { encoding: "utf8", timeout: 5_000 });
-    return result.status !== 0;
+  const isolation = createE2eIsolation({
+    suiteName: "golang-e2e",
+    testName: path.basename(projectDir),
+    parentDir: sandboxRoot,
   });
-
-  return { available: missing.length === 0, missing };
+  projectIsolations.set(projectDir, isolation);
+  return isolation;
 }
-
-const scaffoldTools = availability([bunExecutable, "go", "make"]);
-const lintTools = availability(["go", "make", "golangci-lint"]);
-const checkTools = availability(["go", "make", "golangci-lint", "staticcheck", "deadcode", "govulncheck", "gitleaks"]);
 
 function run(command: string, args: string[], cwd: string, timeout = commandTimeoutMs): CommandResult {
   const result = spawnSync(command, args, {
     cwd,
     encoding: "utf8",
     timeout,
-    env: process.env,
+    env: isolationForProject(cwd).env,
   });
 
   return {
@@ -230,15 +258,14 @@ function assertLockfile(projectDir: string, expectedFiles: string[]): void {
 }
 
 afterAll(() => {
+  preflightIsolation.cleanup();
+  for (const isolation of projectIsolations.values()) {
+    isolation.cleanup();
+  }
   rmSync(sandboxRoot, { recursive: true, force: true });
-});
+}, commandTimeoutMs);
 
-if (!scaffoldTools.available) {
-  describe("Go scaffold e2e", () => {
-    test.skip(`requires missing tools: ${scaffoldTools.missing.join(", ")}`, () => {});
-  });
-} else {
-  describe("Go scaffold e2e", () => {
+describe("Go scaffold e2e", () => {
     test("scaffolds expected files, validates .anvil.lock, and keeps AGENTS.md concise", () => {
       const projectDir = scaffoldProject("valid-output");
       const expectedFiles = expectedManifestFiles("valid-output");
@@ -247,7 +274,17 @@ if (!scaffoldTools.available) {
       assertLockfile(projectDir, expectedFiles);
 
       const agentsLines = readFileSync(path.join(projectDir, "AGENTS.md"), "utf8").trimEnd().split(/\r?\n/);
+      const agentsText = readFileSync(path.join(projectDir, "AGENTS.md"), "utf8");
+      const readmeText = readFileSync(path.join(projectDir, "README.md"), "utf8");
+      const flakeText = readFileSync(path.join(projectDir, "flake.nix"), "utf8");
       expect(agentsLines.length).toBeLessThanOrEqual(40);
+      expect(agentsText).toContain("nix develop path:.");
+      expect(readmeText).toContain("nix develop path:.");
+      expect(flakeText).toMatch(/(^|[^A-Za-z0-9_-])pkgs\.go(?![-A-Za-z0-9_])/);
+      expect(flakeText).toContain("pkgs.golangci-lint");
+      expect(flakeText).toContain("deadcode");
+      expect(flakeText).not.toContain("pkgs.bun");
+      expect(flakeText).not.toContain("pkgs.uv");
     }, commandTimeoutMs);
 
     test("go mod tidy and make test pass on clean seed code", () => {
@@ -257,8 +294,7 @@ if (!scaffoldTools.available) {
       expectSuccess(run("make", ["test"], projectDir), "make test");
     }, commandTimeoutMs);
 
-    const lintTest = lintTools.available ? test : test.skip;
-    lintTest("make lint passes and lazily builds the custom analyzer binary", () => {
+    test("make lint passes and lazily builds the custom analyzer binary", () => {
       const projectDir = scaffoldProject("valid-lint");
       const analyzerBinary = path.join(projectDir, "tools/go-analyzers/bin/anvil-lint");
 
@@ -267,14 +303,13 @@ if (!scaffoldTools.available) {
       expect(existsSync(analyzerBinary)).toBe(true);
     }, commandTimeoutMs);
 
-    const checkTest = checkTools.available ? test : test.skip;
-    checkTest("make check passes when the full Go quality toolchain is present", () => {
+    test("make check passes when the full Go quality toolchain is present", () => {
       const projectDir = scaffoldProject("valid-check");
 
       expectSuccess(run("make", ["check"], projectDir), "make check");
     }, commandTimeoutMs);
 
-    lintTest("make lint fails when a custom analyzer violation is introduced", () => {
+    test("make lint fails when a custom analyzer violation is introduced", () => {
       const projectDir = scaffoldProject("invalid-lint");
       appendFileSync(path.join(projectDir, "internal/seed/seed.go"), "\n// TODO: implement later\n", "utf8");
 
@@ -283,5 +318,4 @@ if (!scaffoldTools.available) {
       expect(result.status, `make lint unexpectedly passed\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`).not.toBe(0);
       expect(`${result.stdout}\n${result.stderr}`).toContain("placeholder comment");
     }, commandTimeoutMs);
-  });
-}
+});

@@ -1,11 +1,19 @@
 name: re-scaffold-drift
-description: Current CLI smoke scenario for the drifted re-scaffold input.
+description: Setup-backed re-scaffold scenario proving drift reports conflicts and writes nothing.
 input: re-scaffold-drift
+language: typescript
 args:
-  - --version
+  - init
+  - --lang
+  - typescript
+  - --non-interactive
 expect:
-  exit_code: 0
-  stdout_contains:
-    - 0.1.0
-  stderr_empty: true
-  files_unchanged_from_input: true
+  exit_code: 1
+  stderr_contains:
+    - --- existing Makefile
+    - +++ new Makefile
+    - 1 file differs from current anvil templates.
+  files_contain:
+    - file: Makefile
+      matches: locally added by user
+  files_unchanged_after_setup: true

@@ -2,7 +2,7 @@ import type { Lang, LanguageManifest, ManifestEntry, ScaffoldContext } from "./t
 
 export type { FileSource, Lang, LanguageManifest, ManifestEntry, ScaffoldContext } from "./types.ts";
 
-const includeSeed = (ctx: ScaffoldContext): boolean => !ctx.hasExistingCode && !ctx.skipSeed;
+const includeSeed = (ctx: ScaffoldContext): boolean => !ctx.skipSeed;
 
 function staticEntry(lang: Lang, dest: string, when?: ManifestEntry["when"]): ManifestEntry {
   return {
@@ -49,6 +49,7 @@ const typescriptEntries: ManifestEntry[] = [
   templateEntry("typescript", ".prettierrc"),
   templateEntry("typescript", "package.json"),
   templateEntry("typescript", "vitest.config.ts"),
+  templateEntry("typescript", "flake.nix"),
   staticEntry("typescript", "knip.json"),
   staticEntry("typescript", "stryker.config.mjs"),
   templateEntry("typescript", "Makefile"),
@@ -69,6 +70,7 @@ const golangEntries: ManifestEntry[] = [
   staticEntry("golang", "internal/seed/constants.go", includeSeed),
   staticEntry("golang", "internal/seed/enums.go", includeSeed),
   templateEntry("golang", "cmd/app/main.go", includeSeed),
+  templateEntry("golang", "cmd/app/main_test.go", includeSeed),
   staticEntry("golang", "tools/tools.go"),
   staticEntry("golang", "tools/go-analyzers/cmd/anvil-lint/**/*"),
   staticEntry("golang", "tools/go-analyzers/cmd/crap-report/**/*"),
@@ -81,6 +83,7 @@ const golangEntries: ManifestEntry[] = [
   staticEntry("golang", "tools/go-analyzers/go.sum"),
   staticEntry("golang", "tools/go-analyzers/Makefile"),
   templateEntry("golang", "go.mod"),
+  templateEntry("golang", "flake.nix"),
   templateEntry("golang", ".golangci.yml"),
   templateEntry("golang", "Makefile"),
   templateEntry("golang", ".pre-commit-config.yaml"),
@@ -107,6 +110,7 @@ const pythonEntries: ManifestEntry[] = [
   staticEntry("python", "tools/flake8-plugin/setup.cfg"),
   templateEntry("python", "pyproject.toml"),
   templateEntry("python", ".flake8"),
+  templateEntry("python", "flake.nix"),
   templateEntry("python", "Makefile"),
   templateEntry("python", ".pre-commit-config.yaml"),
   templateEntry("python", ".gitignore"),

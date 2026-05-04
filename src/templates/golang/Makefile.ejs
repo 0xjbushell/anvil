@@ -7,7 +7,7 @@ lint: tools/go-analyzers/bin/anvil-lint ## Run golangci-lint and custom anvil an
 	golangci-lint run ./...
 	@custom_output="$$(go vet -vettool=tools/go-analyzers/bin/anvil-lint ./... 2>&1)"; vet_status=$$?; if [ $$vet_status -ne 0 ] || printf "%s\n" "$$custom_output" | grep -q '"message":'; then printf "%s\n" "$$custom_output"; exit 1; fi
 
-tools/go-analyzers/bin/anvil-lint:
+tools/go-analyzers/bin/anvil-lint tools/go-analyzers/bin/crap-report:
 	$(MAKE) -C tools/go-analyzers build
 
 format: ## Check Go formatting
@@ -30,8 +30,8 @@ coverage: ## Run tests and enforce 80% line coverage
 deadcode: ## Detect unreachable or unused code
 	deadcode $(GO_PACKAGES)
 
-crap: coverage ## Compute CRAP scores from coverage.out
-	go run ./tools/go-analyzers/cmd/crap-report
+crap: coverage tools/go-analyzers/bin/crap-report ## Compute CRAP scores from coverage.out
+	tools/go-analyzers/bin/crap-report
 
 audit: ## Audit Go dependencies for known vulnerabilities
 	govulncheck $(GO_PACKAGES)

@@ -69,9 +69,8 @@ These tools must be pre-configured and wired into a unified Makefile interface w
 | **Dead code** | Knip | deadcode | Vulture |
 | **CRAP score** | Custom script | Custom script | pytest-crap |
 | **Security** | eslint-plugin-security | gosec (via golangci-lint) | Bandit S rules (via Ruff) |
-| **Dep audit** | npm audit / pnpm audit / yarn audit | govulncheck | pip-audit |
+| **Dep audit** | bun audit / npm audit / pnpm audit / yarn audit | govulncheck | pip-audit |
 
-> **Note:** Bun does not provide a `bun audit` command. For Bun projects, the Makefile uses `$(PKG_EXEC) better-npm-audit audit` instead. `better-npm-audit` is included as a devDependency for Bun projects (D-58).
 | **Secret scan** | gitleaks | gitleaks | gitleaks |
 
 ### Feedback Tiers
@@ -173,7 +172,7 @@ test:      $(PKG_EXEC) vitest run
 coverage:  $(PKG_EXEC) vitest run --coverage  # thresholds in vitest.config
 deadcode:  $(PKG_EXEC) knip
 crap:      $(PKG_EXEC) tsx scripts/crap-report.ts
-audit:     $(PKG_EXEC) better-npm-audit audit  # hard-fail on high/critical (D-58, D-60)
+audit:     bun audit --audit-level high  # Bun projects; npm/pnpm/yarn projects use their native audit (D-58)
 # Tier 3
 mutate:    $(PKG_EXEC) stryker run
 # Convenience
@@ -195,7 +194,7 @@ test:      go test ./...
 coverage:  go test -coverprofile=coverage.out ./... && \
            go tool cover -func=coverage.out | scripts/check-coverage.sh
 deadcode:  deadcode ./...
-crap:      go run ./tools/go-analyzers/cmd/crap-report
+crap:      tools/go-analyzers/bin/crap-report
 audit:     govulncheck ./...  # hard-fail on any finding
 # Tier 3
 mutate:    go run github.com/zimmski/go-mutesting/cmd/go-mutesting ./...
@@ -206,22 +205,22 @@ fix:       gofmt -w . && golangci-lint run --fix ./...
 **Python:**
 ```bash
 # Tier 1
-lint:      uv pip install -e tools/flake8-plugin/ --quiet && \
-           uv run ruff check . && \
-           uv run flake8 --select=ANV src tests
-format:    uv run ruff format --check .
-typecheck: uv run mypy src
+PY_DEV ?= --extra dev
+lint:      uv run $(PY_DEV) ruff check . && \
+           uv run $(PY_DEV) --with-editable tools/flake8-plugin flake8 --select=ANV src tests
+format:    uv run $(PY_DEV) ruff format --check .
+typecheck: uv run $(PY_DEV) mypy src
 # Tier 2
 COVERAGE_THRESHOLD ?= 80   # line coverage % (override per project: COVERAGE_THRESHOLD=90 make coverage)
-test:      uv run pytest
-coverage:  uv run pytest --cov=src --cov-fail-under=$(COVERAGE_THRESHOLD)
-deadcode:  uv run vulture src
-crap:      uv run python scripts/crap_report.py
-audit:     uv export --extra dev --format requirements-txt --no-hashes | uv run pip-audit --progress-spinner off --skip-editable -r /dev/stdin
+test:      uv run $(PY_DEV) pytest
+coverage:  uv run $(PY_DEV) pytest --cov=src --cov-fail-under=$(COVERAGE_THRESHOLD)
+deadcode:  uv run $(PY_DEV) vulture src
+crap:      uv run $(PY_DEV) pytest --crap
+audit:     uv export --extra dev --format requirements-txt --no-hashes | uv run $(PY_DEV) pip-audit --progress-spinner off --skip-editable -r /dev/stdin
 # Tier 3
-mutate:    uv run mutmut run
+mutate:    uv run $(PY_DEV) mutmut run
 # Convenience
-fix:       uv run ruff check --fix . && uv run ruff format .
+fix:       uv run $(PY_DEV) ruff check --fix . && uv run $(PY_DEV) ruff format .
 ```
 
 Python commands use `uv run` to handle virtualenv transparently and avoid PEP 668 issues (D-28). The `--select=ANV` flag ensures Flake8 only runs custom anvil rules, avoiding duplicate warnings with Ruff. `make check` is the aggregate of Tier 1 + Tier 2 targets.

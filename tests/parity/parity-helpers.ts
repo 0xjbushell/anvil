@@ -1,11 +1,19 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { expect } from "bun:test";
 import { ESLint } from "eslint";
+
+import { createE2eIsolation, type E2eIsolation } from "../../src/internal/e2e-isolation.ts";
+import {
+  assertRequiredTools,
+  commandRequirement,
+  formatRequiredToolsError,
+  python311Requirement,
+} from "../support/required-tools.ts";
 
 const require = createRequire(import.meta.url);
 const parser = require("@typescript-eslint/parser");
@@ -15,6 +23,7 @@ const repoRoot = path.resolve(import.meta.dir, "../..");
 const goAnalyzerRoot = path.join(repoRoot, "static/golang/tools/go-analyzers");
 const pythonPluginRoot = path.join(repoRoot, "static/python/tools/flake8-plugin");
 const commandTimeoutMs = 120_000;
+export const parityCommandTestTimeoutMs = 15_000;
 const goAnalyzerNames = [
   "nologcontinue",
   "noerrorobscuring",
@@ -38,11 +47,6 @@ export interface LintResult {
   message: string;
   line: number;
   column: number;
-}
-
-export interface ToolGate {
-  available: boolean;
-  missing: string[];
 }
 
 export interface RuleFixture {
@@ -76,9 +80,9 @@ interface CommandResult {
   error?: Error;
 }
 
-let goGateCache: ToolGate | undefined;
 let goAnalyzerBinary: string | undefined;
 let goAnalyzerTempDir: string | undefined;
+let goParityIsolation: E2eIsolation | undefined;
 
 export function source(value: string): string {
   const trimmed = value.replace(/^\n/, "").replace(/\n\s*$/, "\n");
@@ -91,64 +95,70 @@ export function source(value: string): string {
   return lines.map((line) => line.slice(indent)).join("\n");
 }
 
-export function availability(required: string[]): ToolGate {
-  const missing = required.filter((command) => {
-    if (path.isAbsolute(command)) {
-      return !existsSync(command) || !statSync(command).isFile();
-    }
-
-    return runCommand("which", [command], repoRoot, 5_000).status !== 0;
-  });
-
-  return { available: missing.length === 0, missing };
-}
-
-export function skipReason(gate: ToolGate): string {
-  return gate.available ? "" : ` (missing: ${gate.missing.join(", ")})`;
-}
-
-export function goAnalyzerGate(): ToolGate {
-  if (goGateCache !== undefined) {
-    return goGateCache;
-  }
-
-  const toolGate = availability(["go"]);
-  if (!toolGate.available) {
-    goGateCache = toolGate;
-    return goGateCache;
+export function requireGoAnalyzer(): void {
+  if (goAnalyzerBinary !== undefined) {
+    return;
   }
 
   const tempDir = mkdtempSync(path.join(tmpdir(), "anvil-parity-vettool-"));
   const binaryPath = path.join(tempDir, "anvil-lint");
-  const build = runCommand("go", ["build", "-o", binaryPath, "./cmd/anvil-lint"], goAnalyzerRoot);
-  if (build.status !== 0) {
+  const isolation = createE2eIsolation({
+    suiteName: "go-parity",
+    testName: "analyzer-build",
+    parentDir: tempDir,
+  });
+  try {
+    assertRequiredTools("Go parity", [commandRequirement("go")], {
+      cwd: repoRoot,
+      env: isolation.env,
+      nixEntrypoint: "bun run nix:test -- tests/parity",
+    });
+
+    const build = runCommand(
+      "go",
+      ["build", "-o", binaryPath, "./cmd/anvil-lint"],
+      goAnalyzerRoot,
+      commandTimeoutMs,
+      isolation.env,
+    );
+    if (build.status !== 0) {
+      rmSync(tempDir, { recursive: true, force: true });
+      throw new Error(
+        formatRequiredToolsError(
+          "Go parity",
+          [`go analyzer build failed: ${build.stderr || build.stdout}`],
+          "bun run nix:test -- tests/parity",
+        ),
+      );
+    }
+  } catch (error) {
+    isolation.cleanup();
     rmSync(tempDir, { recursive: true, force: true });
-    goGateCache = {
-      available: false,
-      missing: [`go analyzer build failed: ${build.stderr || build.stdout}`],
-    };
-    return goGateCache;
+    throw error;
   }
 
   goAnalyzerBinary = binaryPath;
   goAnalyzerTempDir = tempDir;
-  goGateCache = { available: true, missing: [] };
-  return goGateCache;
+  goParityIsolation = isolation;
 }
 
-export function pythonParityGate(): ToolGate {
-  const toolGate = availability(["python3", "uv"]);
-  if (!toolGate.available) {
-    return toolGate;
+export function requirePythonParityTools(): void {
+  const tempDir = mkdtempSync(path.join(tmpdir(), "anvil-parity-python-tools-"));
+  const isolation = createE2eIsolation({
+    suiteName: "python-parity",
+    testName: "tool-preflight",
+    parentDir: tempDir,
+  });
+  try {
+    assertRequiredTools("Python parity", [python311Requirement(), commandRequirement("uv")], {
+      cwd: repoRoot,
+      env: isolation.env,
+      nixEntrypoint: "bun run nix:test -- tests/parity",
+    });
+  } finally {
+    isolation.cleanup();
+    rmSync(tempDir, { recursive: true, force: true });
   }
-
-  const version = runCommand(
-    "python3",
-    ["-c", "import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)"],
-    repoRoot,
-    5_000,
-  );
-  return version.status === 0 ? toolGate : { available: false, missing: ["python3>=3.11"] };
 }
 
 export async function runEslintRule(
@@ -197,6 +207,11 @@ export async function runEslintRule(
 }
 
 export function runGoAnalyzer(analyzerName: string, fixture: RuleFixture): LintResult[] {
+  if (goParityIsolation === undefined) {
+    throw new Error("Go analyzer gate must run before Go parity checks.");
+  }
+  const goEnv = goParityIsolation.env;
+
   return withWorkspace("anvil-parity-go-", fixture, "parity.go", (workspace) => {
     if (goAnalyzerBinary === undefined) {
       throw new Error("Go analyzer gate must run before Go parity checks.");
@@ -208,6 +223,8 @@ export function runGoAnalyzer(analyzerName: string, fixture: RuleFixture): LintR
       "go",
       ["vet", `-vettool=${goAnalyzerBinary}`, ...goAnalyzerFlags(analyzerName), "./..."],
       workspace,
+      commandTimeoutMs,
+      goEnv,
     );
     const findings = parseGoVetOutput(analyzerName, `${result.stdout}\n${result.stderr}`);
     if (result.error !== undefined || (result.status !== 0 && findings.length === 0)) {
@@ -215,12 +232,13 @@ export function runGoAnalyzer(analyzerName: string, fixture: RuleFixture): LintR
     }
 
     return findings;
-  });
+  }, { env: goEnv });
 }
 
 export function runFlake8Rule(anvCode: string, fixture: PythonRuleFixture): LintResult[] {
-  return withWorkspace("anvil-parity-py-", fixture, "src/parity.py", (workspace, entryPath) => {
+  return withWorkspace("anvil-parity-py-", fixture, "src/parity.py", (workspace, entryPath, env) => {
     const sourceDirs = fixture.sourceDirs ?? ["src"];
+    const pluginRoot = copyPythonPlugin(workspace);
     const result = runCommand(
       "uv",
       [
@@ -228,7 +246,7 @@ export function runFlake8Rule(anvCode: string, fixture: PythonRuleFixture): Lint
         "--with",
         "flake8",
         "--with-editable",
-        pythonPluginRoot,
+        pluginRoot,
         "python",
         "-m",
         "flake8",
@@ -238,6 +256,8 @@ export function runFlake8Rule(anvCode: string, fixture: PythonRuleFixture): Lint
         entryPath,
       ],
       workspace,
+      commandTimeoutMs,
+      env,
     );
     const findings = parseFlake8Output(anvCode, `${result.stdout}\n${result.stderr}`);
     if (result.error !== undefined || (result.status !== 0 && findings.length === 0)) {
@@ -266,9 +286,22 @@ function withWorkspace<T>(
   prefix: string,
   fixture: RuleFixture,
   defaultFilename: string,
-  operation: (workspace: string, entryPath: string) => T,
+  operation: (workspace: string, entryPath: string, env: NodeJS.ProcessEnv) => T,
+  options: { env?: NodeJS.ProcessEnv } = {},
 ): T {
   const workspace = mkdtempSync(path.join(tmpdir(), prefix));
+  const isolation =
+    options.env === undefined
+      ? createE2eIsolation({
+        suiteName: "parity",
+        testName: path.basename(workspace),
+        parentDir: path.dirname(workspace),
+      })
+      : undefined;
+  const env = options.env ?? isolation?.env;
+  if (env === undefined) {
+    throw new Error("parity workspace isolation was not initialized");
+  }
   const filename = fixture.filename ?? defaultFilename;
   const entryPath = writeFixtureFile(workspace, filename, fixture.code);
 
@@ -276,8 +309,9 @@ function withWorkspace<T>(
     for (const [relativePath, content] of Object.entries(fixture.extraFiles ?? {})) {
       writeFixtureFile(workspace, relativePath, content);
     }
-    return operation(workspace, entryPath);
+    return operation(workspace, entryPath, env);
   } finally {
+    isolation?.cleanup();
     rmSync(workspace, { recursive: true, force: true });
   }
 }
@@ -286,9 +320,14 @@ async function withWorkspaceAsync<T>(
   prefix: string,
   fixture: RuleFixture,
   defaultFilename: string,
-  operation: (workspace: string, entryPath: string) => Promise<T>,
+  operation: (workspace: string, entryPath: string, env: NodeJS.ProcessEnv) => Promise<T>,
 ): Promise<T> {
   const workspace = mkdtempSync(path.join(tmpdir(), prefix));
+  const isolation = createE2eIsolation({
+    suiteName: "parity",
+    testName: path.basename(workspace),
+    parentDir: path.dirname(workspace),
+  });
   const filename = fixture.filename ?? defaultFilename;
   const entryPath = writeFixtureFile(workspace, filename, fixture.code);
 
@@ -296,8 +335,9 @@ async function withWorkspaceAsync<T>(
     for (const [relativePath, content] of Object.entries(fixture.extraFiles ?? {})) {
       writeFixtureFile(workspace, relativePath, content);
     }
-    return await operation(workspace, entryPath);
+    return await operation(workspace, entryPath, isolation.env);
   } finally {
+    isolation.cleanup();
     rmSync(workspace, { recursive: true, force: true });
   }
 }
@@ -309,17 +349,28 @@ function writeFixtureFile(workspace: string, relativePath: string, content: stri
   return filePath;
 }
 
-function runCommand(command: string, args: string[], cwd: string, timeout = commandTimeoutMs): CommandResult {
+function copyPythonPlugin(workspace: string): string {
+  const pluginRoot = path.join(workspace, "tools/flake8-plugin");
+  mkdirSync(path.dirname(pluginRoot), { recursive: true });
+  cpSync(pythonPluginRoot, pluginRoot, {
+    recursive: true,
+    filter: (source) => !source.endsWith(".egg-info") && !source.includes(`${path.sep}__pycache__${path.sep}`),
+  });
+  return pluginRoot;
+}
+
+function runCommand(
+  command: string,
+  args: string[],
+  cwd: string,
+  timeout = commandTimeoutMs,
+  env?: NodeJS.ProcessEnv,
+): CommandResult {
   const result = spawnSync(command, args, {
     cwd,
     encoding: "utf8",
     timeout,
-    env: {
-      ...process.env,
-      GOWORK: "off",
-      PYTHONDONTWRITEBYTECODE: "1",
-      UV_NO_PROGRESS: "1",
-    },
+    env,
   });
 
   return {
@@ -339,6 +390,13 @@ function goAnalyzerFlags(analyzerName: string): string[] {
 }
 
 function parseGoVetOutput(ruleId: string, output: string): LintResult[] {
+  return [
+    ...parseGoVetTextOutput(ruleId, output),
+    ...parseGoVetJsonOutput(ruleId, output),
+  ];
+}
+
+function parseGoVetTextOutput(ruleId: string, output: string): LintResult[] {
   return output
     .split(/\r?\n/)
     .flatMap((line) => {
@@ -356,6 +414,106 @@ function parseGoVetOutput(ruleId: string, output: string): LintResult[] {
         },
       ];
     });
+}
+
+function parseGoVetJsonOutput(ruleId: string, output: string): LintResult[] {
+  return extractJsonObjects(output).flatMap((jsonText) => {
+    const parsed = JSON.parse(jsonText) as unknown;
+    if (!isGoVetJson(parsed)) {
+      return [];
+    }
+
+    const findings: LintResult[] = [];
+    for (const packageDiagnostics of Object.values(parsed)) {
+      const diagnostics = packageDiagnostics[ruleId] ?? [];
+      for (const diagnostic of diagnostics) {
+        const position = diagnostic.posn.match(/:(\d+):(\d+)$/);
+        if (position === null) {
+          continue;
+        }
+        findings.push({
+          ruleId,
+          line: Number(position[1]),
+          column: Number(position[2]),
+          message: diagnostic.message,
+        });
+      }
+    }
+    return findings;
+  });
+}
+
+function extractJsonObjects(output: string): string[] {
+  const objects: string[] = [];
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = 0; index < output.length; index += 1) {
+    const char = output[index];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === "\"") {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === "\"") {
+      inString = true;
+      continue;
+    }
+
+    if (char === "{") {
+      if (depth === 0) {
+        start = index;
+      }
+      depth += 1;
+      continue;
+    }
+
+    if (char === "}" && depth > 0) {
+      depth -= 1;
+      if (depth === 0 && start >= 0) {
+        objects.push(output.slice(start, index + 1));
+        start = -1;
+      }
+    }
+  }
+
+  return objects;
+}
+
+function isGoVetJson(
+  value: unknown,
+): value is Record<string, Record<string, Array<{ posn: string; message: string }>>> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+
+  return Object.values(value).every(
+    (packageDiagnostics) =>
+      typeof packageDiagnostics === "object" &&
+      packageDiagnostics !== null &&
+      !Array.isArray(packageDiagnostics) &&
+      Object.values(packageDiagnostics).every(
+        (diagnostics) =>
+          Array.isArray(diagnostics) &&
+          diagnostics.every(
+            (diagnostic) =>
+              typeof diagnostic === "object" &&
+              diagnostic !== null &&
+              "posn" in diagnostic &&
+              typeof diagnostic.posn === "string" &&
+              "message" in diagnostic &&
+              typeof diagnostic.message === "string",
+          ),
+      ),
+  );
 }
 
 function parseFlake8Output(ruleId: string, output: string): LintResult[] {
@@ -383,6 +541,7 @@ function commandFailure(label: string, result: CommandResult): string {
 }
 
 process.on("exit", () => {
+  goParityIsolation?.cleanup();
   if (goAnalyzerTempDir !== undefined) {
     rmSync(goAnalyzerTempDir, { recursive: true, force: true });
   }

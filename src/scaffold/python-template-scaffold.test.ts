@@ -77,6 +77,7 @@ describe("Python dynamic scaffold templates", () => {
       "AGENTS.md",
       "Makefile",
       "README.md",
+      "flake.nix",
       "pyproject.toml",
     ]);
     for (const entry of templateEntries) {
@@ -130,23 +131,29 @@ describe("Python dynamic scaffold templates", () => {
       expect(rendered).toMatch(new RegExp(`^${target}:`, "m"));
     }
 
-    expect(makefileTargetRecipe(rendered, "lint")).toContain("uv pip install -e tools/flake8-plugin/ --quiet");
-    expect(makefileTargetRecipe(rendered, "lint")).toContain("uv run ruff check .");
-    expect(makefileTargetRecipe(rendered, "lint")).toContain("uv run flake8 --select=ANV src tests");
-    expect(makefileTargetRecipe(rendered, "format")).toContain("uv run ruff format --check .");
-    expect(makefileTargetRecipe(rendered, "typecheck")).toContain("uv run mypy src");
+    expect(rendered).toMatch(/^PY_DEV \?= --extra dev$/m);
+    expect(makefileTargetRecipe(rendered, "lint")).toContain("uv run $(PY_DEV) ruff check .");
+    expect(makefileTargetRecipe(rendered, "lint")).toContain(
+      "uv run $(PY_DEV) --with-editable tools/flake8-plugin flake8 --select=ANV src tests",
+    );
+    expect(makefileTargetRecipe(rendered, "format")).toContain("uv run $(PY_DEV) ruff format --check .");
+    expect(makefileTargetRecipe(rendered, "typecheck")).toContain("uv run $(PY_DEV) mypy src");
     expect(makefileTargetRecipe(rendered, "security")).toContain("gitleaks detect --source . --no-git");
-    expect(makefileTargetRecipe(rendered, "test")).toContain("uv run pytest");
-    expect(makefileTargetRecipe(rendered, "coverage")).toContain("uv run pytest --cov=src --cov-fail-under=$(COVERAGE_THRESHOLD)");
-    expect(makefileTargetRecipe(rendered, "deadcode")).toContain("uv run vulture src");
-    expect(makefileTargetRecipe(rendered, "crap")).toContain("uv run pytest --crap");
+    expect(makefileTargetRecipe(rendered, "test")).toContain("uv run $(PY_DEV) pytest");
+    expect(makefileTargetRecipe(rendered, "coverage")).toContain(
+      "uv run $(PY_DEV) pytest --cov=src --cov-fail-under=$(COVERAGE_THRESHOLD)",
+    );
+    expect(makefileTargetRecipe(rendered, "deadcode")).toContain("uv run $(PY_DEV) vulture src");
+    expect(makefileTargetRecipe(rendered, "crap")).toContain("uv run $(PY_DEV) pytest --crap");
     expect(makefileTargetRecipe(rendered, "audit")).toContain("uv export --extra dev --format requirements-txt --no-hashes");
-    expect(makefileTargetRecipe(rendered, "audit")).toContain("uv run pip-audit --progress-spinner off --skip-editable -r /dev/stdin");
-    expect(makefileTargetRecipe(rendered, "mutate")).toContain("uv run mutmut run");
+    expect(makefileTargetRecipe(rendered, "audit")).toContain(
+      "uv run $(PY_DEV) pip-audit --progress-spinner off --skip-editable -r /dev/stdin",
+    );
+    expect(makefileTargetRecipe(rendered, "mutate")).toContain("uv run $(PY_DEV) mutmut run");
     expect(makefileTargetLine(rendered, "quality")).toContain("check mutate");
     expect(makefileTargetLine(rendered, "check")).toContain("lint format typecheck security test coverage deadcode crap audit");
-    expect(makefileTargetRecipe(rendered, "fix")).toContain("uv run ruff check --fix .");
-    expect(makefileTargetRecipe(rendered, "fix")).toContain("uv run ruff format .");
+    expect(makefileTargetRecipe(rendered, "fix")).toContain("uv run $(PY_DEV) ruff check --fix .");
+    expect(makefileTargetRecipe(rendered, "fix")).toContain("uv run $(PY_DEV) ruff format .");
     expect(rendered).not.toMatch(/\b(?:npx|bunx|npm|pnpm|yarn)\b/);
   });
 

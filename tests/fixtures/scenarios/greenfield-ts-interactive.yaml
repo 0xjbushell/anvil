@@ -1,6 +1,7 @@
 name: greenfield-ts-interactive
 description: Interactive greenfield TypeScript init scenario driven through a PTY.
 input: greenfield
+language: typescript
 pty:
   command:
     - init

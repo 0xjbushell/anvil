@@ -2,13 +2,13 @@ import { describe, expect, test } from "bun:test";
 
 import {
   expectFinding,
-  goAnalyzerGate,
   goodFixture,
-  pythonParityGate,
+  requireGoAnalyzer,
+  requirePythonParityTools,
+  parityCommandTestTimeoutMs,
   runEslintRule,
   runFlake8Rule,
   runGoAnalyzer,
-  skipReason,
   source,
   type ParityRuleFixture,
   type PythonParityFixture,
@@ -25,10 +25,8 @@ interface AntiSlopCase {
   python: PythonParityFixture & { anvCode: string };
 }
 
-const goGate = goAnalyzerGate();
-const pythonGate = pythonParityGate();
-const goParityTest = goGate.available ? test : test.skip;
-const pythonParityTest = pythonGate.available ? test : test.skip;
+requireGoAnalyzer();
+requirePythonParityTools();
 
 const antiSlopCases: AntiSlopCase[] = [
   {
@@ -325,7 +323,7 @@ const antiSlopCases: AntiSlopCase[] = [
 ];
 
 describe("anti-slop parity", () => {
-  goParityTest(`Go helper limits diagnostics to the requested analyzer${skipReason(goGate)}`, () => {
+  test("Go helper limits diagnostics to the requested analyzer", () => {
     const placeholderOnly: ParityRuleFixture = {
       code: source(`
         package parity
@@ -348,21 +346,21 @@ describe("anti-slop parity", () => {
         expect(good).toEqual([]);
       });
 
-      goParityTest(`Go analyzer fires on bad code and stays clean on good code${skipReason(goGate)}`, () => {
+      test("Go analyzer fires on bad code and stays clean on good code", () => {
         const bad = runGoAnalyzer(ruleCase.golang.analyzerName, ruleCase.golang);
         expectFinding(bad, ruleCase.messagePattern);
 
         const good = runGoAnalyzer(ruleCase.golang.analyzerName, goodFixture(ruleCase.golang));
         expect(good).toEqual([]);
-      });
+      }, parityCommandTestTimeoutMs);
 
-      pythonParityTest(`Python Flake8 checker fires on bad code and stays clean on good code${skipReason(pythonGate)}`, () => {
+      test("Python Flake8 checker fires on bad code and stays clean on good code", () => {
         const bad = runFlake8Rule(ruleCase.python.anvCode, ruleCase.python);
         expectFinding(bad, ruleCase.messagePattern);
 
         const good = runFlake8Rule(ruleCase.python.anvCode, goodFixture(ruleCase.python));
         expect(good).toEqual([]);
-      });
+      }, parityCommandTestTimeoutMs);
     });
   }
 });

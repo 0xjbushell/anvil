@@ -49,6 +49,7 @@ export interface DevCliRoots {
   scenarioRoot?: string;
   inputRoot?: string;
   sandboxRoot?: string;
+  tempRoot?: string;
 }
 
 export interface AgentCheckOptions extends DevCliRoots {
@@ -73,6 +74,7 @@ interface ResolvedRoots {
   scenarioRoot: string;
   inputRoot: string;
   sandboxRoot: string;
+  tempRoot?: string;
 }
 
 const defaultRepoRoot = path.resolve(import.meta.dir, "..", "..");
@@ -106,6 +108,7 @@ function resolveRoots(roots: DevCliRoots): ResolvedRoots {
     scenarioRoot: path.resolve(roots.scenarioRoot ?? path.join(repoRoot, "tests", "fixtures", "scenarios")),
     inputRoot: path.resolve(roots.inputRoot ?? path.join(repoRoot, "tests", "fixtures", "inputs")),
     sandboxRoot: path.resolve(roots.sandboxRoot ?? path.join(repoRoot, ".sandbox")),
+    tempRoot: roots.tempRoot === undefined ? undefined : path.resolve(roots.tempRoot),
   };
 }
 
@@ -224,6 +227,24 @@ async function loadFixtureScenario(yamlPath: string): Promise<Scenario> {
   }
 
   return scenario.data;
+}
+
+function isVersionOnlyScenario(scenario: Scenario): boolean {
+  return scenario.args?.length === 1 && scenario.args[0] === "--version";
+}
+
+function hasExplicitVersionPurpose(scenario: Scenario): boolean {
+  return /version behavior/i.test(`${scenario.name}\n${scenario.description ?? ""}`);
+}
+
+function assertFixtureScenarioPurpose(scenario: Scenario, yamlPath: string): void {
+  if (isVersionOnlyScenario(scenario) && !hasExplicitVersionPurpose(scenario)) {
+    throw new Error(
+      `version-only fixture scenario ${JSON.stringify(
+        scenario.name,
+      )} at ${yamlPath} must describe explicit version behavior`,
+    );
+  }
 }
 
 async function loadFixtureInputLanguage(input: string, inputRoot: string): Promise<string | undefined> {
@@ -472,10 +493,13 @@ async function discoverFixtureScenarios(scenarioRoot: string, inputRoot?: string
     }
 
     const scenario = await loadFixtureScenario(yamlPath);
+    assertFixtureScenarioPurpose(scenario, yamlPath);
     scenarios.push({
       name: scenario.name,
       input: scenario.input,
-      inputLanguage: inputRoot === undefined ? undefined : await loadFixtureInputLanguage(scenario.input, inputRoot),
+      inputLanguage: scenario.language ?? (inputRoot === undefined
+        ? undefined
+        : await loadFixtureInputLanguage(scenario.input, inputRoot)),
       yamlPath,
     });
   }
@@ -483,11 +507,15 @@ async function discoverFixtureScenarios(scenarioRoot: string, inputRoot?: string
   return scenarios;
 }
 
-async function runFixtureScenario(scenario: FixtureScenario): Promise<FixtureRunOutcome> {
+async function runFixtureScenario(
+  scenario: FixtureScenario,
+  inputRoot: string,
+  tempRoot?: string,
+): Promise<FixtureRunOutcome> {
   const started = performance.now();
 
   try {
-    const result = await runScenario(scenario.yamlPath);
+    const result = await runScenario(scenario.yamlPath, { inputRoot, tempRoot });
     return {
       name: result.scenario,
       passed: result.passed,
@@ -586,7 +614,7 @@ export async function runFixtures(
   try {
     const args = parseFixturesArgs(argv);
     const resolvedRoots = resolveRoots(roots);
-    const discovered = await discoverFixtureScenarios(resolvedRoots.scenarioRoot);
+    const discovered = await discoverFixtureScenarios(resolvedRoots.scenarioRoot, resolvedRoots.inputRoot);
     if (discovered.length === 0) {
       io.stderr.write(`error: no fixture scenarios found in ${resolvedRoots.scenarioRoot}\n`);
       return 1;
@@ -604,7 +632,7 @@ export async function runFixtures(
     let failed = 0;
 
     for (const scenario of selected) {
-      const outcome = await runFixtureScenario(scenario);
+      const outcome = await runFixtureScenario(scenario, resolvedRoots.inputRoot, resolvedRoots.tempRoot);
       if (outcome.passed) {
         passed++;
         writeFixtureOutcomeLine(io, outcome);
@@ -647,7 +675,7 @@ export async function runAgentCheck(
     const started = performance.now();
     const outcomes: FixtureRunOutcome[] = [];
     for (const scenario of selected) {
-      outcomes.push(await runFixtureScenario(scenario));
+      outcomes.push(await runFixtureScenario(scenario, resolvedRoots.inputRoot, resolvedRoots.tempRoot));
     }
 
     const { passed, failed } = countOutcomes(outcomes);

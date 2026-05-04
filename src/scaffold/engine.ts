@@ -4,6 +4,7 @@ import path from "node:path";
 
 import ejs from "ejs";
 
+import { scaffoldAssets } from "../generated/scaffold-assets.ts";
 import { getManifest as getDefaultManifest } from "../manifest.ts";
 import type {
   AnvilLockfile,
@@ -73,6 +74,14 @@ export class ScaffoldConflictError extends Error {
 
 const globAllSuffix = "/**/*";
 const anvilRoot = path.resolve(import.meta.dir, "..", "..");
+const recoverableSourceErrorCodes = new Set(["ENOENT", "ENOTDIR"]);
+
+class ScaffoldSourcePathError extends Error {
+  constructor(sourcePath: string) {
+    super(`Scaffold source path escapes the anvil root: ${sourcePath}`);
+    this.name = "ScaffoldSourcePathError";
+  }
+}
 
 interface BuiltTree {
   tree: FsTree;
@@ -82,6 +91,11 @@ interface BuiltTree {
 interface ConflictDecision {
   approvedChanges: FsTreeChange[];
   filesSkipped: string[];
+}
+
+interface SourceFile {
+  sourcePath: string;
+  relativePath: string;
 }
 
 type ManifestProvider = (lang: Lang) => LanguageManifest;
@@ -102,7 +116,7 @@ function assertInsideAnvilRoot(sourcePath: string, absolutePath: string): void {
   const rootPrefix = `${anvilRoot}${path.sep}`;
 
   if (absolutePath !== anvilRoot && !absolutePath.startsWith(rootPrefix)) {
-    throw new Error(`Scaffold source path escapes the anvil root: ${sourcePath}`);
+    throw new ScaffoldSourcePathError(sourcePath);
   }
 }
 
@@ -114,6 +128,45 @@ function resolveSourcePath(sourcePath: string): string {
 
 function toPosixPath(filePath: string): string {
   return filePath.split(path.sep).join(path.posix.sep);
+}
+
+function normalizeSourcePath(sourcePath: string): string {
+  return sourcePath.split(path.sep).join(path.posix.sep);
+}
+
+function embeddedSourceText(sourcePath: string): string | undefined {
+  return scaffoldAssets[normalizeSourcePath(sourcePath)];
+}
+
+function errorCode(error: unknown): string | undefined {
+  return typeof error === "object" && error !== null && typeof (error as NodeJS.ErrnoException).code === "string"
+    ? (error as NodeJS.ErrnoException).code
+    : undefined;
+}
+
+function isRecoverableSourceReadError(error: unknown): boolean {
+  const seen = new Set<unknown>();
+  let current: unknown = error;
+
+  while (typeof current === "object" && current !== null && !seen.has(current)) {
+    seen.add(current);
+    if (current instanceof ScaffoldSourcePathError) {
+      return true;
+    }
+
+    const code = errorCode(current);
+    if (code !== undefined && recoverableSourceErrorCodes.has(code)) {
+      return true;
+    }
+
+    current = (current as { cause?: unknown }).cause;
+  }
+
+  return false;
+}
+
+function sourceReadError(label: "source" | "template" | "source directory", sourcePath: string, error: unknown): Error {
+  return new Error(`Failed to read scaffold ${label} "${sourcePath}": ${describeError(error)}`, { cause: error });
 }
 
 function isIgnoredScaffoldSource(entry: Dirent): boolean {
@@ -181,21 +234,36 @@ function validateLockfileStatus(ctx: ScaffoldContext, result: LockfileReadResult
 }
 
 async function readSourceText(sourcePath: string): Promise<string> {
-  const absolutePath = resolveSourcePath(sourcePath);
+  try {
+    return await Bun.file(resolveSourcePath(sourcePath)).text();
+  } catch (error) {
+    const embedded = embeddedSourceText(sourcePath);
+    if (embedded !== undefined && isRecoverableSourceReadError(error)) {
+      return embedded;
+    }
 
-  return withScaffoldErrorContext(`Failed to read scaffold source "${sourcePath}"`, () =>
-    Bun.file(absolutePath).text(),
-  );
+    throw sourceReadError("source", sourcePath, error);
+  }
 }
 
 async function renderTemplate(entry: ManifestEntry, ctx: ScaffoldContext): Promise<string> {
-  const absolutePath = resolveSourcePath(entry.src);
-  const template = await withScaffoldErrorContext(`Failed to read scaffold template "${entry.src}"`, () =>
-    Bun.file(absolutePath).text(),
-  );
+  let filename: string;
+  let template: string;
+  try {
+    filename = resolveSourcePath(entry.src);
+    template = await Bun.file(filename).text();
+  } catch (error) {
+    const embedded = embeddedSourceText(entry.src);
+    if (embedded === undefined || !isRecoverableSourceReadError(error)) {
+      throw sourceReadError("template", entry.src, error);
+    }
+
+    filename = entry.src;
+    template = embedded;
+  }
 
   return withScaffoldErrorContext(`Failed to render scaffold template "${entry.src}"`, () =>
-    ejs.render(template, ctx, { filename: absolutePath }),
+    ejs.render(template, ctx, { filename }),
   );
 }
 
@@ -233,14 +301,43 @@ async function listFilesRecursive(directoryPath: string): Promise<Array<{ absolu
   return files;
 }
 
+function listEmbeddedFilesRecursive(sourceBase: string): SourceFile[] {
+  const normalizedBase = normalizeSourcePath(sourceBase).replace(/\/+$/, "");
+  const prefix = `${normalizedBase}/`;
+
+  return Object.keys(scaffoldAssets)
+    .filter((assetPath) => assetPath.startsWith(prefix))
+    .sort()
+    .map((sourcePath) => ({
+      sourcePath,
+      relativePath: sourcePath.slice(prefix.length),
+    }));
+}
+
+async function listSourceFilesRecursive(sourceBase: string): Promise<SourceFile[]> {
+  try {
+    const absoluteSourceBase = resolveSourcePath(sourceBase);
+    return (await listFilesRecursive(absoluteSourceBase)).map((file) => ({
+      sourcePath: path.posix.join(normalizeSourcePath(sourceBase), file.relativePath),
+      relativePath: file.relativePath,
+    }));
+  } catch (error) {
+    const embedded = listEmbeddedFilesRecursive(sourceBase);
+    if (embedded.length > 0 && isRecoverableSourceReadError(error)) {
+      return embedded;
+    }
+
+    throw sourceReadError("source directory", sourceBase, error);
+  }
+}
+
 async function addStaticGlob(entry: ManifestEntry, tree: FsTree): Promise<void> {
   const sourceBase = entry.src.slice(0, -globAllSuffix.length);
   const destBase = entry.dest.slice(0, -globAllSuffix.length);
-  const absoluteSourceBase = resolveSourcePath(sourceBase);
-  const files = await listFilesRecursive(absoluteSourceBase);
+  const files = await listSourceFilesRecursive(sourceBase);
 
   for (const file of files) {
-    const content = await readFile(file.absolutePath, "utf8");
+    const content = await readSourceText(file.sourcePath);
     tree.write(path.posix.join(destBase, file.relativePath), content, "static");
   }
 }

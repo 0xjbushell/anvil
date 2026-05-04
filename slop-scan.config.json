@@ -1,0 +1,17 @@
+{
+  "ignores": [
+    "**/node_modules/**",
+    "**/.git/**",
+    "**/dist/**",
+    "**/coverage/**",
+    "src/generated/**"
+  ],
+  "overrides": [
+    {
+      "files": ["src/scaffold", "src/scaffold/**"],
+      "rules": {
+        "structure.directory-fanout-hotspot": { "enabled": false }
+      }
+    }
+  ]
+}

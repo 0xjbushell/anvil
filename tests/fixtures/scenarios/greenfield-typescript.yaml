@@ -1,0 +1,28 @@
+name: greenfield-typescript
+description: Real non-interactive TypeScript greenfield scaffold scenario.
+input: greenfield
+language: typescript
+args:
+  - init
+  - --lang
+  - typescript
+  - --non-interactive
+expect:
+  exit_code: 0
+  files_exist:
+    - package.json
+    - Makefile
+    - src/seed/seed.ts
+    - src/seed/seed.test.ts
+    - tools/crap-score.ts
+    - .anvil.lock
+  files_contain:
+    - file: package.json
+      matches: '"type": "module"'
+    - file: src/seed/seed.ts
+      matches: GreetingError
+  stdout_contains:
+    - Scaffolded typescript project
+    - "Files created:"
+    - Seed code created at src/seed/
+  files_unchanged_from_input: false

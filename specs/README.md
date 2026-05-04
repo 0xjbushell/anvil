@@ -24,6 +24,9 @@ Specifications for the **anvil** project — an agentic engineering project scaf
 | `cli/scaffold-engine.md` | cli | CLI-01, CLI-03..07 |
 | `rules/lint-rules.md` | rules | RULE-01..09, STRUCT-01..08, TEST-01..05 |
 | `toolchain/quality-toolchain.md` | toolchain | CONFIG-01..03, QUAL-01..05, SEC-01..02, TYPE-01 |
+| `toolchain/contributor-development-environments.md` | toolchain | DEV-01..06 |
+| `toolchain/e2e-sandbox-environments.md` | toolchain | E2E-01..07 |
+| `toolchain/release-validation-and-distribution.md` | toolchain | REL-01..07 |
 | `scaffold/project-output.md` | scaffold | SCAF-01..04, SCAF-06..07 |
 
 Do **not** guess placement — propose a new subsystem with rationale if none fits.

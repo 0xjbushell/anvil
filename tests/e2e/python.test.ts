@@ -5,9 +5,11 @@ import { spawnSync } from "node:child_process";
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
+import { createE2eIsolation, type E2eIsolation } from "../../src/internal/e2e-isolation.ts";
 import { getManifest } from "../../src/manifest.ts";
 import { isTextFile, normalizeForChecksum } from "../../src/scaffold/lockfile.ts";
 import type { AnvilLockfile, ScaffoldContext } from "../../src/types.ts";
+import { assertRequiredTools, commandRequirement, python311Requirement } from "../support/required-tools.ts";
 
 const repoRoot = path.resolve(import.meta.dir, "../..");
 const bunExecutable = process.execPath;
@@ -17,7 +19,14 @@ const sandboxRoot = path.join(repoRoot, ".sandbox", `e2e-python-${randomUUID()}`
 const commandTimeoutMs = 600_000;
 const suiteTimeoutMs = 900_000;
 const seedLineThreshold = 100;
-const suiteStartMs = Date.now();
+const suiteStartMs = performance.now();
+const preflightIsolation = createE2eIsolation({
+  suiteName: "python-e2e",
+  testName: "preflight",
+  parentDir: sandboxRoot,
+  pathPrepend: [bunExecutableDir],
+});
+const projectIsolations = new Map<string, E2eIsolation>();
 
 const requiredPythonManifestFiles = [
   "src/seed/__init__.py",
@@ -48,6 +57,7 @@ const requiredPythonManifestFiles = [
   ".gitattributes",
   ".editorconfig",
   ".gitleaks.toml",
+  "flake.nix",
   "AGENTS.md",
   "README.md",
 ];
@@ -59,21 +69,25 @@ interface CommandResult {
   error?: Error;
 }
 
-interface ToolGate {
-  available: boolean;
-  missing: string[];
-}
-
 interface LabeledCommandResult {
   label: string;
   result: CommandResult;
 }
 
-function commandEnv(): NodeJS.ProcessEnv {
-  return {
-    ...process.env,
-    PATH: `${bunExecutableDir}${path.delimiter}${process.env.PATH ?? ""}`,
-  };
+function isolationForProject(projectDir: string): E2eIsolation {
+  const existing = projectIsolations.get(projectDir);
+  if (existing !== undefined) {
+    return existing;
+  }
+
+  const isolation = createE2eIsolation({
+    suiteName: "python-e2e",
+    testName: path.basename(projectDir),
+    parentDir: sandboxRoot,
+    pathPrepend: [bunExecutableDir],
+  });
+  projectIsolations.set(projectDir, isolation);
+  return isolation;
 }
 
 function run(command: string, args: string[], cwd: string, timeout = commandTimeoutMs): CommandResult {
@@ -81,7 +95,7 @@ function run(command: string, args: string[], cwd: string, timeout = commandTime
     cwd,
     encoding: "utf8",
     timeout,
-    env: commandEnv(),
+    env: isolationForProject(cwd).env,
   });
 
   return {
@@ -92,32 +106,27 @@ function run(command: string, args: string[], cwd: string, timeout = commandTime
   };
 }
 
-function availability(required: string[]): ToolGate {
-  const missing = required.filter((command) => {
-    if (path.isAbsolute(command)) {
-      return !existsSync(command) || !statSync(command).isFile();
-    }
-
-    const result = run("which", [command], repoRoot, 5_000);
-    return result.status !== 0;
-  });
-
-  return { available: missing.length === 0, missing };
+try {
+  assertRequiredTools(
+    "Python scaffold e2e",
+    [
+      commandRequirement("bun", bunExecutable),
+      python311Requirement(),
+      commandRequirement("uv"),
+      commandRequirement("make"),
+      commandRequirement("gitleaks"),
+    ],
+    {
+      cwd: repoRoot,
+      env: preflightIsolation.env,
+      nixEntrypoint: "bun run nix:test -- tests/e2e/python.test.ts",
+    },
+  );
+} catch (error) {
+  preflightIsolation.cleanup();
+  rmSync(sandboxRoot, { recursive: true, force: true });
+  throw error;
 }
-
-function pythonToolGate(): ToolGate {
-  const baseGate = availability([bunExecutable, "python3", "uv", "make"]);
-  if (!baseGate.available) {
-    return baseGate;
-  }
-
-  const version = run("python3", ["-c", "import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)"], repoRoot, 5_000);
-  return version.status === 0 ? baseGate : { available: false, missing: ["python3>=3.11"] };
-}
-
-const scaffoldTools = pythonToolGate();
-const gitleaksTools = availability(["gitleaks"]);
-const checkTools = scaffoldTools.available ? gitleaksTools : scaffoldTools;
 
 function expectSuccess(result: CommandResult, label: string): void {
   expect(result.error, `${label} failed to start`).toBeUndefined();
@@ -261,8 +270,16 @@ function assertLockfile(projectDir: string, expectedFiles: string[]): void {
 
 function assertGeneratedDocsAndSeedThresholds(projectDir: string): void {
   const agentsText = readFileSync(path.join(projectDir, "AGENTS.md"), "utf8");
+  const readmeText = readFileSync(path.join(projectDir, "README.md"), "utf8");
+  const flakeText = readFileSync(path.join(projectDir, "flake.nix"), "utf8");
   const agentsLines = agentsText.trimEnd().split(/\r?\n/);
   expect(agentsLines.length).toBeLessThanOrEqual(40);
+  expect(agentsText).toContain("nix develop path:.");
+  expect(readmeText).toContain("nix develop path:.");
+  expect(flakeText).toContain("pkgs.python311");
+  expect(flakeText).toContain("pkgs.uv");
+  expect(flakeText).not.toContain("pkgs.go");
+  expect(flakeText).not.toContain("pkgs.bun");
   expect(agentsText).toContain("src/seed/");
   expect(agentsText).not.toMatch(/\b(disposable|starter|temporary|throwaway)\b/i);
 
@@ -296,17 +313,16 @@ function assertInstallResults(results: LabeledCommandResult[]): void {
 }
 
 afterAll(() => {
-  const suiteDurationMs = Date.now() - suiteStartMs;
+  const suiteDurationMs = performance.now() - suiteStartMs;
+  preflightIsolation.cleanup();
+  for (const isolation of projectIsolations.values()) {
+    isolation.cleanup();
+  }
   rmSync(sandboxRoot, { recursive: true, force: true });
   expect(suiteDurationMs, "Python E2E suite duration").toBeLessThanOrEqual(suiteTimeoutMs);
-});
+}, commandTimeoutMs);
 
-if (!scaffoldTools.available) {
-  describe("Python scaffold e2e", () => {
-    test.skip(`requires missing tools: ${scaffoldTools.missing.join(", ")}`, () => {});
-  });
-} else {
-  describe("Python scaffold e2e", () => {
+describe("Python scaffold e2e", () => {
     let positiveProjectDir = "";
     let installResults: LabeledCommandResult[] = [];
 
@@ -342,8 +358,7 @@ if (!scaffoldTools.available) {
       expect(`${coverageResult.stdout}\n${coverageResult.stderr}`).toMatch(/TOTAL\s+\d+\s+\d+(?:\s+\d+\s+\d+)?\s+\d+%/);
     }, commandTimeoutMs);
 
-    const makeCheckTest = checkTools.available ? test : test.skip;
-    makeCheckTest(`make check passes when the full Python quality toolchain is present${checkTools.available ? "" : ` (missing: ${checkTools.missing.join(", ")})`}`, () => {
+    test("make check passes when the full Python quality toolchain is present", () => {
       assertInstallResults(installResults);
       expectSuccess(run("make", ["check"], positiveProjectDir), "make check");
     }, commandTimeoutMs);
@@ -404,5 +419,4 @@ if (!scaffoldTools.available) {
       );
       expectSuccess(run("make", ["lint"], projectDir), "make lint after restoring type-organization mutation");
     }, commandTimeoutMs);
-  });
-}
+});

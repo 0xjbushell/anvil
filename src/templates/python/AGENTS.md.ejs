@@ -5,13 +5,14 @@
 - `make lint` — run often during development
 - `make check` — run before considering work done
 - `make quality` — run before marking work complete
+- Prefer `nix develop path:. --command make check` so required tools come from `flake.nix`
 
 ## Code Conventions
 
 - Reference `src/seed/` for file organization patterns
 - Prefer stdlib; consider established libraries for complex problems
 - Every function that can fail must raise a typed exception
-- No dead code — if it is not called, delete it
+- No dead code — remove unused code during normal cleanup
 - Aim for high branch coverage
 
 ## Testing

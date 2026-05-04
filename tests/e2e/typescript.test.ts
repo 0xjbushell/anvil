@@ -5,9 +5,11 @@ import { spawnSync } from "node:child_process";
 
 import { afterAll, describe, expect, test } from "bun:test";
 
+import { createE2eIsolation, type E2eIsolation } from "../../src/internal/e2e-isolation.ts";
 import { getManifest } from "../../src/manifest.ts";
 import { isTextFile, normalizeForChecksum } from "../../src/scaffold/lockfile.ts";
 import type { AnvilLockfile, ScaffoldContext } from "../../src/types.ts";
+import { assertRequiredTools, commandRequirement } from "../support/required-tools.ts";
 
 const repoRoot = path.resolve(import.meta.dir, "../..");
 const bunExecutable = process.execPath;
@@ -17,7 +19,14 @@ const sandboxRoot = path.join(repoRoot, ".sandbox", `e2e-typescript-${randomUUID
 const commandTimeoutMs = 600_000;
 const suiteTimeoutMs = 600_000;
 const seedLineThreshold = 100;
-const suiteStartMs = Date.now();
+const suiteStartMs = performance.now();
+const preflightIsolation = createE2eIsolation({
+  suiteName: "typescript-e2e",
+  testName: "preflight",
+  parentDir: sandboxRoot,
+  pathPrepend: [bunExecutableDir],
+});
+const projectIsolations = new Map<string, E2eIsolation>();
 
 const requiredTypeScriptManifestFiles = [
   "src/seed/seed.ts",
@@ -71,6 +80,7 @@ const requiredTypeScriptManifestFiles = [
   ".gitattributes",
   ".editorconfig",
   ".gitleaks.toml",
+  "flake.nix",
   "AGENTS.md",
   "README.md",
 ];
@@ -82,33 +92,42 @@ interface CommandResult {
   error?: Error;
 }
 
-interface ToolGate {
-  available: boolean;
-  missing: string[];
-}
+function isolationForProject(projectDir: string): E2eIsolation {
+  const existing = projectIsolations.get(projectDir);
+  if (existing !== undefined) {
+    return existing;
+  }
 
-function commandEnv(): NodeJS.ProcessEnv {
-  return {
-    ...process.env,
-    PATH: `${bunExecutableDir}${path.delimiter}${process.env.PATH ?? ""}`,
-  };
-}
-
-function availability(required: string[]): ToolGate {
-  const missing = required.filter((command) => {
-    if (path.isAbsolute(command)) {
-      return !existsSync(command) || !statSync(command).isFile();
-    }
-
-    const result = spawnSync("which", [command], { encoding: "utf8", timeout: 5_000, env: commandEnv() });
-    return result.status !== 0;
+  const isolation = createE2eIsolation({
+    suiteName: "typescript-e2e",
+    testName: path.basename(projectDir),
+    parentDir: sandboxRoot,
+    pathPrepend: [bunExecutableDir],
   });
-
-  return { available: missing.length === 0, missing };
+  projectIsolations.set(projectDir, isolation);
+  return isolation;
 }
 
-const scaffoldTools = availability([bunExecutable, "node", "make"]);
-const externalCheckTools = availability(["gitleaks"]);
+try {
+  assertRequiredTools(
+    "TypeScript scaffold e2e",
+    [
+      commandRequirement("bun", bunExecutable),
+      commandRequirement("node"),
+      commandRequirement("make"),
+      commandRequirement("gitleaks"),
+    ],
+    {
+      cwd: repoRoot,
+      env: preflightIsolation.env,
+      nixEntrypoint: "bun run nix:test -- tests/e2e/typescript.test.ts",
+    },
+  );
+} catch (error) {
+  preflightIsolation.cleanup();
+  rmSync(sandboxRoot, { recursive: true, force: true });
+  throw error;
+}
 
 function run(command: string, args: string[], cwd: string, timeout = commandTimeoutMs): CommandResult {
   try {
@@ -116,7 +135,7 @@ function run(command: string, args: string[], cwd: string, timeout = commandTime
       cwd,
       encoding: "utf8",
       timeout,
-      env: commandEnv(),
+      env: isolationForProject(cwd).env,
     });
 
     return {
@@ -262,8 +281,17 @@ function assertLockfile(projectDir: string, expectedFiles: string[]): void {
 }
 
 function assertGeneratedDocsAndSeedThresholds(projectDir: string): void {
-  const agentsLines = readFileSync(path.join(projectDir, "AGENTS.md"), "utf8").trimEnd().split(/\r?\n/);
+  const agentsText = readFileSync(path.join(projectDir, "AGENTS.md"), "utf8");
+  const readmeText = readFileSync(path.join(projectDir, "README.md"), "utf8");
+  const flakeText = readFileSync(path.join(projectDir, "flake.nix"), "utf8");
+  const agentsLines = agentsText.trimEnd().split(/\r?\n/);
   expect(agentsLines.length).toBeLessThanOrEqual(40);
+  expect(agentsText).toContain("nix develop path:.");
+  expect(readmeText).toContain("nix develop path:.");
+  expect(flakeText).toContain("pkgs.bun");
+  expect(flakeText).toContain("pkgs.gitleaks");
+  expect(flakeText).not.toContain("pkgs.go");
+  expect(flakeText).not.toContain("pkgs.uv");
 
   for (const relativePath of requiredTypeScriptManifestFiles.filter((filePath) => filePath.startsWith("src/seed/"))) {
     const lineCount = readFileSync(path.join(projectDir, relativePath), "utf8").trimEnd().split(/\r?\n/).length;
@@ -289,17 +317,16 @@ function assertLintFailure(projectDir: string, label: string, expectedPattern: R
 }
 
 afterAll(() => {
-  const suiteDurationMs = Date.now() - suiteStartMs;
+  const suiteDurationMs = performance.now() - suiteStartMs;
+  preflightIsolation.cleanup();
+  for (const isolation of projectIsolations.values()) {
+    isolation.cleanup();
+  }
   rmSync(sandboxRoot, { recursive: true, force: true });
   expect(suiteDurationMs, "TypeScript E2E suite duration").toBeLessThanOrEqual(suiteTimeoutMs);
-});
+}, commandTimeoutMs);
 
-if (!scaffoldTools.available) {
-  describe("TypeScript scaffold e2e", () => {
-    test.skip(`requires missing tools: ${scaffoldTools.missing.join(", ")}`, () => {});
-  });
-} else {
-  describe("TypeScript scaffold e2e", () => {
+describe("TypeScript scaffold e2e", () => {
     test("scaffolds expected files, validates .anvil.lock, and keeps generated guidance concise", () => {
       const projectDir = scaffoldProject("valid-output");
       const expectedFiles = expectedManifestFiles("valid-output");
@@ -322,8 +349,7 @@ if (!scaffoldTools.available) {
       expectSuccess(run("make", ["crap"], projectDir), "make crap");
     }, commandTimeoutMs);
 
-    const makeCheckTest = externalCheckTools.available ? test : test.skip;
-    makeCheckTest(`make check passes when external quality tools are available${externalCheckTools.available ? "" : ` (missing: ${externalCheckTools.missing.join(", ")})`}`, () => {
+    test("make check passes when external quality tools are available", () => {
       const projectDir = scaffoldProject("valid-check");
 
       installProject(projectDir);
@@ -359,5 +385,4 @@ if (!scaffoldTools.available) {
       );
       expectSuccess(run("make", ["lint"], projectDir), "make lint after restoring placeholder mutation");
     }, commandTimeoutMs);
-  });
-}
+});

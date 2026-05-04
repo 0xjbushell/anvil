@@ -1,11 +1,22 @@
 name: dirty-git-repo
-description: Current CLI smoke scenario for the dirty git repository input.
+description: Setup-backed TypeScript scaffold conflict scenario for a dirty git repository input.
 input: dirty-git-repo
+language: typescript
 args:
-  - --version
+  - init
+  - --lang
+  - typescript
+  - --non-interactive
 expect:
-  exit_code: 0
-  stdout_contains:
-    - 0.1.0
-  stderr_empty: true
-  files_unchanged_from_input: true
+  exit_code: 1
+  files_exist:
+    - .git
+    - README.md
+  files_match_regex:
+    - file: README.md
+      pattern: uncommitted readme content [0-9]+
+  stderr_contains:
+    - --- existing README.md
+    - +++ new README.md
+    - 1 file differs from current anvil templates.
+  files_unchanged_after_setup: true

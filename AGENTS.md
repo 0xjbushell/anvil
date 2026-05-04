@@ -4,12 +4,15 @@
 anvil is a Bun + TypeScript scaffolder for agentic engineering projects; it generates and re-scaffolds project tooling while keeping source, fixtures, and specs close to the implementation.
 
 ## Inner loop
+- Use Nix-backed wrappers for canonical validation, for example `scripts/nix-run.sh release -- scripts/require-tools.sh release -- bun agent:check`.
+- If Bun is already available, package aliases mirror those wrappers: `bun run nix:agent:check`, `bun run nix:fixtures`, and `bun run nix:mutation`.
 - After every change, run `bun agent:check`.
 - Before handoff or push, run `bun fixtures`.
 - Run `bun mutation` once at the final quality/delivery boundary, or rely on CI for PR verification.
 - Do not run mutation during every iteration or from pre-push.
 - To explore manually, run `bun dev <scenario>`, then cd into `.sandbox/scratch` and inspect the generated tree/output.
 - On regression, read the failed scenario YAML and input under `tests/fixtures/`, reproduce in the sandbox, fix the cause, and rerun.
+- Required validation tools hard-fail through the Nix release shell per D-71/D-72; do not add host-tool skips.
 
 ## Reference implementations
 Before implementing a subsystem, read [D-69](specs/decisions/anvil-decisions.md#d-69-oss-reference-implementations-as-agent-context) for the reference registry and source of truth; match reference idioms unless an anvil decision explicitly overrides them.

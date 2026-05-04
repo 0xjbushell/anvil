@@ -1,0 +1,28 @@
+name: greenfield-golang
+description: Real non-interactive Go greenfield scaffold scenario.
+input: greenfield
+language: golang
+args:
+  - init
+  - --lang
+  - golang
+  - --non-interactive
+expect:
+  exit_code: 0
+  files_exist:
+    - go.mod
+    - Makefile
+    - internal/seed/seed.go
+    - internal/seed/seed_test.go
+    - cmd/app/main.go
+    - .anvil.lock
+  files_contain:
+    - file: internal/seed/seed.go
+      matches: SeedError
+    - file: go.mod
+      matches: module anvil-fixtures-
+  stdout_contains:
+    - Scaffolded golang project
+    - "Files created:"
+    - Seed code created at internal/seed/
+  files_unchanged_from_input: false

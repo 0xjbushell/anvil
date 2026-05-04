@@ -46,6 +46,18 @@ function matchesLanguageAliases(scenario: ChangedScenario, aliases: readonly str
 }
 
 function templateAliasesForPath(filePath: string): readonly string[] | "all" | undefined {
+  if (isAtOrUnder(filePath, "src/templates")) {
+    const [, , languageSegment] = filePath.split("/");
+    if (languageSegment === undefined) return "all";
+    return aliasToGroup.get(languageSegment.toLowerCase()) ?? "all";
+  }
+
+  if (isAtOrUnder(filePath, "static")) {
+    const [, languageSegment] = filePath.split("/");
+    if (languageSegment === undefined) return "all";
+    return aliasToGroup.get(languageSegment.toLowerCase()) ?? "all";
+  }
+
   if (!isAtOrUnder(filePath, "templates")) return undefined;
 
   const [, languageSegment] = filePath.split("/");
@@ -61,10 +73,6 @@ export function selectRelevantScenarios<T extends ChangedScenario>(
   const normalizedChangedFiles = changedFiles.map(normalizeChangedFilePath).filter((filePath) => filePath.length > 0);
   if (normalizedChangedFiles.length === 0 || scenarios.length === 0) return [];
 
-  if (normalizedChangedFiles.some((filePath) => isAtOrUnder(filePath, "src"))) {
-    return [...scenarios];
-  }
-
   const templateAliasGroups: (readonly string[])[] = [];
   for (const filePath of normalizedChangedFiles) {
     const templateAliases = templateAliasesForPath(filePath);
@@ -74,6 +82,14 @@ export function selectRelevantScenarios<T extends ChangedScenario>(
     if (templateAliases !== undefined) {
       templateAliasGroups.push(templateAliases);
     }
+  }
+
+  if (
+    normalizedChangedFiles.some(
+      (filePath) => isAtOrUnder(filePath, "src") && templateAliasesForPath(filePath) === undefined,
+    )
+  ) {
+    return [...scenarios];
   }
 
   return scenarios.filter((scenario) => {

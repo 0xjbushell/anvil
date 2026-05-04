@@ -1,11 +1,19 @@
 name: partial-toolchain
-description: Current CLI smoke scenario for the partial toolchain input.
+description: Real TypeScript scaffold conflict scenario for a partial package input.
 input: partial-toolchain
+language: typescript
 args:
-  - --version
+  - init
+  - --lang
+  - typescript
+  - --non-interactive
 expect:
-  exit_code: 0
-  stdout_contains:
-    - 0.1.0
-  stderr_empty: true
+  exit_code: 1
+  stderr_contains:
+    - --- existing package.json
+    - +++ new package.json
+    - 1 file differs from current anvil templates.
+  files_contain:
+    - file: package.json
+      matches: partial-toolchain-fixture
   files_unchanged_from_input: true

@@ -175,6 +175,38 @@ describe("runPtyScript", () => {
     );
   });
 
+  test("uses the longer exit timeout after prompts have completed", async () => {
+    const timeoutMs = 5;
+    const pty = new FakePty();
+    const { spawnPty } = fakeSpawner(pty);
+
+    const running = runPtyScript({
+      command: "anvil",
+      args: ["init"],
+      cwd: "/workspace/project",
+      env: {},
+      script: [{ expect: "confirm?", send: "y\r" }, { expect_exit: 0 }],
+      spawnPty,
+      timeoutMs,
+      exitTimeoutMs: 100,
+    });
+    const observed = running.then(
+      (result) => ({ result, error: undefined }),
+      (error: unknown) => ({ result: undefined, error }),
+    );
+
+    pty.emitData("confirm?");
+    await Promise.resolve();
+    expect(pty.writes).toEqual(["y\r"]);
+
+    await new Promise((resolve) => setTimeout(resolve, timeoutMs * 4));
+    pty.emitExit(0);
+
+    const outcome = await observed;
+    expect(outcome.error).toBeUndefined();
+    expect(outcome.result).toMatchObject({ exit_code: 0, stdout: "confirm?", stderr: "" });
+  });
+
   test("rejects clearly when expect_exit observes a different exit code", async () => {
     const pty = new FakePty();
     const { spawnPty } = fakeSpawner(pty);
@@ -279,8 +311,9 @@ describe("runPtyScript", () => {
     ]);
   });
 
-  test("exports the required default timeout", () => {
+  test("exports prompt and exit timeouts that allow slower post-confirm scaffolds", () => {
     expect(defaultPtyTimeoutMs).toBe(5_000);
-    expect(defaultPtyExitTimeoutMs).toBe(5_000);
+    expect(defaultPtyExitTimeoutMs).toBe(30_000);
+    expect(defaultPtyExitTimeoutMs).toBeGreaterThan(defaultPtyTimeoutMs);
   });
 });
