@@ -49,14 +49,10 @@ async function inputDirectoryNames(): Promise<string[]> {
     .sort();
 }
 
-async function committedScenarioFiles(): Promise<string[]> {
-  return (await readdir(committedScenarioRoot))
+async function loadCommittedScenarios(): Promise<Array<{ file: string; scenario: Scenario }>> {
+  const scenarioFiles = (await readdir(committedScenarioRoot))
     .filter((name) => name.endsWith(".yaml"))
     .sort();
-}
-
-async function loadCommittedScenarios(): Promise<Array<{ file: string; scenario: Scenario }>> {
-  const scenarioFiles = await committedScenarioFiles();
   const scenarios: Array<{ file: string; scenario: Scenario }> = [];
 
   for (const file of scenarioFiles) {
