@@ -1469,3 +1469,52 @@ The readiness audit found the installer, release asset workflow, and standalone 
 High — directly addresses public-release blockers found by the package review.
 
 ---
+
+## D-75: Public documentation and progressive agent-assisted adoption
+
+**Status**: Accepted
+**Date**: 2026-05-05
+**Related**: D-01 (direct scaffold), D-08 (existing projects), D-21 (AGENTS.md), D-39 (idempotent re-scaffold), D-45 (distribution), D-55 (feedback tiers), D-65 (release process)
+
+### Decision
+
+Anvil's public release documentation is a static Astro Starlight site deployed through GitHub Pages. The root README remains a concise GitHub landing page and points to the published docs.
+
+Agent-assisted adoption uses progressive instruction delivery:
+
+1. The docs homepage exposes a tiny "copy prompt" call to action that tells a user's coding agent to fetch the hosted bootstrap prompt.
+2. `/start.md` is the concise bootstrap prompt. It covers first install, install verification, optional Anvil skill installation, and a minimal fallback adoption flow.
+3. The installable Anvil agent skill is the canonical ongoing operational protocol for using Anvil after bootstrap: install/update, adopt, re-scaffold, validate, troubleshoot, and maintain generated Anvil tooling.
+4. Human docs explain the workflow and safety expectations, but do not duplicate the operational protocol.
+
+### Non-overlap contract
+
+| Artifact | Audience | Responsibility |
+|----------|----------|----------------|
+| Root README | Humans browsing GitHub | Project summary, install teaser, docs/release links |
+| Docs site | Humans evaluating or using Anvil | Explanations, examples, reference, troubleshooting |
+| `/start.md` | Coding agents during first adoption | Bootstrap only: install Anvil, offer skill install, hand off to skill or run minimal adoption |
+| Anvil agent skill | Coding agents over the project lifecycle | Operational protocol for adopt/update/re-scaffold/validate/troubleshoot |
+| Generated `AGENTS.md` | Coding agents inside scaffolded repos | Repo-local coding and validation conventions |
+
+### Rationale
+
+Public users should not need to read internal specs to understand Anvil. They need a normal OSS docs site with quickstart, installation, CLI reference, examples, and troubleshooting.
+
+Coding-agent users need a different interface: concise, executable instructions with minimal token overhead. A bootstrap prompt alone is not enough because Anvil adoption continues after first install. The installable skill gives the user's coding harness durable Anvil knowledge without forcing every interaction to re-fetch a long prompt.
+
+The explicit non-overlap contract prevents duplicated instructions from drifting or confusing agents.
+
+### Alternatives rejected
+
+- **README-only documentation** — too thin for public OSS adoption and examples.
+- **One large prompt for everything** — wastes context and increases confusion during routine Anvil maintenance.
+- **Skill-only adoption** — users still need a one-step bootstrap prompt that tells their current agent how to install Anvil and the skill.
+- **Duplicated human docs and agent protocol** — creates drift and contradictory instructions.
+- **Docusaurus or MkDocs for v1 docs** — both are viable, but Astro Starlight is static, polished, GitHub Pages friendly, and aligned with Anvil's TypeScript/Bun ecosystem.
+
+### Confidence
+
+High for the docs-site and artifact-boundary model. Medium-high for the portable skill distribution details because coding harnesses differ, but the skill can start as a Markdown protocol with harness-specific install instructions documented separately.
+
+---

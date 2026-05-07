@@ -5,26 +5,50 @@
 ```bash
 nix develop path:.
 <%= packageManager ?? "npm" %> install
+pre-commit install
 make check
 ```
 
 ## Development
 
-| Command         | Description                                       |
-| --------------- | ------------------------------------------------- |
-| `make lint`     | Run linters                                       |
-| `make test`     | Run tests                                         |
-| `make coverage` | Run tests with coverage thresholds                |
-| `make check`    | Full pre-push validation                          |
-| `make quality`  | Complete quality gate, including mutation testing |
-| `make fix`      | Auto-fix lint and format issues                   |
+| Command          | Description                                       |
+| ---------------- | ------------------------------------------------- |
+| `make lint`      | Run ESLint and custom Anvil lint rules            |
+| `make format`    | Check formatting                                  |
+| `make typecheck` | Run TypeScript type checking                      |
+| `make security`  | Run gitleaks secret scanning                      |
+| `make test`      | Run tests                                         |
+| `make coverage`  | Run tests with coverage thresholds                |
+| `make deadcode`  | Detect unused code                                |
+| `make crap`      | Compute CRAP scores                               |
+| `make audit`     | Audit dependencies                                |
+| `make mutate`    | Run mutation testing                              |
+| `make check`     | Run tier 1 and tier 2 validation                  |
+| `make quality`   | Complete quality gate, including mutation testing |
+| `make fix`       | Auto-fix lint and format issues                   |
+
+## Anvil-generated validation gates
+
+Anvil wires validation through the generated `Makefile`. Run `make check`
+before handoff or push. Run `make quality` at the final quality boundary when
+you need the mutation gate too.
+
+`AGENTS.md` gives coding agents repo-local instructions. `.anvil.lock` records
+the Anvil version, toolchain versions, generated files, and checksums used for
+safe re-scaffold decisions. Do not edit `.anvil.lock` by hand; rerun `anvil
+init` or `anvil doctor` instead.
+
+The seed/reference code demonstrates conventions to follow: structure, tests,
+errors, constants, and structured logging.
 
 ## Project Structure
 
 ```text
-src/           Source code
-tools/         Quality tooling (lint rules, CRAP score)
-coverage/      Test coverage reports (generated)
+src/             Source code
+src/seed/        seed/reference code and tests
+tools/lint-rules/ Custom ESLint rules
+tools/crap-score.ts CRAP score reporter
+coverage/        Test coverage reports (generated)
 ```
 
 ## Required External Tools

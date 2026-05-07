@@ -33,7 +33,7 @@ function staticFile(relativePath: string): Bun.BunFile {
 
 async function runPythonContract(script: string): Promise<{ exitCode: number; stderr: string }> {
   const child = Bun.spawn(["python3", "-c", script], {
-    env: { ...Bun.env, PYTHONPATH: pythonSourcePath },
+    env: { ...Bun.env, PYTHONDONTWRITEBYTECODE: "1", PYTHONPATH: pythonSourcePath },
     stderr: "pipe",
     stdout: "pipe",
   });

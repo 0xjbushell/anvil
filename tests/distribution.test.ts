@@ -504,7 +504,9 @@ describe("TIX-000027 distribution", () => {
     const install = installationSection();
 
     expect(install).toContain("bunx anvil init --lang typescript");
-    expect(install).toContain("curl -fsSL https://anvil.sh/install.sh | sh");
+    expect(install).toContain("curl -fsSL https://raw.githubusercontent.com/0xjbushell/anvil/main/scripts/install.sh | bash");
+    expect(install).not.toContain("https://anvil.sh");
+    expect(install).not.toContain("install.sh | sh");
     expect(install).not.toContain("npx");
     expect(install).not.toContain("npm install -g");
   });

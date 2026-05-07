@@ -18,6 +18,8 @@
     "build": "bun run scripts/build.ts",
     "prepublishOnly": "bun test && bun run build",
     "dev": "bun src/dev/cli.ts",
+    "docs:build": "cd docs && bun run build",
+    "docs:check": "cd docs && bun run check",
     "fixtures": "bun src/dev/cli.ts fixtures",
     "agent:check": "bun src/dev/cli.ts agent:check",
     "release:hygiene": "bun scripts/check-release-hygiene.ts",

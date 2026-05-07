@@ -16,6 +16,7 @@ Specifications for the **anvil** project — an agentic engineering project scaf
 | rules | `specs/rules/` | Custom lint rules (anti-slop, structural, test quality) |
 | toolchain | `specs/toolchain/` | Quality toolchain (coverage, mutation, CRAP, dead code, security) |
 | scaffold | `specs/scaffold/` | Scaffolding output (seed code, AGENTS.md, configs, git hooks) |
+| docs | `specs/docs/` | Public documentation, docs site, and agent-assisted adoption |
 
 ### Specs Index
 
@@ -28,6 +29,7 @@ Specifications for the **anvil** project — an agentic engineering project scaf
 | `toolchain/e2e-sandbox-environments.md` | toolchain | E2E-01..07 |
 | `toolchain/release-validation-and-distribution.md` | toolchain | REL-01..07 |
 | `scaffold/project-output.md` | scaffold | SCAF-01..04, SCAF-06..07 |
+| `docs/public-documentation-and-agent-adoption.md` | docs | DOC-01..08 |
 
 Do **not** guess placement — propose a new subsystem with rationale if none fits.
 
