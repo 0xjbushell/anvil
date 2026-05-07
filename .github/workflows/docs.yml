@@ -30,8 +30,8 @@ jobs:
         run: cd docs && bun install --frozen-lockfile
       - name: Check docs
         run: bun docs:check
-      - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
+        if: github.ref == 'refs/heads/main'
         with:
           path: docs/dist
 
@@ -46,5 +46,6 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - uses: actions/configure-pages@v5
       - id: deployment
         uses: actions/deploy-pages@v4

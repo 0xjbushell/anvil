@@ -21,6 +21,7 @@ type PackageJson = {
 };
 
 type WorkflowStep = {
+  if?: string;
   uses?: string;
   run?: string;
   with?: Record<string, unknown>;
@@ -105,18 +106,20 @@ describe("TIX-000091 docs publication shell", () => {
 
     expect(setupNodeIndex).toBeGreaterThanOrEqual(0);
     expect(setupBunIndex).toBeGreaterThan(setupNodeIndex);
-    expect(buildSteps.some((step) => step.uses === "actions/configure-pages@v5")).toBe(true);
     expect(buildSteps.some((step) => step.run === "cd docs && bun install --frozen-lockfile")).toBe(true);
     expect(buildSteps.some((step) => step.run === "bun docs:check")).toBe(true);
-    expect(
-      buildSteps.some(
-        (step) =>
-          step.uses === "actions/upload-pages-artifact@v3" && step.with?.path === "docs/dist",
-      ),
-    ).toBe(true);
+    expect(buildSteps.some((step) => step.uses === "actions/configure-pages@v5")).toBe(false);
+
+    const uploadArtifactSteps = buildSteps.filter((step) => step.uses === "actions/upload-pages-artifact@v3");
+    expect(uploadArtifactSteps.length).toBe(1);
+    for (const step of uploadArtifactSteps) {
+      expect(step.if).toBe("github.ref == 'refs/heads/main'");
+      expect(step.with?.path).toBe("docs/dist");
+    }
 
     expect(deploy?.needs).toBe("build");
     expect(deploy?.permissions).toMatchObject({ pages: "write", "id-token": "write" });
+    expect(deploySteps.some((step) => step.uses === "actions/configure-pages@v5")).toBe(true);
     expect(deploySteps.some((step) => step.uses === "actions/deploy-pages@v4")).toBe(true);
   });
 });
