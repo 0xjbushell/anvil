@@ -122,11 +122,22 @@ All commands operate on the current working directory. There is no `--target-dir
 - **REL-06**: Release rehearsal or equivalent CI proof validates installer behavior against the assets that will be published.
 - **REL-07**: Release validation verifies tix/spec hygiene for shipped scope: no executable deliverables are accidentally left open, and parent rollups are either reconciled or explicitly documented.
 
+### Public Documentation and Agent-Assisted Adoption (DOC-xx)
+
+- **DOC-01**: Anvil provides a public static documentation site using Astro Starlight and GitHub Pages. The site is built from repository sources and deploys from `main`.
+- **DOC-02**: The root `README.md` is a concise public landing page that explains Anvil's purpose, install teaser, docs link, releases link, and contribution/release pointers without duplicating the full docs site.
+- **DOC-03**: Human-facing docs cover getting started, installation, CLI reference, how Anvil works, existing-project adoption, using Anvil with coding agents, troubleshooting, language guides for TypeScript/JS, Go, and Python, and practical examples.
+- **DOC-04**: The docs site publishes a concise `/start.md` bootstrap prompt for coding agents. It installs/selects Anvil, verifies `anvil --version`, asks whether to install the Anvil agent skill, and provides only a minimal fallback adoption flow.
+- **DOC-05**: An installable Anvil agent skill is published as the canonical ongoing operational protocol for coding agents to install/update Anvil, adopt projects, re-scaffold, run `anvil doctor`, validate generated projects, and troubleshoot drift or conflicts.
+- **DOC-06**: Agent-facing artifacts are non-overlapping: `/start.md` handles bootstrap only, the Anvil skill handles lifecycle operations, generated `AGENTS.md` handles repo-local coding conventions, and human docs explain rather than duplicate operational protocols.
+- **DOC-07**: Generated project READMEs explain Anvil-generated quality gates, seed/reference code, `AGENTS.md`, `.anvil.lock`, and the first validation commands for the selected language.
+- **DOC-08**: Documentation and agent protocol changes are validated in CI with a docs build/check and static contract checks for required links, command names, safety rules, and artifact boundaries.
+
 ## v2 — Deferred
 
 - **D-01**: Additional languages (Rust, Java, C#) — significant scope; validate v1 model first.
 - **D-02**: IDE integration plugins (VSCode, GoLand, PyCharm) — valuable but not core.
-- **D-03**: Agent skill for test-first workflow enforcement — judgment-based, separate concern from static tooling.
+- **D-03**: Agent skill for test-first workflow enforcement — judgment-based, separate concern from static tooling. This is distinct from the DOC-05 operational Anvil adoption skill.
 - **D-04**: `anvil migrate` for adding a language to an existing anvil project — complex merging logic.
 - **D-05**: Config presets (strict, moderate, minimal) — v1 ships opinionated defaults only.
 - **D-06**: `anvil eject [component]` — partial eject per component. Not needed in v1 since files are directly scaffolded.

@@ -22,15 +22,37 @@ The generated `flake.nix` provides Go <%= toolchain.go %>+ plus `golangci-lint`,
 | Command | Description |
 | --- | --- |
 | `make lint` | Run golangci-lint and custom anvil analyzers |
+| `make format` | Check Go formatting |
+| `make typecheck` | Run go vet and staticcheck |
+| `make security` | Scan for secrets |
 | `make test` | Run Go tests |
+| `make coverage` | Run tests with coverage thresholds |
+| `make deadcode` | Detect unused code |
+| `make crap` | Compute CRAP scores |
+| `make audit` | Run govulncheck |
+| `make mutate` | Run Go mutation testing |
 | `make check` | Run tier 1 and tier 2 validation |
 | `make quality` | Run all validation, including mutation testing |
 | `make fix` | Auto-format Go source files |
+
+## Anvil-generated validation gates
+
+Anvil wires validation through the generated `Makefile`. Run `make check`
+before handoff or push. Run `make quality` at the final quality boundary when
+you need the mutation gate too.
+
+`AGENTS.md` gives coding agents repo-local instructions. `.anvil.lock` records
+the Anvil version, toolchain versions, generated files, and checksums used for
+safe re-scaffold decisions. Do not edit `.anvil.lock` by hand; rerun `anvil
+init` or `anvil doctor` instead.
+
+The seed/reference code demonstrates conventions to follow: package structure,
+tests, typed errors, constants, enums, and structured logging.
 
 ## Project Structure
 
 ```text
 cmd/app/         Application entrypoint
 internal/seed/   Reference package and tests
-tools/           Tool tracking and custom analyzers
+tools/go-analyzers/ Custom analyzers and CRAP reporting
 ```

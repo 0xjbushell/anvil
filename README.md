@@ -1,22 +1,38 @@
-# anvil
+# Anvil
 
-A scaffolding CLI.
+Anvil is an agent-ready project scaffolder for TypeScript/JavaScript, Go, and Python. It installs strict local validation gates, seed/reference code, and concise agent guidance so humans and coding agents can build inside the same guardrails.
 
 ## Installation
 
-Bun users can run anvil directly:
+Start a new project with Bun:
 
-    bunx anvil init --lang typescript
+```bash
+bunx anvil init --lang typescript
+```
 
-For environments without Bun, install the standalone binary:
+For existing repositories, read the adoption flow first so Anvil can dry-run changes and preserve your code.
 
-    curl -fsSL https://anvil.sh/install.sh | sh
+For standalone binaries without Bun in the target environment:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/0xjbushell/anvil/main/scripts/install.sh | bash
+```
+
+- [Full documentation](https://0xjbushell.github.io/anvil/)
+- [Releases](https://github.com/0xjbushell/anvil/releases)
+- [CHANGELOG.md](CHANGELOG.md)
+- [Contributing](#contributing)
+
+## What Anvil adds
+
+- Language-specific Makefile targets for lint, typecheck, tests, coverage, audit, CRAP score, and mutation checks.
+- Local hooks and Nix-backed environments that make required validation reproducible.
+- `.anvil.lock` provenance so re-running `anvil init` can classify generated-file changes safely.
+- `AGENTS.md` and seed/reference code that teach coding agents the repo-local conventions to follow.
 
 ## Third-party code
 
-Anvil vendors a small number of third-party libraries directly into
-`src/internal/` per [D-67 §Part C](specs/decisions/anvil-decisions.md). See
-[NOTICES.md](NOTICES.md) for attribution and license information.
+Anvil includes third-party attribution in [NOTICES.md](NOTICES.md).
 
 ## Contributing
 
@@ -48,8 +64,8 @@ If Bun is already available, equivalent package aliases are available:
 
 These wrappers enter the repository `release` shell before validation and fail clearly if required tools
 such as Bun, Node/native build tools, Go, Python, `uv`, `gitleaks`, `govulncheck`, `golangci-lint`,
-`staticcheck`, `deadcode`, or Make are unavailable. This follows D-71/D-72: supported-language checks
-must fail instead of skipping because a host-global tool is missing.
+`staticcheck`, `deadcode`, or Make are unavailable. Supported-language checks fail instead of
+skipping because a host-global tool is missing.
 
 The `pre-push` hook runs `bun fixtures` only before code leaves your machine and blocks the push if
 fixtures fail. `git push --no-verify` skips the local `pre-push` hook when you need an emergency

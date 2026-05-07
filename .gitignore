@@ -5,6 +5,7 @@ specs/review-*.html
 # Node / Bun
 node_modules/
 dist/
+.astro/
 
 # Python
 __pycache__/
