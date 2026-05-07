@@ -98,7 +98,13 @@ describe("TIX-000091 docs publication shell", () => {
 
     expect(build?.permissions).toEqual({ contents: "read" });
     expect(buildSteps.some((step) => step.uses === "actions/checkout@v4")).toBe(true);
-    expect(buildSteps.some((step) => step.uses === "oven-sh/setup-bun@v2")).toBe(true);
+    const setupNodeIndex = buildSteps.findIndex(
+      (step) => step.uses === "actions/setup-node@v4" && step.with?.["node-version"] === "24",
+    );
+    const setupBunIndex = buildSteps.findIndex((step) => step.uses === "oven-sh/setup-bun@v2");
+
+    expect(setupNodeIndex).toBeGreaterThanOrEqual(0);
+    expect(setupBunIndex).toBeGreaterThan(setupNodeIndex);
     expect(buildSteps.some((step) => step.uses === "actions/configure-pages@v5")).toBe(true);
     expect(buildSteps.some((step) => step.run === "cd docs && bun install --frozen-lockfile")).toBe(true);
     expect(buildSteps.some((step) => step.run === "bun docs:check")).toBe(true);
