@@ -3,9 +3,40 @@ title: Anvil
 description: Agent-ready project scaffolding for TypeScript/JavaScript, Go, and Python.
 ---
 
-Anvil scaffolds strict, agent-ready project tooling for TypeScript/JavaScript, Go, and Python projects. It writes real project files in conventional locations, records generated-file provenance in `.anvil.lock`, and gives coding agents concise repo-local guidance through `AGENTS.md`.
+<div class="anvil-hero" aria-label="Anvil overview">
+  <div class="anvil-hero-copy">
+    <p class="anvil-eyebrow">Agent-ready scaffolding</p>
+    <h2>Forge projects that humans and coding agents can both trust.</h2>
+    <p>Anvil writes strict project tooling for TypeScript/JavaScript, Go, and Python, records generated-file provenance in <code>.anvil.lock</code>, and gives coding agents concise repo-local guidance through <code>AGENTS.md</code>.</p>
+    <div class="anvil-actions">
+      <a class="anvil-button" href="/anvil/getting-started/">Start building</a>
+      <a class="anvil-button anvil-button-secondary" href="/anvil/using-with-coding-agents/">Agent workflow</a>
+    </div>
+  </div>
+  <div class="anvil-hero-art" aria-hidden="true">
+    <img src="/anvil/anvil-hero.svg" alt="" width="760" height="540" loading="eager" />
+  </div>
+</div>
 
 The published docs live at <https://0xjbushell.github.io/anvil/> and cover the human-facing path: install Anvil, initialize a project, adopt it in an existing repository, and use the generated validation loop.
+
+<div class="anvil-signal-grid" aria-label="What Anvil gives you">
+  <a class="anvil-signal-card" href="/anvil/getting-started/">
+    <span class="anvil-card-index">01</span>
+    <strong>Scaffold</strong>
+    <span>Generate real project files that establish lasting conventions.</span>
+  </a>
+  <a class="anvil-signal-card" href="/anvil/how-anvil-works/">
+    <span class="anvil-card-index">02</span>
+    <strong>Record</strong>
+    <span>Track generated-file ownership and provenance in <code>.anvil.lock</code>.</span>
+  </a>
+  <a class="anvil-signal-card" href="/anvil/using-with-coding-agents/">
+    <span class="anvil-card-index">03</span>
+    <strong>Guide</strong>
+    <span>Give coding agents local instructions and a repeatable validation loop.</span>
+  </a>
+</div>
 
 ## Start here
 
