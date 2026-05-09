@@ -9,6 +9,7 @@ export default defineConfig({
       title: "Anvil",
       description: "Public documentation for Anvil's agent-ready project scaffolding.",
       social: [{ icon: "github", label: "GitHub", href: "https://github.com/0xjbushell/anvil" }],
+      customCss: ["./src/styles/custom.css"],
       sidebar: [
         {
           label: "Start here",

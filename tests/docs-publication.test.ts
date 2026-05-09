@@ -80,8 +80,10 @@ describe("TIX-000091 docs publication shell", () => {
     expect(astroConfig).toContain("site: \"https://0xjbushell.github.io\"");
     expect(astroConfig).toContain("base: \"/anvil\"");
     expect(astroConfig).toContain("title: \"Anvil\"");
+    expect(astroConfig).toContain("customCss: [\"./src/styles/custom.css\"]");
     expect(existsSync(path.join(repoRoot, "docs/src/content/docs/index.md"))).toBe(true);
     expect(existsSync(path.join(repoRoot, "docs/src/content.config.ts"))).toBe(true);
+    expect(existsSync(path.join(repoRoot, "docs/src/styles/custom.css"))).toBe(true);
   });
 
   test("builds and deploys docs with standard GitHub Pages actions", () => {
@@ -193,6 +195,21 @@ describe("TIX-000092 README and docs navigation", () => {
     expect(read("docs/src/content/docs/getting-started.md")).toContain(
       "[Existing Projects](/anvil/existing-projects/)",
     );
+  });
+
+  test("adds visual homepage affordances without external assets", () => {
+    const index = read("docs/src/content/docs/index.md");
+    const customCss = read("docs/src/styles/custom.css");
+    const heroSvg = read("docs/public/anvil-hero.svg");
+
+    expect(index).toContain('class="anvil-hero"');
+    expect(index).toContain('src="/anvil/anvil-hero.svg"');
+    expect(index).toContain('class="anvil-signal-grid"');
+    expect(customCss).toContain(".anvil-hero");
+    expect(customCss).toContain(".anvil-signal-card");
+    expect(heroSvg).toContain("<svg");
+    expect(heroSvg).toContain("agent-ready scaffold");
+    expect(heroSvg).not.toMatch(/\b(?:href|src)="https?:\/\//);
   });
 });
 
