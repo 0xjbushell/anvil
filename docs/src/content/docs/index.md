@@ -14,8 +14,13 @@ tableOfContents: false
       <a class="anvil-button anvil-button-secondary" href="/anvil/using-with-coding-agents/">Agent workflow</a>
     </div>
   </div>
-  <div class="anvil-hero-art" aria-hidden="true">
-    <img src="/anvil/anvil-hero.svg" alt="" width="760" height="540" loading="eager" />
+  <div class="anvil-command-panel" aria-label="Anvil validation flow">
+    <code>bunx anvil init --lang typescript</code>
+    <div class="anvil-command-steps" aria-label="Generated project loop">
+      <span>AGENTS.md</span>
+      <span>.anvil.lock</span>
+      <span>make check</span>
+    </div>
   </div>
 </div>
 

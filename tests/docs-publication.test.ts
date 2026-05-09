@@ -212,22 +212,32 @@ describe("TIX-000092 README and docs navigation", () => {
     const index = read("docs/src/content/docs/index.md");
     const indexFrontmatter = docsFrontmatter("docs/src/content/docs/index.md");
     const customCss = read("docs/src/styles/custom.css");
-    const heroSvg = read("docs/public/anvil-hero.svg");
+    const commandSteps = index.match(/<div class="anvil-command-steps"[\s\S]*?<\/div>/)?.[0] ?? "";
 
     expect(index).toContain('class="anvil-hero"');
-    expect(index).toContain('src="/anvil/anvil-hero.svg"');
+    expect(index).toContain('class="anvil-command-panel"');
+    expect(index).toContain('class="anvil-command-steps"');
+    expect(index).toContain("bunx anvil init --lang typescript");
+    expect(commandSteps).toContain("AGENTS.md");
+    expect(commandSteps).toContain(".anvil.lock");
+    expect(commandSteps).toContain("make check");
     expect(index).toContain('class="anvil-signal-grid"');
+    expect(index).not.toContain("anvil-hero.svg");
+    expect(index).not.toContain('class="anvil-hero-art"');
+    expect(index).not.toMatch(/<(?:img|svg)\b/i);
     expect(indexFrontmatter.tableOfContents).toBe(false);
+    expect(existsSync(path.join(repoRoot, "docs/public/anvil-hero.svg"))).toBe(false);
     expect(customCss).toContain(".anvil-hero");
+    expect(customCss).toContain(".anvil-command-panel");
+    expect(customCss).toContain(".anvil-command-steps");
     expect(customCss).toContain(".anvil-signal-card");
-    expect(customCss).toMatch(
-      /\.content-panel:has\(\.anvil-hero\) \.sl-container\s*\{\s*max-width: min\(100%, 67\.5rem\);/,
-    );
-    expect(customCss).not.toMatch(/(?:^|\n)\.sl-container\s*\{[^}]*max-width: min\(100%, 67\.5rem\);/);
+    expect(customCss).toMatch(/\.content-panel:has\(\+ \.content-panel \.anvil-hero\)\s*\{[^}]*position: absolute;/);
+    expect(customCss).toMatch(/\.content-panel:has\(\+ \.content-panel \.anvil-hero\)\s*\{[^}]*clip-path: inset\(50%\);/);
+    expect(customCss).not.toMatch(/\.content-panel:has\(\+ \.content-panel \.anvil-hero\)\s*\{[^}]*display: none;/);
+    expect(customCss).toMatch(/\.anvil-hero\s*\{[^}]*text-align: center;/);
+    expect(customCss).toMatch(/\.content-panel:has\(\.anvil-hero\) \.sl-container\s*\{[^}]*max-width:/);
+    expect(customCss).not.toMatch(/(?:^|\n)\.sl-container\s*\{[^}]*max-width:/);
     expect(customCss).toContain("@media (max-width: 72rem)");
-    expect(heroSvg).toContain("<svg");
-    expect(heroSvg).toContain("agent-ready scaffold");
-    expect(heroSvg).not.toMatch(/\b(?:href|src)="https?:\/\//);
   });
 });
 
