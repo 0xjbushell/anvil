@@ -69,6 +69,30 @@ The published docs live at <https://0xjbushell.github.io/anvil/> and cover the h
   </div>
 </section>
 
+<section class="anvil-copy-section" aria-labelledby="backpressure">
+  <p class="anvil-section-kicker">Backpressure for agentic engineering</p>
+  <h2 id="backpressure">Slow the agent down at the moment quality starts to drift.</h2>
+  <p>Agentic engineering needs backpressure: visible local feedback that stops a coding agent from compounding a vague assumption into a large, polished-looking diff. Anvil puts that pressure in the repository through generated rules, Makefile gates, provenance, and repo-local instructions.</p>
+
+  <div class="anvil-backpressure-strip" aria-label="Backpressure model">
+    <article>
+      <span>Prompt</span>
+      <strong>Intent enters the repo</strong>
+      <p>The human asks for a change. <code>AGENTS.md</code> and seed/reference code give the agent concrete local conventions before it edits.</p>
+    </article>
+    <article>
+      <span>Pressure</span>
+      <strong>Automation rejects weak work</strong>
+      <p>Lint, typecheck, security, tests, coverage, dead-code, CRAP, audit, and mutation gates turn quality expectations into executable feedback.</p>
+    </article>
+    <article>
+      <span>Correction</span>
+      <strong>The next loop is smaller</strong>
+      <p>The agent fixes the failing signal, reruns the narrow target, and reports evidence instead of asking the reviewer to find drift later.</p>
+    </article>
+  </div>
+</section>
+
 <section class="anvil-copy-section" aria-labelledby="guardrails">
   <p class="anvil-section-kicker">Guardrails Anvil wires in</p>
   <h2 id="guardrails">Quality gates that catch drift early.</h2>

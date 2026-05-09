@@ -273,6 +273,7 @@ describe("TIX-000092 README and docs navigation", () => {
 
   test("explains Anvil's value, guardrails, and feedback loops without unsupported claims", () => {
     const index = read("docs/src/content/docs/index.md");
+    const howItWorks = read("docs/src/content/docs/how-anvil-works.md");
     const customCss = read("docs/src/styles/custom.css");
     const makeTargetSets = [
       makeTargets("src/templates/typescript/Makefile.ejs"),
@@ -291,14 +292,30 @@ describe("TIX-000092 README and docs navigation", () => {
       expect(index).toContain(heading);
     }
 
+    expect(index).toContain("Backpressure for agentic engineering");
+    expect(index).toContain("backpressure");
+    expect(index).toContain("visible local feedback");
+
     for (const selector of [
       "anvil-value-grid",
       "anvil-guardrail-grid",
       "anvil-rule-grid",
       "anvil-flow",
       "anvil-agent-loop",
+      "anvil-backpressure-strip",
     ]) {
       expect(hasHtmlClass(index, selector)).toBe(true);
+      expect(customCss).toMatch(new RegExp(`\\.${selector}(?![-_a-zA-Z0-9])`));
+    }
+
+    for (const selector of [
+      "anvil-system-map",
+      "anvil-architecture-stage",
+      "anvil-feedback-loop",
+      "anvil-pressure-grid",
+      "anvil-tier-table",
+    ]) {
+      expect(hasHtmlClass(howItWorks, selector)).toBe(true);
       expect(customCss).toMatch(new RegExp(`\\.${selector}(?![-_a-zA-Z0-9])`));
     }
 
@@ -334,6 +351,24 @@ describe("TIX-000092 README and docs navigation", () => {
       expect(index).toContain(required);
     }
 
+    for (const required of [
+      "backpressure",
+      "FsTree",
+      "direct scaffold",
+      ".anvil.lock",
+      "AGENTS.md",
+      "seed/reference code",
+      "dry-run",
+      "non-interactive",
+      "make check",
+      "make quality",
+      "local feedback loop",
+      "CI-ready",
+      "deployment system remains a project decision",
+    ]) {
+      expect(howItWorks).toContain(required);
+    }
+
     for (const target of makeMentions) {
       for (const targetSet of makeTargetSets) {
         expect(targetSet.has(target)).toBe(true);
@@ -342,8 +377,12 @@ describe("TIX-000092 README and docs navigation", () => {
 
     expect(index).not.toMatch(/\bmake\s+doctor\b/);
     expect(index).not.toMatch(/generate(?:s|d)? deployment CI/i);
+    expect(howItWorks).not.toMatch(/\bmake\s+doctor\b/);
+    expect(howItWorks).not.toMatch(/generate(?:s|d)? deployment CI/i);
     expect(index).not.toMatch(/\b(disposable|throwaway|deleteable|starter code you can delete)\b/i);
+    expect(howItWorks).not.toMatch(/\b(disposable|throwaway|deleteable|starter code you can delete)\b/i);
     expect(index).not.toMatch(/\b(trusted by|thousands of|guarantee[sd]?)\b/i);
+    expect(howItWorks).not.toMatch(/\b(trusted by|thousands of|guarantee[sd]?)\b/i);
   });
 });
 

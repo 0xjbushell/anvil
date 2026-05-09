@@ -3,7 +3,7 @@ title: CLI Reference
 description: Current Anvil commands and flags.
 ---
 
-Anvil v1 operates on the current working directory. There is no `--target-dir` flag; run Anvil from the repository or project directory you want to scaffold.
+Anvil v1 operates on the current working directory. There is no `--target-dir` flag; run Anvil from the repository or project directory you want to scaffold. This keeps agent-assisted adoption explicit: the agent must inspect where it is before writing files.
 
 | Command | Purpose |
 | --- | --- |
@@ -18,11 +18,13 @@ Anvil v1 operates on the current working directory. There is no `--target-dir` f
 
 `init` requires `--lang` and accepts exactly `typescript`, `golang`, or `python`.
 
-Use `--dry-run` before adopting an existing repository to preview creates and updates without writing to disk. Use `--non-interactive` only when you intentionally want headless behavior; if conflicts are found, Anvil reports them and exits without writing any files.
+Use `--dry-run` before adopting an existing repository to preview creates and updates without writing to disk. Dry-run uses the same render path as a real scaffold, so it is a meaningful preview rather than a separate approximation.
+
+Use `--non-interactive` only when you intentionally want headless behavior. If conflicts are found, Anvil reports them and exits without writing any files. That is the safe mode for automation and coding agents: no silent prompt defaults, no blind overwrites.
 
 ## `doctor`
 
-`doctor` verifies generated lint and quality configuration. It applies non-destructive fixes and reports issues that need manual review.
+`doctor` verifies generated lint and quality configuration. It applies non-destructive fixes and reports issues that need manual review. Use it when `.anvil.lock`, generated hooks, lint configuration, or validation targets appear to have drifted.
 
 ## Exit codes
 
