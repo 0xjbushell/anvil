@@ -1,5 +1,6 @@
 :root {
   --anvil-hot: #ff7a1a;
+  --anvil-hot-text: #9a3b00;
   --anvil-gold: #ffd166;
   --anvil-blue: #39c5ff;
   --anvil-violet: #8b5cf6;
@@ -10,6 +11,7 @@
 }
 
 :root[data-theme="dark"] {
+  --anvil-hot-text: var(--anvil-hot);
   --anvil-card-bg: rgba(8, 13, 28, 0.72);
   --anvil-card-border: rgba(148, 163, 184, 0.22);
   --anvil-card-shadow: 0 22px 70px rgba(0, 0, 0, 0.34);
@@ -265,8 +267,205 @@ body {
   color: #475467;
 }
 
+.anvil-copy-section {
+  margin: clamp(2.75rem, 6vw, 4.5rem) 0;
+}
+
+.anvil-section-kicker {
+  margin: 0 0 0.55rem;
+  color: var(--anvil-hot-text);
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.anvil-copy-section h2 {
+  max-width: 14ch;
+  margin: 0 0 1rem;
+  font-size: clamp(1.8rem, 4.2vw, 3.4rem);
+  line-height: 1;
+  letter-spacing: -0.045em;
+}
+
+.anvil-copy-section > p:not(.anvil-section-kicker) {
+  max-width: 48rem;
+  color: var(--sl-color-gray-3);
+  font-size: 1.04rem;
+}
+
+:root[data-theme="light"] .anvil-copy-section > p:not(.anvil-section-kicker) {
+  color: #475467;
+}
+
+.anvil-value-grid,
+.anvil-guardrail-grid,
+.anvil-rule-grid {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.35rem;
+}
+
+.anvil-value-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.anvil-guardrail-grid,
+.anvil-rule-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.anvil-value-grid > *,
+.anvil-guardrail-grid > *,
+.anvil-rule-grid > *,
+.anvil-flow > *,
+.anvil-agent-loop > * {
+  min-width: 0;
+}
+
+.anvil-value-grid article,
+.anvil-guardrail-grid article,
+.anvil-rule-grid article,
+.anvil-flow article,
+.anvil-agent-loop article {
+  border: 1px solid var(--anvil-card-border);
+  border-radius: 1.15rem;
+  background:
+    linear-gradient(145deg, rgba(57, 197, 255, 0.08), transparent 48%),
+    var(--anvil-card-bg);
+  box-shadow: 0 12px 32px rgba(17, 24, 39, 0.07);
+}
+
+.anvil-value-grid article,
+.anvil-guardrail-grid article,
+.anvil-rule-grid article {
+  padding: 1.2rem;
+}
+
+.anvil-value-grid span,
+.anvil-guardrail-grid span,
+.anvil-agent-loop span {
+  display: inline-flex;
+  width: fit-content;
+  margin-bottom: 0.7rem;
+  padding: 0.22rem 0.55rem;
+  border: 1px solid rgba(255, 122, 26, 0.25);
+  border-radius: 999px;
+  color: var(--anvil-hot-text);
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.anvil-value-grid strong,
+.anvil-guardrail-grid strong,
+.anvil-rule-grid strong,
+.anvil-flow strong,
+.anvil-agent-loop strong {
+  display: block;
+  margin-bottom: 0.55rem;
+  color: var(--sl-color-text);
+  font-size: 1.05rem;
+  line-height: 1.2;
+}
+
+.anvil-value-grid p,
+.anvil-guardrail-grid p,
+.anvil-rule-grid p,
+.anvil-flow p {
+  margin: 0;
+  color: var(--sl-color-gray-3);
+  font-size: 0.92rem;
+}
+
+:root[data-theme="light"] .anvil-value-grid p,
+:root[data-theme="light"] .anvil-guardrail-grid p,
+:root[data-theme="light"] .anvil-rule-grid p,
+:root[data-theme="light"] .anvil-flow p {
+  color: #475467;
+}
+
+.anvil-rule-grid article {
+  border-left: 3px solid rgba(57, 197, 255, 0.55);
+}
+
+.anvil-flow {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1.35rem;
+}
+
+.anvil-flow article {
+  position: relative;
+  padding: 1.1rem;
+}
+
+.anvil-flow article:not(:last-child)::after {
+  position: absolute;
+  top: 1.25rem;
+  right: -0.9rem;
+  z-index: 2;
+  width: 1.8rem;
+  height: 1.8rem;
+  border: 1px solid var(--anvil-card-border);
+  border-radius: 999px;
+  background: var(--sl-color-bg);
+  color: var(--anvil-blue);
+  content: "->";
+  font-family: var(--sl-font-mono);
+  font-size: 0.76rem;
+  font-weight: 900;
+  line-height: 1.7rem;
+  text-align: center;
+}
+
+.anvil-flow span {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  margin-bottom: 0.8rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--anvil-hot), var(--anvil-gold));
+  color: #18181b;
+  font-weight: 900;
+}
+
+.anvil-agent-loop {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1.35rem;
+}
+
+.anvil-agent-loop article {
+  position: relative;
+  padding: 1rem;
+  overflow: hidden;
+}
+
+.anvil-agent-loop article::after {
+  position: absolute;
+  right: 0.85rem;
+  bottom: 0.65rem;
+  color: var(--anvil-blue);
+  content: "loop";
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  opacity: 0.42;
+  text-transform: uppercase;
+}
+
 @media (max-width: 72rem) {
-  .anvil-signal-grid {
+  .anvil-signal-grid,
+  .anvil-value-grid,
+  .anvil-guardrail-grid,
+  .anvil-rule-grid,
+  .anvil-flow,
+  .anvil-agent-loop {
     grid-template-columns: 1fr;
   }
 
@@ -276,6 +475,13 @@ body {
 
   .anvil-command-steps {
     grid-template-columns: 1fr;
+  }
+
+  .anvil-flow article:not(:last-child)::after {
+    top: auto;
+    right: 1rem;
+    bottom: -0.95rem;
+    transform: rotate(90deg);
   }
 }
 

@@ -52,6 +52,37 @@ type DocsFrontmatter = {
   tableOfContents?: unknown;
 };
 
+function makeTargets(rel: string): Set<string> {
+  const match = read(rel).match(/^\.PHONY:\s+(?<targets>[^\n]+)/m);
+
+  expect(match?.groups?.targets).toBeDefined();
+  return new Set((match?.groups?.targets ?? "").trim().split(/\s+/));
+}
+
+function hasHtmlClass(markup: string, className: string): boolean {
+  return Array.from(markup.matchAll(/class="(?<classes>[^"]*)"/g)).some((match) =>
+    (match.groups?.classes ?? "").split(/\s+/).includes(className),
+  );
+}
+
+function makeCommandMentions(markdown: string): string[] {
+  const targets: string[] = [];
+
+  for (const match of markdown.matchAll(/`make\s+([a-z][a-z-]*)`/g)) {
+    targets.push(match[1]);
+  }
+  for (const fence of markdown.matchAll(/```[\s\S]*?```/g)) {
+    for (const match of fence[0].matchAll(/\bmake\s+([a-z][a-z-]*)\b/g)) {
+      targets.push(match[1]);
+    }
+  }
+  for (const match of markdown.matchAll(/>\s*make\s+([a-z][a-z-]*)\s*</g)) {
+    targets.push(match[1]);
+  }
+
+  return targets;
+}
+
 function docsFrontmatter(rel: string): DocsFrontmatter {
   const match = read(rel).match(/^---\n(?<frontmatter>[\s\S]*?)\n---/);
 
@@ -238,6 +269,81 @@ describe("TIX-000092 README and docs navigation", () => {
     expect(customCss).toMatch(/\.content-panel:has\(\.anvil-hero\) \.sl-container\s*\{[^}]*max-width:/);
     expect(customCss).not.toMatch(/(?:^|\n)\.sl-container\s*\{[^}]*max-width:/);
     expect(customCss).toContain("@media (max-width: 72rem)");
+  });
+
+  test("explains Anvil's value, guardrails, and feedback loops without unsupported claims", () => {
+    const index = read("docs/src/content/docs/index.md");
+    const customCss = read("docs/src/styles/custom.css");
+    const makeTargetSets = [
+      makeTargets("src/templates/typescript/Makefile.ejs"),
+      makeTargets("src/templates/golang/Makefile.ejs"),
+      makeTargets("src/templates/python/Makefile.ejs"),
+    ];
+    const makeMentions = makeCommandMentions(index);
+
+    for (const heading of [
+      "Why Anvil",
+      "Guardrails Anvil wires in",
+      "What the lint rules catch",
+      "Development workflow",
+      "Agent feedback loop",
+    ]) {
+      expect(index).toContain(heading);
+    }
+
+    for (const selector of [
+      "anvil-value-grid",
+      "anvil-guardrail-grid",
+      "anvil-rule-grid",
+      "anvil-flow",
+      "anvil-agent-loop",
+    ]) {
+      expect(hasHtmlClass(index, selector)).toBe(true);
+      expect(customCss).toMatch(new RegExp(`\\.${selector}(?![-_a-zA-Z0-9])`));
+    }
+
+    for (const required of [
+      "typecheck",
+      "lint",
+      "test",
+      "coverage",
+      "deadcode",
+      "CRAP",
+      "audit",
+      "mutation",
+      "gitleaks",
+      "AGENTS.md",
+      ".anvil.lock",
+      "seed/reference code",
+      "dry-run",
+      "non-interactive runs report conflicts and write nothing",
+      "anvil doctor",
+      "no-log-and-continue",
+      "no-error-obscuring",
+      "no-silent-error-swallow",
+      "require-structured-logging",
+      "no-placeholder-comments",
+      "require-test-files",
+      "max file length",
+      "max function length",
+      "no-over-fragmentation",
+      "no-empty-tests",
+      "require-error-path-tests",
+      "no-disabled-tests-without-reason",
+    ]) {
+      expect(index).toContain(required);
+    }
+
+    for (const target of makeMentions) {
+      for (const targetSet of makeTargetSets) {
+        expect(targetSet.has(target)).toBe(true);
+      }
+    }
+
+    expect(index).not.toMatch(/\bmake\s+doctor\b/);
+    expect(index).not.toMatch(/generate(?:s|d)? deployment CI/i);
+    expect(index).not.toMatch(/\b(disposable|throwaway|deleteable|starter code you can delete)\b/i);
+    expect(index).not.toMatch(/\b(trusted by|thousands of|guarantee[sd]?)\b/i);
   });
 });
 
