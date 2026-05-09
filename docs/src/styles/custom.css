@@ -37,6 +37,10 @@ body {
   box-shadow: var(--anvil-card-shadow);
 }
 
+.content-panel:has(.anvil-hero) .sl-container {
+  max-width: min(100%, 67.5rem);
+}
+
 .anvil-hero::before,
 .anvil-hero::after {
   position: absolute;
@@ -72,19 +76,20 @@ body {
 .anvil-eyebrow {
   margin: 0 0 0.75rem;
   color: var(--anvil-hot);
-  font-size: 0.78rem;
+  font-size: clamp(0.72rem, 1.4vw, 0.82rem);
   font-weight: 800;
-  letter-spacing: 0.16em;
+  line-height: 1.2;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
 .anvil-hero h2 {
-  max-width: 12ch;
+  max-width: 15ch;
   margin: 0;
   color: var(--sl-color-white);
-  font-size: clamp(2.35rem, 7vw, 4.8rem);
-  line-height: 0.94;
-  letter-spacing: -0.07em;
+  font-size: clamp(2.1rem, 5.8vw, 4.45rem);
+  line-height: 0.98;
+  letter-spacing: -0.045em;
 }
 
 :root[data-theme="light"] .anvil-hero h2 {
@@ -212,7 +217,7 @@ body {
   color: #475467;
 }
 
-@media (max-width: 52rem) {
+@media (max-width: 72rem) {
   .anvil-hero,
   .anvil-signal-grid {
     grid-template-columns: 1fr;

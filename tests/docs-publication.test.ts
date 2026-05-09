@@ -48,6 +48,17 @@ type SkillFrontmatter = {
   description?: string;
 };
 
+type DocsFrontmatter = {
+  tableOfContents?: unknown;
+};
+
+function docsFrontmatter(rel: string): DocsFrontmatter {
+  const match = read(rel).match(/^---\n(?<frontmatter>[\s\S]*?)\n---/);
+
+  expect(match?.groups?.frontmatter).toBeDefined();
+  return parseYaml(match?.groups?.frontmatter ?? "") as DocsFrontmatter;
+}
+
 function skillMarkdown(): string {
   return read("docs/public/skills/anvil/SKILL.md");
 }
@@ -199,14 +210,21 @@ describe("TIX-000092 README and docs navigation", () => {
 
   test("adds visual homepage affordances without external assets", () => {
     const index = read("docs/src/content/docs/index.md");
+    const indexFrontmatter = docsFrontmatter("docs/src/content/docs/index.md");
     const customCss = read("docs/src/styles/custom.css");
     const heroSvg = read("docs/public/anvil-hero.svg");
 
     expect(index).toContain('class="anvil-hero"');
     expect(index).toContain('src="/anvil/anvil-hero.svg"');
     expect(index).toContain('class="anvil-signal-grid"');
+    expect(indexFrontmatter.tableOfContents).toBe(false);
     expect(customCss).toContain(".anvil-hero");
     expect(customCss).toContain(".anvil-signal-card");
+    expect(customCss).toMatch(
+      /\.content-panel:has\(\.anvil-hero\) \.sl-container\s*\{\s*max-width: min\(100%, 67\.5rem\);/,
+    );
+    expect(customCss).not.toMatch(/(?:^|\n)\.sl-container\s*\{[^}]*max-width: min\(100%, 67\.5rem\);/);
+    expect(customCss).toContain("@media (max-width: 72rem)");
     expect(heroSvg).toContain("<svg");
     expect(heroSvg).toContain("agent-ready scaffold");
     expect(heroSvg).not.toMatch(/\b(?:href|src)="https?:\/\//);

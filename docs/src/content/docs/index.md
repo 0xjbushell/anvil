@@ -1,6 +1,7 @@
 ---
 title: Anvil
 description: Agent-ready project scaffolding for TypeScript/JavaScript, Go, and Python.
+tableOfContents: false
 ---
 
 <div class="anvil-hero" aria-label="Anvil overview">
