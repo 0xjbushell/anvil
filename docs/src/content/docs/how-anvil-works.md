@@ -42,6 +42,8 @@ The product idea is simple: coding agents need backpressure. Without visible loc
 - `.anvil.lock` with generated-file provenance and toolchain versions.
 - Language-specific lint rules, test quality checks, dependency audit wiring, Nix development shells, and seed/reference code.
 
+For the tool-by-tool breakdown, see [Development Environment](/anvil/development-environment/).
+
 <div class="anvil-architecture-stage" aria-label="Generated project surfaces">
   <article>
     <span>Guide</span>

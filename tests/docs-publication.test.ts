@@ -175,6 +175,7 @@ describe("TIX-000092 README and docs navigation", () => {
     "installation",
     "cli-reference",
     "how-anvil-works",
+    "development-environment",
     "existing-projects",
     "using-with-coding-agents",
     "troubleshooting",
@@ -506,6 +507,118 @@ describe("TIX-000095 human docs content", () => {
     expect(examples).toContain("--dry-run");
     expect(examples).not.toContain("anvil update");
     expect(examples).not.toContain("generate CI");
+  });
+
+  test("documents the generated development environment and agent operating model", () => {
+    const environment = read("docs/src/content/docs/development-environment.md");
+    const makeTargetSets = [
+      makeTargets("src/templates/typescript/Makefile.ejs"),
+      makeTargets("src/templates/golang/Makefile.ejs"),
+      makeTargets("src/templates/python/Makefile.ejs"),
+    ];
+
+    for (const required of [
+      "generated project development environment",
+      "not the Anvil contributor environment",
+      "Makefile",
+      "pre-commit",
+      "pre-push",
+      "Nix",
+      "AGENTS.md",
+      ".anvil.lock",
+      "seed/reference code",
+      "required tools are hard requirements",
+      "never silently omit required targets",
+      "nix develop path:. --command make check",
+    ]) {
+      expect(environment).toContain(required);
+    }
+
+    for (const tool of [
+      "ESLint",
+      "typescript-eslint",
+      "eslint-plugin-security",
+      "Prettier",
+      "tsc --noEmit",
+      "Vitest",
+      "Knip",
+      "StrykerJS",
+      "bun audit",
+      "golangci-lint",
+      "go vet -vettool",
+      "gofmt",
+      "staticcheck",
+      "go test",
+      "govulncheck",
+      "deadcode",
+      "go-mutesting",
+      "Ruff",
+      "Flake8",
+      "mypy",
+      "pytest",
+      "pytest-cov",
+      "Vulture",
+      "mutmut",
+      "pytest-crap",
+      "pip-audit",
+      "gitleaks",
+    ]) {
+      expect(environment).toContain(tool);
+    }
+
+    for (const rule of [
+      "no-log-and-continue",
+      "no-error-obscuring",
+      "no-placeholder-comments",
+      "no-pass-through-wrapper",
+      "no-log-and-throw",
+      "require-structured-logging",
+      "require-test-files",
+      "no-silent-error-swallow",
+      "no-async-noise",
+      "types-file-organization",
+      "errors-file-organization",
+      "constants-file-organization",
+      "enums-file-organization",
+      "filename-match-export",
+      "no-exported-function-expressions",
+      "no-barrel-density",
+      "no-over-fragmentation",
+      "no-empty-tests",
+      "no-tautological-assertions",
+      "no-disabled-tests-without-reason",
+      "require-error-path-tests",
+      "no-snapshot-only-tests",
+      "ANV001",
+      "ANV101",
+      "ANV201",
+      "filelength",
+      "noexportedfunctionexpressions",
+    ]) {
+      expect(environment).toContain(rule);
+    }
+
+    for (const expectedOperation of [
+      "Read the generated README and AGENTS.md",
+      "Run the narrowest relevant target first",
+      "Fix the first failing target",
+      "Run make check before handoff",
+      "Run make quality at the final quality boundary",
+      "Report evidence",
+    ]) {
+      expect(environment).toContain(expectedOperation);
+    }
+
+    for (const target of makeCommandMentions(environment)) {
+      for (const targetSet of makeTargetSets) {
+        expect(targetSet.has(target)).toBe(true);
+      }
+    }
+
+    expect(environment).not.toMatch(/\bmake\s+doctor\b/);
+    expect(environment).not.toMatch(/generate(?:s|d)? deployment CI/i);
+    expect(environment).not.toMatch(/\b(disposable|throwaway|deleteable|starter code you can delete)\b/i);
+    expect(environment).not.toMatch(/\b(trusted by|thousands of|guarantee[sd]?)\b/i);
   });
 });
 

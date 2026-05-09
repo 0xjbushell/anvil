@@ -32,7 +32,7 @@ After generation, install the language dependencies shown in the generated READM
 make check
 ```
 
-`make check` is the normal handoff gate. It pulls together the everyday signals: linting, formatting, type checking, security checks, tests, coverage, dead-code detection, CRAP scoring, and dependency audit where those targets apply.
+`make check` is the normal handoff gate. It pulls together the everyday signals: linting, formatting, type checking, security checks, tests, coverage, dead-code detection, CRAP scoring, and dependency audit where those targets apply. The [Development Environment](/anvil/development-environment/) page explains the generated tools and rule families in detail.
 
 When a target fails, fix the first failing cause and rerun that target before rerunning `make check`. That is Anvil's backpressure loop: the repository gives the agent or human a small correction signal, then the next loop proves the fix.
 

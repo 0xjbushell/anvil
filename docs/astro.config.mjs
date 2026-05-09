@@ -25,6 +25,7 @@ export default defineConfig({
           items: [
             { label: "CLI Reference", slug: "cli-reference" },
             { label: "How Anvil Works", slug: "how-anvil-works" },
+            { label: "Development Environment", slug: "development-environment" },
             { label: "Using with Coding Agents", slug: "using-with-coding-agents" },
             { label: "Troubleshooting", slug: "troubleshooting" },
           ],
