@@ -2,6 +2,8 @@
 
 Anvil is an agent-ready project scaffolder for TypeScript/JavaScript, Go, and Python. It installs strict local validation gates, seed/reference code, and concise agent guidance so humans and coding agents can build inside the same guardrails.
 
+It turns agentic engineering backpressure into ordinary repository files: local checks fail early, generated conventions stay visible, and agents get concrete feedback before code reaches review.
+
 ## Installation
 
 Start a new project with Bun:

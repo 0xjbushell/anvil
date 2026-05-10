@@ -48,6 +48,48 @@ type SkillFrontmatter = {
   description?: string;
 };
 
+type DocsFrontmatter = {
+  tableOfContents?: unknown;
+};
+
+function makeTargets(rel: string): Set<string> {
+  const match = read(rel).match(/^\.PHONY:\s+(?<targets>[^\n]+)/m);
+
+  expect(match?.groups?.targets).toBeDefined();
+  return new Set((match?.groups?.targets ?? "").trim().split(/\s+/));
+}
+
+function hasHtmlClass(markup: string, className: string): boolean {
+  return Array.from(markup.matchAll(/class="(?<classes>[^"]*)"/g)).some((match) =>
+    (match.groups?.classes ?? "").split(/\s+/).includes(className),
+  );
+}
+
+function makeCommandMentions(markdown: string): string[] {
+  const targets: string[] = [];
+
+  for (const match of markdown.matchAll(/`make\s+([a-z][a-z-]*)`/g)) {
+    targets.push(match[1]);
+  }
+  for (const fence of markdown.matchAll(/```[\s\S]*?```/g)) {
+    for (const match of fence[0].matchAll(/\bmake\s+([a-z][a-z-]*)\b/g)) {
+      targets.push(match[1]);
+    }
+  }
+  for (const match of markdown.matchAll(/>\s*make\s+([a-z][a-z-]*)\s*</g)) {
+    targets.push(match[1]);
+  }
+
+  return targets;
+}
+
+function docsFrontmatter(rel: string): DocsFrontmatter {
+  const match = read(rel).match(/^---\n(?<frontmatter>[\s\S]*?)\n---/);
+
+  expect(match?.groups?.frontmatter).toBeDefined();
+  return parseYaml(match?.groups?.frontmatter ?? "") as DocsFrontmatter;
+}
+
 function skillMarkdown(): string {
   return read("docs/public/skills/anvil/SKILL.md");
 }
@@ -133,6 +175,7 @@ describe("TIX-000092 README and docs navigation", () => {
     "installation",
     "cli-reference",
     "how-anvil-works",
+    "development-environment",
     "existing-projects",
     "using-with-coding-agents",
     "troubleshooting",
@@ -199,17 +242,148 @@ describe("TIX-000092 README and docs navigation", () => {
 
   test("adds visual homepage affordances without external assets", () => {
     const index = read("docs/src/content/docs/index.md");
+    const indexFrontmatter = docsFrontmatter("docs/src/content/docs/index.md");
     const customCss = read("docs/src/styles/custom.css");
-    const heroSvg = read("docs/public/anvil-hero.svg");
+    const commandSteps = index.match(/<div class="anvil-command-steps"[\s\S]*?<\/div>/)?.[0] ?? "";
 
     expect(index).toContain('class="anvil-hero"');
-    expect(index).toContain('src="/anvil/anvil-hero.svg"');
+    expect(index).toContain('class="anvil-command-panel"');
+    expect(index).toContain('class="anvil-command-steps"');
+    expect(index).toContain("bunx anvil init --lang typescript");
+    expect(commandSteps).toContain("AGENTS.md");
+    expect(commandSteps).toContain(".anvil.lock");
+    expect(commandSteps).toContain("make check");
     expect(index).toContain('class="anvil-signal-grid"');
+    expect(index).not.toContain("anvil-hero.svg");
+    expect(index).not.toContain('class="anvil-hero-art"');
+    expect(index).not.toMatch(/<(?:img|svg)\b/i);
+    expect(indexFrontmatter.tableOfContents).toBe(false);
+    expect(existsSync(path.join(repoRoot, "docs/public/anvil-hero.svg"))).toBe(false);
     expect(customCss).toContain(".anvil-hero");
+    expect(customCss).toContain(".anvil-command-panel");
+    expect(customCss).toContain(".anvil-command-steps");
     expect(customCss).toContain(".anvil-signal-card");
-    expect(heroSvg).toContain("<svg");
-    expect(heroSvg).toContain("agent-ready scaffold");
-    expect(heroSvg).not.toMatch(/\b(?:href|src)="https?:\/\//);
+    expect(customCss).toMatch(/\.content-panel:has\(\+ \.content-panel \.anvil-hero\)\s*\{[^}]*position: absolute;/);
+    expect(customCss).toMatch(/\.content-panel:has\(\+ \.content-panel \.anvil-hero\)\s*\{[^}]*clip-path: inset\(50%\);/);
+    expect(customCss).not.toMatch(/\.content-panel:has\(\+ \.content-panel \.anvil-hero\)\s*\{[^}]*display: none;/);
+    expect(customCss).toMatch(/\.anvil-hero\s*\{[^}]*text-align: center;/);
+    expect(customCss).toMatch(/\.content-panel:has\(\.anvil-hero\) \.sl-container\s*\{[^}]*max-width:/);
+    expect(customCss).not.toMatch(/(?:^|\n)\.sl-container\s*\{[^}]*max-width:/);
+    expect(customCss).toContain("@media (max-width: 72rem)");
+  });
+
+  test("explains Anvil's value, guardrails, and feedback loops without unsupported claims", () => {
+    const index = read("docs/src/content/docs/index.md");
+    const howItWorks = read("docs/src/content/docs/how-anvil-works.md");
+    const customCss = read("docs/src/styles/custom.css");
+    const makeTargetSets = [
+      makeTargets("src/templates/typescript/Makefile.ejs"),
+      makeTargets("src/templates/golang/Makefile.ejs"),
+      makeTargets("src/templates/python/Makefile.ejs"),
+    ];
+    const makeMentions = makeCommandMentions(index);
+
+    for (const heading of [
+      "Why Anvil",
+      "Guardrails Anvil wires in",
+      "What the lint rules catch",
+      "Development workflow",
+      "Agent feedback loop",
+    ]) {
+      expect(index).toContain(heading);
+    }
+
+    expect(index).toContain("Backpressure for agentic engineering");
+    expect(index).toContain("backpressure");
+    expect(index).toContain("visible local feedback");
+
+    for (const selector of [
+      "anvil-value-grid",
+      "anvil-guardrail-grid",
+      "anvil-rule-grid",
+      "anvil-flow",
+      "anvil-agent-loop",
+      "anvil-backpressure-strip",
+    ]) {
+      expect(hasHtmlClass(index, selector)).toBe(true);
+      expect(customCss).toMatch(new RegExp(`\\.${selector}(?![-_a-zA-Z0-9])`));
+    }
+
+    for (const selector of [
+      "anvil-system-map",
+      "anvil-architecture-stage",
+      "anvil-feedback-loop",
+      "anvil-pressure-grid",
+      "anvil-tier-table",
+    ]) {
+      expect(hasHtmlClass(howItWorks, selector)).toBe(true);
+      expect(customCss).toMatch(new RegExp(`\\.${selector}(?![-_a-zA-Z0-9])`));
+    }
+
+    for (const required of [
+      "typecheck",
+      "lint",
+      "test",
+      "coverage",
+      "deadcode",
+      "CRAP",
+      "audit",
+      "mutation",
+      "gitleaks",
+      "AGENTS.md",
+      ".anvil.lock",
+      "seed/reference code",
+      "dry-run",
+      "non-interactive runs report conflicts and write nothing",
+      "anvil doctor",
+      "no-log-and-continue",
+      "no-error-obscuring",
+      "no-silent-error-swallow",
+      "require-structured-logging",
+      "no-placeholder-comments",
+      "require-test-files",
+      "max file length",
+      "max function length",
+      "no-over-fragmentation",
+      "no-empty-tests",
+      "require-error-path-tests",
+      "no-disabled-tests-without-reason",
+    ]) {
+      expect(index).toContain(required);
+    }
+
+    for (const required of [
+      "backpressure",
+      "FsTree",
+      "direct scaffold",
+      ".anvil.lock",
+      "AGENTS.md",
+      "seed/reference code",
+      "dry-run",
+      "non-interactive",
+      "make check",
+      "make quality",
+      "local feedback loop",
+      "CI-ready",
+      "deployment system remains a project decision",
+    ]) {
+      expect(howItWorks).toContain(required);
+    }
+
+    for (const target of makeMentions) {
+      for (const targetSet of makeTargetSets) {
+        expect(targetSet.has(target)).toBe(true);
+      }
+    }
+
+    expect(index).not.toMatch(/\bmake\s+doctor\b/);
+    expect(index).not.toMatch(/generate(?:s|d)? deployment CI/i);
+    expect(howItWorks).not.toMatch(/\bmake\s+doctor\b/);
+    expect(howItWorks).not.toMatch(/generate(?:s|d)? deployment CI/i);
+    expect(index).not.toMatch(/\b(disposable|throwaway|deleteable|starter code you can delete)\b/i);
+    expect(howItWorks).not.toMatch(/\b(disposable|throwaway|deleteable|starter code you can delete)\b/i);
+    expect(index).not.toMatch(/\b(trusted by|thousands of|guarantee[sd]?)\b/i);
+    expect(howItWorks).not.toMatch(/\b(trusted by|thousands of|guarantee[sd]?)\b/i);
   });
 });
 
@@ -333,6 +507,118 @@ describe("TIX-000095 human docs content", () => {
     expect(examples).toContain("--dry-run");
     expect(examples).not.toContain("anvil update");
     expect(examples).not.toContain("generate CI");
+  });
+
+  test("documents the generated development environment and agent operating model", () => {
+    const environment = read("docs/src/content/docs/development-environment.md");
+    const makeTargetSets = [
+      makeTargets("src/templates/typescript/Makefile.ejs"),
+      makeTargets("src/templates/golang/Makefile.ejs"),
+      makeTargets("src/templates/python/Makefile.ejs"),
+    ];
+
+    for (const required of [
+      "generated project development environment",
+      "not the Anvil contributor environment",
+      "Makefile",
+      "pre-commit",
+      "pre-push",
+      "Nix",
+      "AGENTS.md",
+      ".anvil.lock",
+      "seed/reference code",
+      "required tools are hard requirements",
+      "never silently omit required targets",
+      "nix develop path:. --command make check",
+    ]) {
+      expect(environment).toContain(required);
+    }
+
+    for (const tool of [
+      "ESLint",
+      "typescript-eslint",
+      "eslint-plugin-security",
+      "Prettier",
+      "tsc --noEmit",
+      "Vitest",
+      "Knip",
+      "StrykerJS",
+      "bun audit",
+      "golangci-lint",
+      "go vet -vettool",
+      "gofmt",
+      "staticcheck",
+      "go test",
+      "govulncheck",
+      "deadcode",
+      "go-mutesting",
+      "Ruff",
+      "Flake8",
+      "mypy",
+      "pytest",
+      "pytest-cov",
+      "Vulture",
+      "mutmut",
+      "pytest-crap",
+      "pip-audit",
+      "gitleaks",
+    ]) {
+      expect(environment).toContain(tool);
+    }
+
+    for (const rule of [
+      "no-log-and-continue",
+      "no-error-obscuring",
+      "no-placeholder-comments",
+      "no-pass-through-wrapper",
+      "no-log-and-throw",
+      "require-structured-logging",
+      "require-test-files",
+      "no-silent-error-swallow",
+      "no-async-noise",
+      "types-file-organization",
+      "errors-file-organization",
+      "constants-file-organization",
+      "enums-file-organization",
+      "filename-match-export",
+      "no-exported-function-expressions",
+      "no-barrel-density",
+      "no-over-fragmentation",
+      "no-empty-tests",
+      "no-tautological-assertions",
+      "no-disabled-tests-without-reason",
+      "require-error-path-tests",
+      "no-snapshot-only-tests",
+      "ANV001",
+      "ANV101",
+      "ANV201",
+      "filelength",
+      "noexportedfunctionexpressions",
+    ]) {
+      expect(environment).toContain(rule);
+    }
+
+    for (const expectedOperation of [
+      "Read the generated README and AGENTS.md",
+      "Run the narrowest relevant target first",
+      "Fix the first failing target",
+      "Run make check before handoff",
+      "Run make quality at the final quality boundary",
+      "Report evidence",
+    ]) {
+      expect(environment).toContain(expectedOperation);
+    }
+
+    for (const target of makeCommandMentions(environment)) {
+      for (const targetSet of makeTargetSets) {
+        expect(targetSet.has(target)).toBe(true);
+      }
+    }
+
+    expect(environment).not.toMatch(/\bmake\s+doctor\b/);
+    expect(environment).not.toMatch(/generate(?:s|d)? deployment CI/i);
+    expect(environment).not.toMatch(/\b(disposable|throwaway|deleteable|starter code you can delete)\b/i);
+    expect(environment).not.toMatch(/\b(trusted by|thousands of|guarantee[sd]?)\b/i);
   });
 });
 

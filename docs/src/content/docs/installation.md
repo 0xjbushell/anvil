@@ -3,13 +3,17 @@ title: Installation
 description: Install or run Anvil with Bun or standalone release binaries.
 ---
 
+Anvil can run through Bun for JavaScript-friendly environments or as a standalone release binary for Go, Python, CI, containers, and agent harnesses where you do not want to install Bun first.
+
 The primary path is Bun:
 
 ```bash
 bunx anvil init --lang typescript
 ```
 
-This is the simplest path for TypeScript/JavaScript projects and any environment where Bun is already available.
+This is the simplest path for TypeScript/JavaScript projects and any environment where Bun is already available. It also works for Go and Python projects if Bun is part of your local toolchain.
+
+After Anvil writes the scaffold, follow the generated README. The generated project owns its own language-specific setup, Nix shell, Makefile targets, hooks, and validation commands.
 
 ## Standalone binaries
 
@@ -40,3 +44,9 @@ ANVIL_VERSION=v0.2.0 ANVIL_INSTALL_DIR="$HOME/.local/bin" \
 ```
 
 If `ANVIL_VERSION` is unset, the installer resolves `latest`.
+
+## Choosing an install method
+
+Use Bun when you already have it, when you are evaluating quickly, or when a coding agent can run `bunx` directly. Use the standalone binary when you want a stable tool on `PATH`, are adopting a non-JavaScript repository, or are setting up a repeatable agent environment.
+
+Whichever path you choose, verify the selected command with `anvil --version` or the equivalent `bunx anvil --version` before running `init`.
