@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.2.1](https://github.com/0xjbushell/anvil/compare/v0.2.0...v0.2.1) (2026-05-10)
+
+
+### Bug Fixes
+
+* build release assets with portable bun ([e7d7808](https://github.com/0xjbushell/anvil/commit/e7d7808aa7f34b2e5710a3c26ba73bc02c09f1f6))
+* build release assets with portable Bun ([9432cb0](https://github.com/0xjbushell/anvil/commit/9432cb01e802a8d9e49e3034ce89d86d297447f7))
+* pass repo context for release dispatch ([2a6ef9b](https://github.com/0xjbushell/anvil/commit/2a6ef9b2898b3b45845703089135f538d315d717))
+* pass repo context for release dispatch ([3250bb3](https://github.com/0xjbushell/anvil/commit/3250bb3468cf84888d7533d2789a0151fec9c5f7))
+
+
+### Documentation
+
+* add public docs and agent adoption flow ([00ed4c2](https://github.com/0xjbushell/anvil/commit/00ed4c22372c95e397edf90544117fdad0c8864f))
+* add public docs and agent adoption flow ([d26a290](https://github.com/0xjbushell/anvil/commit/d26a29085a4c7ee2892f975d8c3bd843679b4103))
+* deepen public content and feedback loop visuals ([5db2b80](https://github.com/0xjbushell/anvil/commit/5db2b8087e21c31451b9e2067595798b22ecf3a1))
+* document generated development environment ([39a01ad](https://github.com/0xjbushell/anvil/commit/39a01ad1215ea3777784f85a900150321c98e781))
+* expand public overview value pitch ([02bdcf1](https://github.com/0xjbushell/anvil/commit/02bdcf1ad4bdb26dc0313e8554e519710a0c3d12))
+* fix overview hero layout ([34d9046](https://github.com/0xjbushell/anvil/commit/34d904698fe1c7cc74510c7ecf5d4cb8c11b509f))
+* polish public homepage visuals ([c3e4980](https://github.com/0xjbushell/anvil/commit/c3e49809ad9f972c073c3242c6f8522004fa8925))
+* polish public homepage visuals ([6777e2a](https://github.com/0xjbushell/anvil/commit/6777e2af75b22c7d2730cbb25b275612a136c4b4))
+* simplify overview hero ([24b9a1c](https://github.com/0xjbushell/anvil/commit/24b9a1cfee5c15917daaa51b11b0746f35760c3e))
+
 ## [0.2.0](https://github.com/0xjbushell/anvil/compare/v0.1.0...v0.2.0) (2026-05-04)
 
 
